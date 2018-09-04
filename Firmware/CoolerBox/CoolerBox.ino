@@ -4,28 +4,92 @@
 #include <Wire.h>
 #include <DallasTemperature.h>
 
-//IPAddress    apIP(42, 42, 42, 42);  // Defining a static IP address: local & gateway
-                                    // Default IP in AP mode is 192.168.4.1
+//#define USI
+#define I2C_ADDRESS 0x5E  // Buck converter address
+#define I2C_DATALEN 11  // 11 bytes
+#define LED_WARN D0   // LED indicates that peltie is under voltage and can't be just powered off
 
+
+bool I2C_PRESENT;
+uint8_t i2c_data[I2C_DATALEN-1]; //11 bytes
+
+float setVoltage;
+float changeVoltageSpeed; 
+float minVoltage; 
+float maxVoltage; 
+byte PWM_value;
+float measuredVoltage; 
+float measuredCurrent; 
+
+// Default IP in AP mode is 192.168.4.1
 const char *ssid = "Cooler";
 const char *password = "1234Test";
 
 // Define a web server at port 80 for HTTP
 ESP8266WebServer server(80);
 
-const int Load1 = D5; // an LED
+const int Load1 = D5; // Cooler hot
 
 bool ledState = false;
-int I2Cvolt = 0;
+
+void sendI2Cdata(){
+  if(I2C_PRESENT){
+    Wire.beginTransmission(I2C_ADDRESS); //Start bit
+    Wire.write((uint8_t)(setVoltage * 10.0)); // Set Voltage
+    Wire.write((uint8_t)(changeVoltageSpeed * 10.0)); // Speed of voltae change (means 0.4v/s)
+    Wire.write((uint8_t)(minVoltage * 10.0)); //Min Voltage
+    Wire.write((uint8_t)(maxVoltage * 10.0)); //Max Voltage
+    Wire.write(0); //Only filled in Read
+    Wire.write(0); //Only filled in Read
+    Wire.write(0); //Only filled in Read
+    Wire.write(0); //Only filled in Read
+    Wire.write(0); //Only filled in Read
+    Wire.write(0); //Only filled in Read
+    Wire.write(0); //Only filled in Read
+    Wire.endTransmission();
+  }
+}
+
+void readI2Cdata(){
+    // Read data from I2CBuck
+  if(I2C_PRESENT){
+    Wire.requestFrom(I2C_ADDRESS, 11);
+    Serial.print("I2C bytes Available ");
+    Serial.print(Wire.available());
+    Serial.print(": ");
+    byte i=0;
+    while(Wire.available()!=0) {
+      i2c_data[i] = Wire.read();
+      Serial.print(i2c_data[i]);
+      Serial.print(" ");
+      //if(i==5){I2Cvolt = c;}
+      i++;
+    }
+    Serial.println();
+  }else{
+    // clear array
+    for(uint8_t i=0;i<I2C_DATALEN;i++){i2c_data[i]=0;}
+  }
+  // assign to variables
+  setVoltage = (float)i2c_data[0]/10.0;
+  changeVoltageSpeed = (float)i2c_data[1]/10.0;
+  minVoltage = (float)i2c_data[2]/10.0; 
+  maxVoltage = (float)i2c_data[3]/10.0; 
+  PWM_value = i2c_data[4];
+  measuredVoltage = (float)i2c_data[5]/10.0; 
+  measuredCurrent = (float)i2c_data[6]/10.0; 
+}
 
 void handleRoot() {
   digitalWrite (LED_BUILTIN, 0); //turn the built in LED on pin DO of NodeMCU on
-  digitalWrite (Load1, server.arg("led").toInt());
-  ledState = digitalRead(Load1);
+//  digitalWrite (Load1, server.arg("led").toInt());
+//  ledState = digitalRead(Load1);
 
  /* Dynamically generate the LED toggle link, based on its current state (on or off)*/
-  char ledText[80];
-  
+ // char ledText[80];
+  char I2CText[80];
+
+  /*
   if (ledState) {
     strcpy(ledText, "LED is on. <a href=\"/?led=0\">Turn it OFF!</a>");
   }
@@ -33,54 +97,84 @@ void handleRoot() {
   else {
     strcpy(ledText, "LED is OFF. <a href=\"/?led=1\">Turn it ON!</a>");
   }
- 
-  ledState = digitalRead(Load1);
+ */
+  if (I2C_PRESENT) {
+    strcpy(I2CText, "I2C Buck converter is connected at address 0x5E.");
+  }
+
+  else {
+    strcpy(I2CText, "I2C Buck converter is not connected.");
+  }
+
+//  ledState = digitalRead(Load1);
 
   char html[1000];
   int sec = millis() / 1000;
   int min = sec / 60;
   int hr = min / 60;
+  readI2Cdata();
 
-// Read voltage from I2CBuck
-  Wire.requestFrom(0x5E, 11);
-  Serial.print("I2C bytes Available ");
-  while(Wire.available()==0);
-  Serial.print(Wire.available());
-  Serial.print(": ");
-	byte i=0;
-  while(Wire.available()!=0) {
-    if(i==5){I2Cvolt = Wire.read();}else{Wire.read();}
-	i++;
-  }
-  Serial.println();
-  
 // Build an HTML page to display on the web-server root address
   snprintf ( html, 1000,
-
+//    <meta http-equiv='refresh' content='10'/>
 "<html>\
   <head>\
-    <meta http-equiv='refresh' content='10'/>\
-    <title>ESP8266 WiFi Network</title>\
+    <title>Cooler Box for beer</title>\
     <style>\
       body { background-color: #cccccc; font-family: Arial, Helvetica, Sans-Serif; font-size: 1.5em; Color: #000000; }\
       h1 { Color: #AA0000; }\
     </style>\
   </head>\
   <body>\
-    <h1>ESP8266 Wi-Fi Access Point and Web Server Demo</h1>\
+    <h1>Cooler Box for beer</h1>\
     <p>Uptime: %02d:%02d:%02d</p>\
-    <p>Voltage: %d%</p>\
+    <p>Set Voltage: %.1f%</p>\
+    <p>Voltage change: %.1f%</p>\
+    <p>Min Voltage: %.1f%</p>\
+    <p>Max Voltage: %.1f%</p>\
+    <p>PWM: %d%</p>\
+    <p>Measured Voltage: %.1f%</p>\
+    <p>Measured Current: %.1f%</p>\
+    <form action='/submit' method='POST'>\
+    Set volt: <input type='text' name='volt'>\
+    <input type='submit' value='Submit'>\
+    </form>\
+    <p>Click <a href=\"javascript:window.location.reload();\">here</a> to refresh the page.</p>\
     <p>%s<p>\
-    <p>This page refreshes every 10 seconds. Click <a href=\"javascript:window.location.reload();\">here</a> to refresh the page now.</p>\
   </body>\
 </html>",
 
     hr, min % 60, sec % 60,
-    I2Cvolt,
-    ledText
+    setVoltage,
+    changeVoltageSpeed,
+    minVoltage, 
+    maxVoltage,
+    PWM_value,
+    measuredVoltage, 
+    measuredCurrent, 
+    I2CText
   );
   server.send ( 200, "text/html", html );
   digitalWrite ( LED_BUILTIN, 1 );
+}
+
+
+void handleSubmit(){
+  if (server.args() > 0 ) {
+    for ( uint8_t i = 0; i < server.args(); i++ ) {
+      if (server.argName(i) == "volt") {
+         // do something here with value from server.arg(i);
+         //convert voltage to valid range
+         float tmpVolt=server.arg(i).toFloat();
+         if(tmpVolt>25.5){tmpVolt=25.5;}
+         if(tmpVolt<0){tmpVolt=0.0;}
+         setVoltage = tmpVolt;
+         sendI2Cdata();
+      }
+   }
+  }
+  server.sendHeader("Location", String("/"), true);
+  server.send ( 302, "text/plain", "");
 }
 
 void handleNotFound() {
@@ -104,29 +198,31 @@ void handleNotFound() {
 
 void setup() {
 	pinMode (Load1, OUTPUT);
-	digitalWrite (Load1, LOW);
+  digitalWrite (Load1, HIGH);
+  pinMode (LED_WARN, OUTPUT);
+  digitalWrite (LED_WARN, LOW);
 
-	Wire.begin(D1,D2);
-	Wire.setClock(100000);
-	//Wire.setClockStretchLimit(2 * 230);
+	Wire.begin(D2,D1);  // D2-sda, D1-scl
+  delay(100); // this delay is very essential for proper working of I2C line
+	Wire.setClock(50000); // higher rate is unstable
+	Wire.setClockStretchLimit(600); // this should be checked
 
 	Serial.begin(115200);
-	delay(1000);
 
-	Serial.println("Configuring I2C Buck...");
-	Wire.beginTransmission(0x5E); //Start bit
-	Wire.write(0); // Set Voltage
-	Wire.write(4); // Speed of voltae change (means 0.4v/s)
-	Wire.write(7); //Min Voltage
-	Wire.write(120); //Max Voltage
-	Wire.write(0); //Only filled in Read
-	Wire.write(0); //Only filled in Read
-	Wire.write(0); //Only filled in Read
-	Wire.write(0); //Only filled in Read
-	Wire.write(0); //Only filled in Read
-	Wire.write(0); //Only filled in Read
-	Wire.write(0); //Only filled in Read
-	Wire.endTransmission();
+	 // Detect I2C device
+  Wire.beginTransmission(I2C_ADDRESS);
+  byte error = Wire.endTransmission();
+  if (error==0){
+    I2C_PRESENT=HIGH;
+    Serial.println("I2C Buck converter fund at address 0x5E");
+  }else{
+    I2C_PRESENT=LOW;
+    Serial.println("I2C Buck converter is not connected.");
+  }
+   
+  delay(500);
+
+  readI2Cdata();
 
 	Serial.println();
 	Serial.println("Configuring access point...");
@@ -145,6 +241,7 @@ void setup() {
   server.on ( "/", handleRoot );
   server.on ( "/led=1", handleRoot);
   server.on ( "/led=0", handleRoot);
+  server.on("/submit", handleSubmit);
   server.on ( "/inline", []() {
     server.send ( 200, "text/plain", "this works as well" );
   } );
@@ -157,3 +254,5 @@ void setup() {
 void loop() {
 	server.handleClient();
 }
+
+
