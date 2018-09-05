@@ -31,6 +31,7 @@ float measuredCurrent;
 
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature DS18B20(&oneWire);
+DeviceAddress  DS18B20_adr[2];
 unsigned long DS18B20Interval=millis();
 
 
@@ -44,6 +45,18 @@ ESP8266WebServer server(80);
 const int Load1 = D5; // Cooler hot
 
 bool ledState = false;
+
+void INIT_DS18B20(){
+  DS18B20.begin();
+  int available = DS18B20.getDeviceCount();
+  for(byte x = 0; x!= available; x++)
+  {
+    if(DS18B20.getAddress(DS18B20_adr[x], x))
+    {
+      DS18B20.setResolution(DS18B20_adr[x], 12);
+    }
+  }
+}
 
 void sendI2Cdata(){
   if(I2C_PRESENT){
@@ -117,6 +130,7 @@ void handleRoot() {
 	html_head += FPSTR(HTTP_STYLE);
 	String html = FPSTR(HTTP_HEAD_END);    
 	html.replace("{Caption}", "Info");
+  html = html_head + html;
 	html += FPSTR(HTTP_MAIN_DATA);
 	html.replace("{curTemp}", String(curTemp));
 	html.replace("{setTemp}", String(setTemp));
@@ -137,10 +151,17 @@ void handleRoot() {
 
 
 void handleSetTemp(){
+  Serial.println(server.args());
   if (server.args() > 0 ) {
     for ( uint8_t i = 0; i < server.args(); i++ ) {
+       Serial.print("Received field (");
+       Serial.print(server.argName(i));
+       Serial.print("): ");
+       Serial.println(server.arg(i));
       if (server.argName(i) == "Temp") {
          //convert voltage to valid range
+         Serial.print("Variable set to: ");
+         Serial.println(server.arg(i));
          float tmpVolt=server.arg(i).toFloat();
          if(tmpVolt>25.5){tmpVolt=25.5;}
          if(tmpVolt<0){tmpVolt=0.0;}
@@ -177,6 +198,8 @@ void setup() {
 	digitalWrite (Load1, HIGH);
 	pinMode (LED_WARN, OUTPUT);
 	digitalWrite (LED_WARN, LOW);
+
+  INIT_DS18B20();
 
 	Wire.begin(D2,D1);  // D2-sda, D1-scl
 	delay(100); // this delay is very essential for proper working of I2C line
@@ -228,8 +251,8 @@ void setup() {
 void loop() {
 	server.handleClient();
 	
-	if(millis()-DS18B20Interval>5000){
-		// request temperature every 5th second
+	if(millis()-DS18B20Interval>60000){
+		// request temperature every minute
 		DS18B20Interval=millis();
 		DS18B20.requestTemperatures(); 
 		curTemp = DS18B20.getTempCByIndex(0);
