@@ -4,15 +4,23 @@
 #include <Wire.h>
 #include <DallasTemperature.h>
 
+#include "webpage.css.h"
+#include "webpage.htm.h"
+
 //#define USI
 #define I2C_ADDRESS 0x5E  // Buck converter address
 #define I2C_DATALEN 11  // 11 bytes
+
+// pins definition
 #define LED_WARN D0   // LED indicates that peltie is under voltage and can't be just powered off
+#define ONE_WIRE_BUS D6  // DS18B20 pin
 
 
 bool I2C_PRESENT;
 uint8_t i2c_data[I2C_DATALEN-1]; //11 bytes
 
+float curTemp=0;	// current measured temperature
+float setTemp=30;	// preset temperature
 float setVoltage;
 float changeVoltageSpeed; 
 float minVoltage; 
@@ -20,6 +28,11 @@ float maxVoltage;
 byte PWM_value;
 float measuredVoltage; 
 float measuredCurrent; 
+
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature DS18B20(&oneWire);
+unsigned long DS18B20Interval=millis();
+
 
 // Default IP in AP mode is 192.168.4.1
 const char *ssid = "Cooler";
@@ -81,23 +94,9 @@ void readI2Cdata(){
 }
 
 void handleRoot() {
-  digitalWrite (LED_BUILTIN, 0); //turn the built in LED on pin DO of NodeMCU on
-//  digitalWrite (Load1, server.arg("led").toInt());
-//  ledState = digitalRead(Load1);
+  digitalWrite (LED_BUILTIN, LOW); //turn the built in LED on pin DO of NodeMCU on
 
- /* Dynamically generate the LED toggle link, based on its current state (on or off)*/
- // char ledText[80];
   char I2CText[80];
-
-  /*
-  if (ledState) {
-    strcpy(ledText, "LED is on. <a href=\"/?led=0\">Turn it OFF!</a>");
-  }
-
-  else {
-    strcpy(ledText, "LED is OFF. <a href=\"/?led=1\">Turn it ON!</a>");
-  }
- */
   if (I2C_PRESENT) {
     strcpy(I2CText, "I2C Buck converter is connected at address 0x5E.");
   }
@@ -106,64 +105,41 @@ void handleRoot() {
     strcpy(I2CText, "I2C Buck converter is not connected.");
   }
 
-//  ledState = digitalRead(Load1);
-
-  char html[1000];
-  int sec = millis() / 1000;
-  int min = sec / 60;
+  unsigned long sec = millis() / 1000;
+  unsigned long min = sec / 60;
   int hr = min / 60;
+  String CurTime=String(hr)+":"+String(min % 60)+":"+String(sec % 60);
+  
   readI2Cdata();
 
 // Build an HTML page to display on the web-server root address
-  snprintf ( html, 1000,
-//    <meta http-equiv='refresh' content='10'/>
-"<html>\
-  <head>\
-    <title>Cooler Box for beer</title>\
-    <style>\
-      body { background-color: #cccccc; font-family: Arial, Helvetica, Sans-Serif; font-size: 1.5em; Color: #000000; }\
-      h1 { Color: #AA0000; }\
-    </style>\
-  </head>\
-  <body>\
-    <h1>Cooler Box for beer</h1>\
-    <p>Uptime: %02d:%02d:%02d</p>\
-    <p>Set Voltage: %.1f%</p>\
-    <p>Voltage change: %.1f%</p>\
-    <p>Min Voltage: %.1f%</p>\
-    <p>Max Voltage: %.1f%</p>\
-    <p>PWM: %d%</p>\
-    <p>Measured Voltage: %.1f%</p>\
-    <p>Measured Current: %.1f%</p>\
-    <form action='/submit' method='POST'>\
-    Set volt: <input type='text' name='volt'>\
-    <input type='submit' value='Submit'>\
-    </form>\
-    <p>Click <a href=\"javascript:window.location.reload();\">here</a> to refresh the page.</p>\
-    <p>%s<p>\
-  </body>\
-</html>",
+	String html_head = FPSTR(HTTP_HEAD_START);
+	html_head += FPSTR(HTTP_STYLE);
+	String html = FPSTR(HTTP_HEAD_END);    
+	html.replace("{Caption}", "Info");
+	html += FPSTR(HTTP_MAIN_DATA);
+	html.replace("{curTemp}", String(curTemp));
+	html.replace("{setTemp}", String(setTemp));
+	html.replace("{curTime}", CurTime);
+	html.replace("{setVoltage}", String(setVoltage));
+//        html.replace("{changeVoltageSpeed}", String(changeVoltageSpeed));
+//        html.replace("{minVoltage}", String(minVoltage));
+//        html.replace("{maxVoltage}", String(maxVoltage));
+	html.replace("{PWM}", String(PWM_value));
+	html.replace("{Voltage}", String(measuredVoltage));
+	html.replace("{Current}", String(measuredCurrent));
+	html.replace("{I2CText}", String(I2CText));
+	html += FPSTR(HTTP_END);
 
-    hr, min % 60, sec % 60,
-    setVoltage,
-    changeVoltageSpeed,
-    minVoltage, 
-    maxVoltage,
-    PWM_value,
-    measuredVoltage, 
-    measuredCurrent, 
-    I2CText
-  );
-  server.send ( 200, "text/html", html );
-  digitalWrite ( LED_BUILTIN, 1 );
+	server.send ( 200, "text/html", html );
+	digitalWrite ( LED_BUILTIN,HIGH);
 }
 
 
-void handleSubmit(){
+void handleSetTemp(){
   if (server.args() > 0 ) {
     for ( uint8_t i = 0; i < server.args(); i++ ) {
-      if (server.argName(i) == "volt") {
-         // do something here with value from server.arg(i);
+      if (server.argName(i) == "Temp") {
          //convert voltage to valid range
          float tmpVolt=server.arg(i).toFloat();
          if(tmpVolt>25.5){tmpVolt=25.5;}
@@ -178,7 +154,7 @@ void handleSubmit(){
 }
 
 void handleNotFound() {
-  digitalWrite ( LED_BUILTIN, 0 );
+  digitalWrite ( LED_BUILTIN, LOW );
   String message = "File Not Found\n\n";
   message += "URI: ";
   message += server.uri();
@@ -193,17 +169,17 @@ void handleNotFound() {
   }
 
   server.send ( 404, "text/plain", message );
-  digitalWrite ( LED_BUILTIN, 1 ); //turn the built in LED on pin DO of NodeMCU off
+  digitalWrite ( LED_BUILTIN, HIGH ); //turn the built in LED on pin DO of NodeMCU off
 }
 
 void setup() {
 	pinMode (Load1, OUTPUT);
-  digitalWrite (Load1, HIGH);
-  pinMode (LED_WARN, OUTPUT);
-  digitalWrite (LED_WARN, LOW);
+	digitalWrite (Load1, HIGH);
+	pinMode (LED_WARN, OUTPUT);
+	digitalWrite (LED_WARN, LOW);
 
 	Wire.begin(D2,D1);  // D2-sda, D1-scl
-  delay(100); // this delay is very essential for proper working of I2C line
+	delay(100); // this delay is very essential for proper working of I2C line
 	Wire.setClock(50000); // higher rate is unstable
 	Wire.setClockStretchLimit(600); // this should be checked
 
@@ -239,9 +215,7 @@ void setup() {
 	Serial.println(myIP);
  
   server.on ( "/", handleRoot );
-  server.on ( "/led=1", handleRoot);
-  server.on ( "/led=0", handleRoot);
-  server.on("/submit", handleSubmit);
+  server.on("/setTemp", handleSetTemp);
   server.on ( "/inline", []() {
     server.send ( 200, "text/plain", "this works as well" );
   } );
@@ -253,6 +227,20 @@ void setup() {
 
 void loop() {
 	server.handleClient();
-}
+	
+	if(millis()-DS18B20Interval>5000){
+		// request temperature every 5th second
+		DS18B20Interval=millis();
+		DS18B20.requestTemperatures(); 
+		curTemp = DS18B20.getTempCByIndex(0);
+	}
+	
+	
+	if(measuredVoltage==0){
+		digitalWrite (LED_WARN, LOW);
+	}else{
+		digitalWrite (LED_WARN, HIGH);
+	}
 
+}
 
