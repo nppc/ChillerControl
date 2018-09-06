@@ -65,3 +65,43 @@ document.getElementById("settemperature").style.display = (document.getElementBy
 </form>
 </div>
 )V0G0N";
+
+const char HTTP_SETTINGS_DATA[] PROGMEM = R"V0G0N(
+<BR>
+<TABLE class="values_table">
+<TR class="values_header"><TD>Temperature Sensors here</TD></TR>
+<TR><TD>Will inject data here</TR>
+</TABLE>
+
+<script>function NumberChange(n,i){document.getElementById(i).stepUp(n);}</script>
+<form action="/settings_store" method="get">
+<TABLE class="values_table">
+<BR>
+<tr class="values_header"><td colspan=4>Voltage change (V/S)</td></tr>
+<tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'VoltChange')">&#171;</button></td>
+<td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
+<input type="number" name="VoltChange" id="VoltChange" class="input" min="0.4" max="25.0" step="0.1" placeholder="V" value="{changeVoltageSpeed}"/></td>
+<td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'VoltChange')">&#187;</button></td>
+<TD rowspan=2>How fast voltage allowed to change inside DC/DC Buck converter. For example, with value 1.0 voltage will rise from 0V to 5V within 5 seconds.</TD></tr>
+<TR><TD colspan=3>&nbsp;</TD><TR>
+<tr class="values_header"><td colspan=4>Minimum Voltage (V)</td></tr>
+<tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'VoltMin')">&#171;</button></td>
+<td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
+<input type="number" name="VoltMin" id="VoltMin" class="input" min="1.0" max="12.0" step="0.1" placeholder="V" value="{minVoltage}"/></td>
+<td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'VoltMin')">&#187;</button></td>
+<TD rowspan=2>Minimum voltage that is allowed for the DC/DC to be during temperature regulation. 0 Also allowed, meaning DC/DC is off.</TD></tr>
+<TR><TD colspan=3>&nbsp;</TD><TR>
+<tr class="values_header"><td colspan=4>Maximum Voltage (V)</td></tr>
+<tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'VoltMax')">&#171;</button></td>
+<td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
+<input type="number" name="VoltMax" id="VoltMax" class="input" min="1.0" max="12.0" step="0.1" placeholder="V" value="{maxVoltage}"/></td>
+<td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'VoltMax')">&#187;</button></td>
+<TD rowspan=2>Maximum voltage that is allowed for the DC/DC to be during temperature regulation.</TD></tr>
+<TR><TD colspan=3>&nbsp;</TD><TR>
+</TABLE>
+<TABLE width="100%">
+<TR><TD><button type="submit" class="btn btn_round">Save Settings</button></form></TD>
+<TD><form action="/update" method="get"><button type="submit" class="btn btn_round">Upload Firmware</button></form></TD>
+<TD><form action="/pids" method="get"><button type="submit" class="btn btn_round">PIDs</button></form></TD></TR>
+</TABLE>
+)V0G0N";

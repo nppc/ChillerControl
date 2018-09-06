@@ -109,7 +109,6 @@ void readI2Cdata(){
 }
 
 void handleRoot() {
-  digitalWrite (LED_BUILTIN, LOW); //turn the built in LED on pin DO of NodeMCU on
 
   char I2CText[80];
   if (I2C_PRESENT) {
@@ -131,7 +130,7 @@ void handleRoot() {
 	String html_head = FPSTR(HTTP_HEAD_START);
 	html_head += FPSTR(HTTP_STYLE);
 	String html = FPSTR(HTTP_HEAD_END);    
-	html.replace("{Caption}", "Info");
+	html.replace("{Caption}", "Main Info");
   html = html_head + html;
 	html += FPSTR(HTTP_MAIN_DATA);
 	html.replace("{curTemp}", String(curTemp));
@@ -148,30 +147,68 @@ void handleRoot() {
 	html += FPSTR(HTTP_END);
 
 	httpServer.send ( 200, "text/html", html );
-	digitalWrite ( LED_BUILTIN,HIGH);
 }
 
+void handleSettings() {
+// Build an HTML page to display on the web-server 
+	String html_head = FPSTR(HTTP_HEAD_START);
+	html_head += FPSTR(HTTP_STYLE);
+	String html = FPSTR(HTTP_HEAD_END);    
+	html.replace("{Caption}", "Settings");
+	html = html_head + html;
+	html += FPSTR(HTTP_SETTINGS_DATA);
+	html.replace("{changeVoltageSpeed}", String(changeVoltageSpeed));
+	html.replace("{minVoltage}", String(minVoltage));
+	html.replace("{maxVoltage}", String(maxVoltage));
+	html += FPSTR(HTTP_END);
 
-void handleSetTemp(){
-  Serial.println(httpServer.args());
+	httpServer.send ( 200, "text/html", html );
+}
+
+void handleSettingsStore(){
   if (httpServer.args() > 0 ) {
     for ( uint8_t i = 0; i < httpServer.args(); i++ ) {
-       Serial.print("Received field (");
-       Serial.print(httpServer.argName(i));
-       Serial.print("): ");
-       Serial.println(httpServer.arg(i));
-      if (httpServer.argName(i) == "Temp") {
+      if (httpServer.argName(i) == "VoltChange") {
          //convert voltage to valid range
-         Serial.print("Variable set to: ");
-         Serial.println(httpServer.arg(i));
          float tmpVolt=httpServer.arg(i).toFloat();
-         if(tmpVolt>25.5){tmpVolt=25.5;}
-         if(tmpVolt<0){tmpVolt=0.0;}
-         setVoltage = tmpVolt;
-         sendI2Cdata();
+         if(tmpVolt>25.5){tmpVolt=changeVoltageSpeed;}	// don't change just in case.
+         if(tmpVolt<0.4){tmpVolt=0.4;}
+         changeVoltageSpeed = tmpVolt;
+      }
+      if (httpServer.argName(i) == "VoltMin") {
+         //convert voltage to valid range
+         float tmpVolt=httpServer.arg(i).toFloat();
+         if(tmpVolt>12.0){tmpVolt=minVoltage;}	// don't change just in case.
+         if(tmpVolt<1.0){tmpVolt=1.0;}
+         minVoltage = tmpVolt;
+      }
+      if (httpServer.argName(i) == "VoltMax") {
+         //convert voltage to valid range
+         float tmpVolt=httpServer.arg(i).toFloat();
+         if(tmpVolt>12.0){tmpVolt=maxVoltage;}	// don't change just in case.
+         if(tmpVolt<1.0){tmpVolt=1.0;}
+         maxVoltage = tmpVolt;
       }
    }
   }
+  sendI2Cdata();
+  httpServer.sendHeader("Location", String("/"), true);
+  httpServer.send ( 302, "text/plain", "");
+}
+
+void handleSetTemp(){
+  if (httpServer.args() > 0 ) {
+    for ( uint8_t i = 0; i < httpServer.args(); i++ ) {
+      if (httpServer.argName(i) == "Temp") {
+         //convert voltage to valid range
+         float tmpVolt=httpServer.arg(i).toFloat();
+         if(tmpVolt>25.5){tmpVolt=setVoltage;}	// don't change just in case.
+         if(tmpVolt<0){tmpVolt=0.0;}
+         setVoltage = tmpVolt;
+      }
+   }
+  }
+  sendI2Cdata();
   httpServer.sendHeader("Location", String("/"), true);
   httpServer.send ( 302, "text/plain", "");
 }
@@ -239,10 +276,13 @@ void setup() {
  
 	httpServer.on ( "/", handleRoot );
 	httpServer.on("/setTemp", handleSetTemp);
-	httpServer.on ( "/inline", []() {
-    httpServer.send ( 200, "text/plain", "this works as well" );
-  } );
+	httpServer.on("/settings", handleSettings);
+	httpServer.on("/settings_store", handleSettingsStore);
+
 	httpServer.onNotFound ( handleNotFound );
+//	httpServer.on ( "/inline", []() {
+//    httpServer.send ( 200, "text/plain", "this works as well" );
+//  } );
 	
 	httpUpdater.setup(&httpServer, "/update");
 	httpServer.begin();
