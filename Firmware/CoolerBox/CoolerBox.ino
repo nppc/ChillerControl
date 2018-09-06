@@ -4,7 +4,7 @@
 #include <OneWire.h>
 #include <Wire.h>
 #include <DallasTemperature.h>
-#include <DateTime.h>
+//#include <DateTime.h>
 
 #include "globals.h"
 #include "webpage.css.h"
@@ -34,7 +34,7 @@ float measuredCurrent;
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature DS18B20(&oneWire);
 DeviceAddress  DS18B20_adr[2];
-unsigned long DS18B20Interval=millis();
+unsigned long DS18B20Interval;
 
 
 // Default IP in AP mode is 192.168.4.1
@@ -123,13 +123,20 @@ void handleRoot() {
   //unsigned long sec = millis() / 1000;
   //unsigned long min = sec / 60;
   //int hr = min / 60;
-	int days = elapsedDays(val);
-	int hours = numberOfHours(val);
-	int minutes = numberOfMinutes(val);
-	int seconds = numberOfSeconds(val);  
+  //unsigned long val = millis();
+	//int thours = (val % tdays) / 3600000;
+	//int tminutes = ((val % 86400000) % 3600000) / 60000;
+	//int tseconds = (((val % 86400000) % 3600000) % 60000) / 1000;  
+
+  unsigned long val = millis();
+  int tdays = val / 86400000;
+  unsigned long sec = val / 1000;
+  unsigned long min = sec / 60;
+  int hr = min / 60;
+  //String CurTime=String(hr)+":"+String(min % 60)+":"+String(sec % 60);
 
 	char buf[20];
-	sprintf(buf,"%d days, %02d:%02d:%02d",days,hours,minutes,seconds);
+	sprintf(buf,"%d days, %02d:%02d:%02d",tdays,hr,min % 60,sec % 60);
 	String CurTime=String(buf);
 	
 	readI2Cdata();
@@ -272,8 +279,6 @@ void setup() {
    
 	delay(500);
 
-	DateTime.sync(0); // start the clock
-  
 	readI2Cdata();
 
 	Serial.println();
@@ -301,6 +306,11 @@ void setup() {
 	httpUpdater.setup(&httpServer, "/update");
 	httpServer.begin();
 	Serial.println("HTTP server started");
+
+    DS18B20Interval=millis();
+    DS18B20.requestTemperatures(); 
+    curTemp = DS18B20.getTempCByIndex(0);
+
 }
 
 void loop() {
