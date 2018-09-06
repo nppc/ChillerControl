@@ -4,6 +4,7 @@
 #include <OneWire.h>
 #include <Wire.h>
 #include <DallasTemperature.h>
+#include <DateTime.h>
 
 #include "globals.h"
 #include "webpage.css.h"
@@ -119,12 +120,19 @@ void handleRoot() {
     strcpy(I2CText, "I2C Buck converter is not connected.");
   }
 
-  unsigned long sec = millis() / 1000;
-  unsigned long min = sec / 60;
-  int hr = min / 60;
-  String CurTime=String(hr)+":"+String(min % 60)+":"+String(sec % 60);
-  
-  readI2Cdata();
+  //unsigned long sec = millis() / 1000;
+  //unsigned long min = sec / 60;
+  //int hr = min / 60;
+	int days = elapsedDays(val);
+	int hours = numberOfHours(val);
+	int minutes = numberOfMinutes(val);
+	int seconds = numberOfSeconds(val);  
+
+	char buf[20];
+	sprintf(buf,"%d days, %02d:%02d:%02d",days,hours,minutes,seconds);
+	String CurTime=String(buf);
+	
+	readI2Cdata();
 
 // Build an HTML page to display on the web-server root address
 	String html_head = FPSTR(HTTP_HEAD_START);
@@ -134,13 +142,13 @@ void handleRoot() {
 	html = html_head + html;
 	html += FPSTR(HTTP_MAIN_DATA);
 	html.replace("{FW}", FIRMWAREVERSION);
-	html.replace("{curTemp}", String(curTemp));
-	html.replace("{setTemp}", String(setTemp));
+	html.replace("{curTemp}", String(curTemp,1));
+	html.replace("{setTemp}", String(setTemp,1));
 	html.replace("{curTime}", CurTime);
-	html.replace("{setVoltage}", String(setVoltage));
+	html.replace("{setVoltage}", String(setVoltage,1));
 	html.replace("{PWM}", String(PWM_value));
-	html.replace("{Voltage}", String(measuredVoltage));
-	html.replace("{Current}", String(measuredCurrent));
+	html.replace("{Voltage}", String(measuredVoltage,1));
+	html.replace("{Current}", String(measuredCurrent,1));
 	html.replace("{I2CText}", String(I2CText));
 	html += FPSTR(HTTP_END);
 
@@ -155,9 +163,9 @@ void handleSettings() {
 	html.replace("{Caption}", "Settings");
 	html = html_head + html;
 	html += FPSTR(HTTP_SETTINGS_DATA);
-	html.replace("{changeVoltageSpeed}", String(changeVoltageSpeed));
-	html.replace("{minVoltage}", String(minVoltage));
-	html.replace("{maxVoltage}", String(maxVoltage));
+	html.replace("{changeVoltageSpeed}", String(changeVoltageSpeed,1));
+	html.replace("{minVoltage}", String(minVoltage,1));
+	html.replace("{maxVoltage}", String(maxVoltage,1));
 	html += FPSTR(HTTP_END);
 
 	httpServer.send ( 200, "text/html", html );
@@ -256,9 +264,11 @@ void setup() {
     Serial.println("I2C Buck converter is not connected.");
   }
    
-  delay(500);
+	delay(500);
 
-  readI2Cdata();
+	DateTime.sync(0); // start the clock
+  
+	readI2Cdata();
 
 	Serial.println();
 	Serial.println("Configuring access point...");
