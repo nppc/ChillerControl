@@ -5,10 +5,10 @@
 #include <Wire.h>
 #include <DallasTemperature.h>
 
+#include "globals.h"
 #include "webpage.css.h"
 #include "webpage.htm.h"
 
-//#define USI
 #define I2C_ADDRESS 0x5E  // Buck converter address
 #define I2C_DATALEN 11  // 11 bytes
 
@@ -131,15 +131,13 @@ void handleRoot() {
 	html_head += FPSTR(HTTP_STYLE);
 	String html = FPSTR(HTTP_HEAD_END);    
 	html.replace("{Caption}", "Main Info");
-  html = html_head + html;
+	html = html_head + html;
 	html += FPSTR(HTTP_MAIN_DATA);
+	html.replace("{FW}", FIRMWAREVERSION);
 	html.replace("{curTemp}", String(curTemp));
 	html.replace("{setTemp}", String(setTemp));
 	html.replace("{curTime}", CurTime);
 	html.replace("{setVoltage}", String(setVoltage));
-//        html.replace("{changeVoltageSpeed}", String(changeVoltageSpeed));
-//        html.replace("{minVoltage}", String(minVoltage));
-//        html.replace("{maxVoltage}", String(maxVoltage));
 	html.replace("{PWM}", String(PWM_value));
 	html.replace("{Voltage}", String(measuredVoltage));
 	html.replace("{Current}", String(measuredCurrent));

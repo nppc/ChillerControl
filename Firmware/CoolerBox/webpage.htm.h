@@ -25,7 +25,7 @@ const char HTTP_END[] PROGMEM = R"V0G0N(
 )V0G0N";
 
 const char HTTP_MAIN_DATA[] PROGMEM = R"V0G0N(
-<p align="right">Uptime: {curTime}</p>
+<TABLE width=100%><TR><TD><div align="left">Version: {FW}</div></TD><TD><div align="right">Uptime: {curTime}</div></TD></TR></TABLE>
 <BR>
 <TABLE class="values_table">
 <TR class="values_header"><TD>Temperature (&deg;C)</TD></TR>
