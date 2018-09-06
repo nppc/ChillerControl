@@ -156,7 +156,13 @@ void handleRoot() {
 }
 
 void handleSettings() {
-// Build an HTML page to display on the web-server 
+	// get temperature sensors addresses
+	//int available = DS18B20.getDeviceCount();
+	//for(byte x = 0; x!= available; x++){
+	//		DS18B20_adr[x];
+	//	}
+	//}
+	// Build an HTML page to display on the web-server 
 	String html_head = FPSTR(HTTP_HEAD_START);
 	html_head += FPSTR(HTTP_STYLE);
 	String html = FPSTR(HTTP_HEAD_END);    
