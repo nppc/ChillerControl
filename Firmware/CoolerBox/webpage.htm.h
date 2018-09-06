@@ -28,7 +28,7 @@ const char HTTP_MAIN_DATA[] PROGMEM = R"V0G0N(
 <p align="right">Uptime: {curTime}</p>
 <BR>
 <TABLE class="values_table">
-<TR class="values_header"><TD>Temperature (&deg; C)</TD></TR>
+<TR class="values_header"><TD>Temperature (&deg;C)</TD></TR>
 <TR><TD><div style="font-size:100px">{curTemp}</div>Set to: {setTemp}</TD></TR>
 </TABLE>
 <BR>
@@ -58,7 +58,7 @@ document.getElementById("settemperature").style.display = (document.getElementBy
 <tr class="values_header"><td colspan=4>Set Temperature</td></tr>
 <tr><td width=80px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'Temp')">&#171;</button></td>
 <td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
-<input type="number" name="Temp" id="Temp" class="input" min="0.0" max="20.0" step="0.1" placeholder="(&deg; C)" value="{setTemp}"/></td>
+<input type="number" name="Temp" id="Temp" class="input" min="0.0" max="20.0" step="0.1" placeholder="(&deg;C)" value="{setTemp}"/></td>
 <td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'Temp')">&#187;</button></td>
 <td width=100px><button type="submit" class="btn btn_round">Set</button></td></tr>
 </TABLE>

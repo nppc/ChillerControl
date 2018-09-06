@@ -260,7 +260,7 @@ void loop() {
 	}
 	
 	
-	if(measuredVoltage==0){
+	if(measuredVoltage<0.5){
 		digitalWrite (LED_WARN, LOW);
 	}else{
 		digitalWrite (LED_WARN, HIGH);
