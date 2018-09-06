@@ -1,5 +1,6 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
+#include <ESP8266HTTPUpdateServer.h>
 #include <OneWire.h>
 #include <Wire.h>
 #include <DallasTemperature.h>
@@ -40,7 +41,8 @@ const char *ssid = "Cooler";
 const char *password = "1234Test";
 
 // Define a web server at port 80 for HTTP
-ESP8266WebServer server(80);
+ESP8266WebServer httpServer(80);
+ESP8266HTTPUpdateServer httpUpdater;
 
 const int Load1 = D5; // Cooler hot
 
@@ -145,24 +147,24 @@ void handleRoot() {
 	html.replace("{I2CText}", String(I2CText));
 	html += FPSTR(HTTP_END);
 
-	server.send ( 200, "text/html", html );
+	httpServer.send ( 200, "text/html", html );
 	digitalWrite ( LED_BUILTIN,HIGH);
 }
 
 
 void handleSetTemp(){
-  Serial.println(server.args());
-  if (server.args() > 0 ) {
-    for ( uint8_t i = 0; i < server.args(); i++ ) {
+  Serial.println(httpServer.args());
+  if (httpServer.args() > 0 ) {
+    for ( uint8_t i = 0; i < httpServer.args(); i++ ) {
        Serial.print("Received field (");
-       Serial.print(server.argName(i));
+       Serial.print(httpServer.argName(i));
        Serial.print("): ");
-       Serial.println(server.arg(i));
-      if (server.argName(i) == "Temp") {
+       Serial.println(httpServer.arg(i));
+      if (httpServer.argName(i) == "Temp") {
          //convert voltage to valid range
          Serial.print("Variable set to: ");
-         Serial.println(server.arg(i));
-         float tmpVolt=server.arg(i).toFloat();
+         Serial.println(httpServer.arg(i));
+         float tmpVolt=httpServer.arg(i).toFloat();
          if(tmpVolt>25.5){tmpVolt=25.5;}
          if(tmpVolt<0){tmpVolt=0.0;}
          setVoltage = tmpVolt;
@@ -170,26 +172,26 @@ void handleSetTemp(){
       }
    }
   }
-  server.sendHeader("Location", String("/"), true);
-  server.send ( 302, "text/plain", "");
+  httpServer.sendHeader("Location", String("/"), true);
+  httpServer.send ( 302, "text/plain", "");
 }
 
 void handleNotFound() {
   digitalWrite ( LED_BUILTIN, LOW );
   String message = "File Not Found\n\n";
   message += "URI: ";
-  message += server.uri();
+  message += httpServer.uri();
   message += "\nMethod: ";
-  message += ( server.method() == HTTP_GET ) ? "GET" : "POST";
+  message += ( httpServer.method() == HTTP_GET ) ? "GET" : "POST";
   message += "\nArguments: ";
-  message += server.args();
+  message += httpServer.args();
   message += "\n";
 
-  for ( uint8_t i = 0; i < server.args(); i++ ) {
-    message += " " + server.argName ( i ) + ": " + server.arg ( i ) + "\n";
+  for ( uint8_t i = 0; i < httpServer.args(); i++ ) {
+    message += " " + httpServer.argName ( i ) + ": " + httpServer.arg ( i ) + "\n";
   }
 
-  server.send ( 404, "text/plain", message );
+  httpServer.send ( 404, "text/plain", message );
   digitalWrite ( LED_BUILTIN, HIGH ); //turn the built in LED on pin DO of NodeMCU off
 }
 
@@ -199,7 +201,7 @@ void setup() {
 	pinMode (LED_WARN, OUTPUT);
 	digitalWrite (LED_WARN, LOW);
 
-  INIT_DS18B20();
+	INIT_DS18B20();
 
 	Wire.begin(D2,D1);  // D2-sda, D1-scl
 	delay(100); // this delay is very essential for proper working of I2C line
@@ -226,30 +228,29 @@ void setup() {
 	Serial.println();
 	Serial.println("Configuring access point...");
 
-	//set-up the custom IP address
 	WiFi.mode(WIFI_AP_STA);
-	//WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));   // subnet FF FF FF 00  
 	
-	/* You can remove the password parameter if you want the AP to be open. */
+	//You can remove the password parameter if you want the AP to be open.
 	WiFi.softAP(ssid, password);
 
 	IPAddress myIP = WiFi.softAPIP();
 	Serial.print("AP IP address: ");
 	Serial.println(myIP);
  
-  server.on ( "/", handleRoot );
-  server.on("/setTemp", handleSetTemp);
-  server.on ( "/inline", []() {
-    server.send ( 200, "text/plain", "this works as well" );
+	httpServer.on ( "/", handleRoot );
+	httpServer.on("/setTemp", handleSetTemp);
+	httpServer.on ( "/inline", []() {
+    httpServer.send ( 200, "text/plain", "this works as well" );
   } );
-  server.onNotFound ( handleNotFound );
+	httpServer.onNotFound ( handleNotFound );
 	
-	server.begin();
+	httpUpdater.setup(&httpServer, "/update");
+	httpServer.begin();
 	Serial.println("HTTP server started");
 }
 
 void loop() {
-	server.handleClient();
+	httpServer.handleClient();
 	
 	if(millis()-DS18B20Interval>60000){
 		// request temperature every minute
