@@ -105,3 +105,37 @@ const char HTTP_SETTINGS_DATA[] PROGMEM = R"V0G0N(
 <TD><form action="/pids" method="get"><button type="submit" class="btn btn_round">PIDs</button></form></TD></TR>
 </TABLE>
 )V0G0N";
+
+const char HTTP_PIDS_DATA[] PROGMEM = R"V0G0N(
+<BR>
+<script>function NumberChange(n,i){document.getElementById(i).stepUp(n);}</script>
+<form action="/pids_store" method="get">
+<TABLE class="values_table">
+<BR>
+<tr class="values_header"><td colspan=4>P</td></tr>
+<tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'pid_kP')">&#171;</button></td>
+<td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
+<input type="number" name="pid_kP" id="pid_kP" class="input" min="0.0" max="300.0" step="0.1" value="{pid_kP}"/></td>
+<td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'pid_kP')">&#187;</button></td>
+<TD rowspan=2>Current value is {pid_kP}</TD></tr>
+<TR><TD colspan=3>&nbsp;</TD><TR>
+<tr class="values_header"><td colspan=4>I</td></tr>
+<tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'pid_kI')">&#171;</button></td>
+<td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
+<input type="number" name="pid_kI" id="pid_kI" class="input" min="0.0" max="100.0" step="0.1" value="{pid_kI}"/></td>
+<td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'pid_kI')">&#187;</button></td>
+<TD rowspan=2>Current value is {pid_kI}</TD></tr>
+<TR><TD colspan=3>&nbsp;</TD><TR>
+<tr class="values_header"><td colspan=4>D</td></tr>
+<tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'pid_kD')">&#171;</button></td>
+<td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
+<input type="number" name="pid_kD" id="pid_kD" class="input" min="0.0" max="300.0" step="0.1" value="{pid_kD}"/></td>
+<td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'pid_kD')">&#187;</button></td>
+<TD rowspan=2>Current value is {pid_kD}</TD></tr>
+<TR><TD colspan=3>&nbsp;</TD><TR>
+</TABLE>
+<TABLE width="100%">
+<TR><TD><button type="submit" class="btn btn_round">Save PIDs</button></TD></TR>
+</TABLE>
+</form>
+)V0G0N";

@@ -214,6 +214,42 @@ void handleSettingsStore(){
   httpServer.send ( 302, "text/plain", "");
 }
 
+void handlePIDs() {
+	// Build an HTML page to display on the web-server 
+	String html_head = FPSTR(HTTP_HEAD_START);
+	html_head += FPSTR(HTTP_STYLE);
+	String html = FPSTR(HTTP_HEAD_END);    
+	html.replace("{Caption}", "PID Settings");
+	html = html_head + html;
+	html += FPSTR(HTTP_PIDS_DATA);
+	html.replace("{Vpid_kP}", String(Vpid_kP,2));
+	html.replace("{Vpid_kI}", String(Vpid_kI,2));
+	html.replace("{Vpid_kD}", String(Vpid_kD,2));
+	html += FPSTR(HTTP_END);
+
+	httpServer.send ( 200, "text/html", html );
+}
+
+void handlePIDsStore(){
+	if (httpServer.args() > 0 ) {
+		for(uint8_t i=0;i<httpServer.args();i++) {
+			if (httpServer.argName(i) == "pid_kP") {
+				pid_kP=httpServer.arg(i).toFloat();
+			}
+			if (httpServer.argName(i) == "pid_kI") {
+				pid_kI=httpServer.arg(i).toFloat();
+			}
+			if (httpServer.argName(i) == "pid_kD") {
+				pid_kD=httpServer.arg(i).toFloat();
+			}
+		}
+	}
+	myPID.SetTunings(pid_kP, pid_kI, pid_kD);	// Set values restored from EEPROM
+
+	httpServer.sendHeader("Location", String("/"), true);
+	httpServer.send ( 302, "text/plain", "");
+}
+
 void handleSetTemp(){
 	if (httpServer.args() > 0 ) {
 		for ( uint8_t i = 0; i < httpServer.args(); i++ ) {
@@ -298,6 +334,8 @@ void setup() {
 	httpServer.on("/setTemp", handleSetTemp);
 	httpServer.on("/settings", handleSettings);
 	httpServer.on("/settings_store", handleSettingsStore);
+	httpServer.on("/pids", handlePIDs);
+	httpServer.on("/pids_store", handlePIDsStore);
 
 	httpServer.onNotFound ( handleNotFound );
 //	httpServer.on ( "/inline", []() {
