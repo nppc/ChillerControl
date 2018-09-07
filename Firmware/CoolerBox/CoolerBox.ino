@@ -72,7 +72,7 @@ void restoreEEPROMdata(){
     float pid_kP=DEFAULT_PID_KP;
     float pid_kI=DEFAULT_PID_KI;
     float pid_kD=DEFAULT_PID_KD;
-	float SetTemp=18;
+	  float setTemp=18;
   } EEdata;
   
 	EEPROM.begin(40);
@@ -81,7 +81,7 @@ void restoreEEPROMdata(){
 	if(EEdata.pid_kP<=300.0 && EEdata.pid_kP>=0.0){pid_kP = EEdata.pid_kP;}
 	if(EEdata.pid_kI<=300.0 && EEdata.pid_kI>=0.0){pid_kI = EEdata.pid_kI;}
 	if(EEdata.pid_kD<=300.0 && EEdata.pid_kD>=0.0){pid_kD = EEdata.pid_kD;}
-	if(EEdata.SetTemp<=30.0 && EEdata.SetTemp>=0.0){SetTemp = EEdata.SetTemp;}
+	if(EEdata.setTemp<=30.0 && EEdata.setTemp>=0.0){setTemp = EEdata.setTemp;}
 }
 
 void saveEEPROMdata(){
@@ -89,7 +89,7 @@ void saveEEPROMdata(){
     float pid_kP;
     float pid_kI;
     float pid_kD;
-	float SetTemp;
+	  float setTemp;
   } EEdata;
   
 	EEPROM.begin(40);
@@ -98,9 +98,9 @@ void saveEEPROMdata(){
 	EEdata.pid_kP=pid_kP;
 	EEdata.pid_kI=pid_kI;
 	EEdata.pid_kD=pid_kD;
-	EEdata.SetTemp=SetTemp;
+	EEdata.setTemp=setTemp;
 	//update EEPROM
-	EEPROM.put(0,data);
+	EEPROM.put(0,EEdata);
 	EEPROM.commit();
 }
 
@@ -185,7 +185,7 @@ void handleRoot() {
 	html += FPSTR(HTTP_MAIN_DATA);
 	html.replace("{FW}", FIRMWAREVERSION);
 	html.replace("{curTemp}", String(curTemp,1));
-	html.replace("{setTemp}", String(setTemp,1));
+	html.replace("{setTemp}", (setTemp==999.0 ? "<div style='color:RED;display:inline-block'>Stopping...</div>":String(setTemp,1)));
 	html.replace("{curTime}", CurTime);
 	html.replace("{setVoltage}", String(setVoltage,1));
 	html.replace("{PWM}", String(PWM_value));
@@ -310,6 +310,12 @@ void handleSetTemp(){
 	httpServer.send ( 302, "text/plain", "");
 }
 
+void handleStop(){
+  setTemp=999;
+  httpServer.sendHeader("Location", String("/"), true);
+  httpServer.send ( 302, "text/plain", "");
+}
+
 void handleNotFound() {
   digitalWrite ( LED_BUILTIN, LOW );
   String message = "File Not Found\n\n";
@@ -379,6 +385,7 @@ void setup() {
 	httpServer.on("/settings_store", handleSettingsStore);
 	httpServer.on("/pids", handlePIDs);
 	httpServer.on("/pids_store", handlePIDsStore);
+  httpServer.on("/stop", handleStop);
 
 	httpServer.onNotFound ( handleNotFound );
 //	httpServer.on ( "/inline", []() {
@@ -406,8 +413,13 @@ void loop() {
 		DS18B20Interval=millis();
 		DS18B20.requestTemperatures(); 
 		curTemp = DS18B20.getTempCByIndex(0);
-		// also calculate PID
-		myPID.Compute();
+		// also calculate PID if needed
+		if(setTemp!=999.0){
+		  myPID.Compute();
+		}else{
+      setVoltage-=1.0;
+		  if(setVoltage<0.0){setVoltage=0.0;}
+		}
 		// we need to send new values to Buck Converter
 		sendI2Cdata();
 	}

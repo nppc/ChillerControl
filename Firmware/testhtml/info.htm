@@ -31,14 +31,11 @@
 <TABLE width="100%"><TR>
 <TD><button class="btn btn_round" onclick="showhide()">Temperature</button><TD/>
 <TD><form action="/settings" method="get"><button class="btn btn_round">Settings</button></form><TD/>
+<TD><form action="/stop" method="get"><button class="btn btn_round btn_red">STOP</button></form><TD/></TR>
 </TABLE>
 <div id="settemperature" style="display:none;">
 <script>
-function NumberChange(n,i) {
-    document.getElementById(i).stepUp(n);
-    return false;
-}
-
+function NumberChange(n,i) {document.getElementById(i).stepUp(n);}
 function showhide() {
 document.getElementById("settemperature").style.display = (document.getElementById("settemperature").style.display !== "none") ? "none" : "block";
 }
