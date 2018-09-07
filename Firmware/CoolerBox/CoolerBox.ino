@@ -5,6 +5,7 @@
 #include <Wire.h>
 #include <DallasTemperature.h>
 #include <PID_v1.h>
+#include <EEPROM.h>
 
 #include "globals.h"
 #include "webpage.css.h"
@@ -64,6 +65,43 @@ void INIT_DS18B20(){
       DS18B20.setResolution(DS18B20_adr[x], 12);
     }
   }
+}
+
+void restoreEEPROMdata(){
+ struct {
+    float pid_kP=DEFAULT_PID_KP;
+    float pid_kI=DEFAULT_PID_KI;
+    float pid_kD=DEFAULT_PID_KD;
+	float SetTemp=18;
+  } EEdata;
+  
+	EEPROM.begin(40);
+	EEPROM.get(0,EEdata);
+	// assign data to variables and check for validity and if not valid leave default
+	if(EEdata.pid_kP<=300.0 && EEdata.pid_kP>=0.0){pid_kP = EEdata.pid_kP;}
+	if(EEdata.pid_kI<=300.0 && EEdata.pid_kI>=0.0){pid_kI = EEdata.pid_kI;}
+	if(EEdata.pid_kD<=300.0 && EEdata.pid_kD>=0.0){pid_kD = EEdata.pid_kD;}
+	if(EEdata.SetTemp<=30.0 && EEdata.SetTemp>=0.0){SetTemp = EEdata.SetTemp;}
+}
+
+void saveEEPROMdata(){
+ struct {
+    float pid_kP;
+    float pid_kI;
+    float pid_kD;
+	float SetTemp;
+  } EEdata;
+  
+	EEPROM.begin(40);
+	EEPROM.get(0,EEdata);	// somebody explained that this is still needed....
+	// fill struct with correct data
+	EEdata.pid_kP=pid_kP;
+	EEdata.pid_kI=pid_kI;
+	EEdata.pid_kD=pid_kD;
+	EEdata.SetTemp=SetTemp;
+	//update EEPROM
+	EEPROM.put(0,data);
+	EEPROM.commit();
 }
 
 void sendI2Cdata(){
@@ -245,7 +283,8 @@ void handlePIDsStore(){
 			}
 		}
 	}
-	myPID.SetTunings(pid_kP, pid_kI, pid_kD);	// Set values restored from EEPROM
+	myPID.SetTunings(pid_kP, pid_kI, pid_kD);	// Set new values 
+	saveEEPROMdata();	// Store new PID values
 
 	httpServer.sendHeader("Location", String("/"), true);
 	httpServer.send ( 302, "text/plain", "");
@@ -260,6 +299,7 @@ void handleSetTemp(){
 				if(tmpTemp>25.0){tmpTemp=setTemp;}	// don't change just in case.
 				if(tmpTemp<0){tmpTemp=0.0;}
 				setTemp = tmpTemp;
+				saveEEPROMdata();	// Store new PID value
 			}
 		}
 	}
@@ -319,6 +359,8 @@ void setup() {
 
 	readI2Cdata();
 
+	restoreEEPROMdata();	// restore PID settings
+	
 	Serial.println();
 	Serial.println("Configuring access point...");
 
