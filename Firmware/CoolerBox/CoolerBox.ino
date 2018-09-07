@@ -4,7 +4,7 @@
 #include <OneWire.h>
 #include <Wire.h>
 #include <DallasTemperature.h>
-//#include <DateTime.h>
+#include <PID_v1.h>
 
 #include "globals.h"
 #include "webpage.css.h"
@@ -21,9 +21,9 @@
 bool I2C_PRESENT;
 uint8_t i2c_data[I2C_DATALEN-1]; //11 bytes
 
-float curTemp=0;	// current measured temperature
-float setTemp=30;	// preset temperature
-float setVoltage;
+double curTemp;	// current measured temperature
+double setTemp=18;	// preset temperature
+double setVoltage;
 float changeVoltageSpeed; 
 float minVoltage; 
 float maxVoltage; 
@@ -47,7 +47,12 @@ ESP8266HTTPUpdateServer httpUpdater;
 
 const int Load1 = D5; // Cooler hot
 
-bool ledState = false;
+float pid_kP=DEFAULT_PID_KP;
+float pid_kI=DEFAULT_PID_KI;
+float pid_kD=DEFAULT_PID_KD;
+// Create PID with default values
+PID myPID(&(curTemp), &(setVoltage), &(setTemp), &(pid_kP), &(pid_kI), &(pid_kD), REVERSE);
+
 
 void INIT_DS18B20(){
   DS18B20.begin();
@@ -68,9 +73,9 @@ void sendI2Cdata(){
     Wire.write((uint8_t)(changeVoltageSpeed * 10.0)); // Speed of voltae change (means 0.4v/s)
     Wire.write((uint8_t)(minVoltage * 10.0)); //Min Voltage
     Wire.write((uint8_t)(maxVoltage * 10.0)); //Max Voltage
-    Wire.write(0); //Only filled in Read
-    Wire.write(0); //Only filled in Read
-    Wire.write(0); //Only filled in Read
+    Wire.write(PWM_value); //No affect on Buck Converter
+    Wire.write((uint8_t)(measuredVoltage * 10.0)); //No affect on Buck Converter
+    Wire.write((uint8_t)(measuredCurrent * 10.0)); //No affect on Buck Converter
     Wire.write(0); //Only filled in Read
     Wire.write(0); //Only filled in Read
     Wire.write(0); //Only filled in Read
@@ -120,25 +125,17 @@ void handleRoot() {
     strcpy(I2CText, "I2C Buck converter is not connected.");
   }
 
-  //unsigned long sec = millis() / 1000;
-  //unsigned long min = sec / 60;
-  //int hr = min / 60;
-  //unsigned long val = millis();
-	//int thours = (val % tdays) / 3600000;
-	//int tminutes = ((val % 86400000) % 3600000) / 60000;
-	//int tseconds = (((val % 86400000) % 3600000) % 60000) / 1000;  
-
-  unsigned long val = millis();
-  int tdays = val / 86400000;
-  unsigned long sec = val / 1000;
-  unsigned long min = sec / 60;
-  int hr = min / 60;
-  //String CurTime=String(hr)+":"+String(min % 60)+":"+String(sec % 60);
+	unsigned long val = millis();
+	int tdays = val / 86400000;
+	unsigned long sec = val / 1000;
+	unsigned long min = sec / 60;
+	int hr = min / 60;
 
 	char buf[20];
 	sprintf(buf,"%d days, %02d:%02d:%02d",tdays,hr,min % 60,sec % 60);
 	String CurTime=String(buf);
-	
+
+	delay(50);	// make sure, data is not sent too often
 	readI2Cdata();
 
 // Build an HTML page to display on the web-server root address
@@ -210,26 +207,30 @@ void handleSettingsStore(){
       }
    }
   }
+  delay(50);	// make sure, data is not sent too often
   sendI2Cdata();
+  delay(50);	// make sure, data is not sent too often
   httpServer.sendHeader("Location", String("/"), true);
   httpServer.send ( 302, "text/plain", "");
 }
 
 void handleSetTemp(){
-  if (httpServer.args() > 0 ) {
-    for ( uint8_t i = 0; i < httpServer.args(); i++ ) {
-      if (httpServer.argName(i) == "Temp") {
-         //convert voltage to valid range
-         float tmpVolt=httpServer.arg(i).toFloat();
-         if(tmpVolt>25.5){tmpVolt=setVoltage;}	// don't change just in case.
-         if(tmpVolt<0){tmpVolt=0.0;}
-         setVoltage = tmpVolt;
-      }
-   }
-  }
-  sendI2Cdata();
-  httpServer.sendHeader("Location", String("/"), true);
-  httpServer.send ( 302, "text/plain", "");
+	if (httpServer.args() > 0 ) {
+		for ( uint8_t i = 0; i < httpServer.args(); i++ ) {
+			if (httpServer.argName(i) == "Temp") {
+				//convert temperature to valid range
+				float tmpTemp=httpServer.arg(i).toFloat();
+				if(tmpTemp>25.0){tmpTemp=setTemp;}	// don't change just in case.
+				if(tmpTemp<0){tmpTemp=0.0;}
+				setTemp = tmpTemp;
+			}
+		}
+	}
+	delay(50);	// make sure, data is not sent too often
+	sendI2Cdata();
+	delay(50);	// make sure, data is not sent too often
+	httpServer.sendHeader("Location", String("/"), true);
+	httpServer.send ( 302, "text/plain", "");
 }
 
 void handleNotFound() {
@@ -310,17 +311,24 @@ void setup() {
     DS18B20Interval=millis();
     DS18B20.requestTemperatures(); 
     curTemp = DS18B20.getTempCByIndex(0);
-
+	
+	myPID.SetOutputLimits(minVoltage, maxVoltage);	// same limits as for Buck converter
+	myPID.SetMode(AUTOMATIC);
+	myPID.SetTunings(pid_kP, pid_kI, pid_kD);	// Set values restored from EEPROM
 }
 
 void loop() {
 	httpServer.handleClient();
 	
+	// request temperature every minute
 	if(millis()-DS18B20Interval>60000){
-		// request temperature every minute
 		DS18B20Interval=millis();
 		DS18B20.requestTemperatures(); 
 		curTemp = DS18B20.getTempCByIndex(0);
+		// also calculate PID
+		myPID.Compute();
+		// we need to send new values to Buck Converter
+		sendI2Cdata();
 	}
 	
 	
