@@ -51,7 +51,7 @@ float pid_kP=DEFAULT_PID_KP;
 float pid_kI=DEFAULT_PID_KI;
 float pid_kD=DEFAULT_PID_KD;
 // Create PID with default values
-PID myPID(&(curTemp), &(setVoltage), &(setTemp), &(pid_kP), &(pid_kI), &(pid_kD), REVERSE);
+PID myPID(&(curTemp), &(setVoltage), &(setTemp), DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD, REVERSE);
 
 
 void INIT_DS18B20(){
@@ -207,6 +207,7 @@ void handleSettingsStore(){
       }
    }
   }
+  myPID.SetOutputLimits(minVoltage, maxVoltage);  // same limits as for Buck converter
   delay(50);	// make sure, data is not sent too often
   sendI2Cdata();
   delay(50);	// make sure, data is not sent too often
@@ -222,9 +223,9 @@ void handlePIDs() {
 	html.replace("{Caption}", "PID Settings");
 	html = html_head + html;
 	html += FPSTR(HTTP_PIDS_DATA);
-	html.replace("{Vpid_kP}", String(Vpid_kP,2));
-	html.replace("{Vpid_kI}", String(Vpid_kI,2));
-	html.replace("{Vpid_kD}", String(Vpid_kD,2));
+	html.replace("{pid_kP}", String(pid_kP,2));
+	html.replace("{pid_kI}", String(pid_kI,2));
+	html.replace("{pid_kD}", String(pid_kD,2));
 	html += FPSTR(HTTP_END);
 
 	httpServer.send ( 200, "text/html", html );
