@@ -42,9 +42,21 @@ unsigned long DS18B20Interval;
 const char *ssid = "Cooler";
 const char *password = "1234Test";
 
+char IntSSID[20];
+char IntPASS[20];
+char thingWriteAPIKey[20];
+char ubiToken[40];
+char ubiDevice[20];
+//const char* VARIABLE_LABEL = "box_temperature"; // Your variable label
+//const char* USER_AGENT = "ESP8266";
+//const char* VERSION = "1.0";
+const char* ubiServer = "industrial.api.ubidots.com";
+const char* thingServer = "api.thingspeak.com";
+
 // Define a web server at port 80 for HTTP
 ESP8266WebServer httpServer(80);
 ESP8266HTTPUpdateServer httpUpdater;
+
 
 const int Load1 = D5; // Cooler hot
 
@@ -53,7 +65,6 @@ float pid_kI=DEFAULT_PID_KI;
 float pid_kD=DEFAULT_PID_KD;
 // Create PID with default values
 PID myPID(&(curTemp), &(setVoltage), &(setTemp), DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD, REVERSE);
-
 
 void INIT_DS18B20(){
   DS18B20.begin();
@@ -77,6 +88,7 @@ void restoreEEPROMdata(){
   
 	EEPROM.begin(40);
 	EEPROM.get(0,EEdata);
+  EEPROM.end();
 	// assign data to variables and check for validity and if not valid leave default
 	if(EEdata.pid_kP<=300.0 && EEdata.pid_kP>=0.0){pid_kP = EEdata.pid_kP;}
 	if(EEdata.pid_kI<=300.0 && EEdata.pid_kI>=0.0){pid_kI = EEdata.pid_kI;}
@@ -102,7 +114,38 @@ void saveEEPROMdata(){
 	//update EEPROM
 	EEPROM.put(0,EEdata);
 	EEPROM.commit();
+  EEPROM.end();
 }
+
+void restoreEEPROMnetwork(){
+  EEPROM.begin(150);
+  EEPROM.get(100, IntSSID);
+  EEPROM.get(100+sizeof(IntSSID), IntPASS);
+  EEPROM.get(100+sizeof(IntSSID)+sizeof(IntPASS), thingWriteAPIKey);
+  EEPROM.get(100+sizeof(IntSSID)+sizeof(IntPASS)+sizeof(thingWriteAPIKey),ubiToken);
+  EEPROM.get(100+sizeof(IntSSID)+sizeof(IntPASS)+sizeof(thingWriteAPIKey)+sizeof(ubiToken),ubiDevice);
+  EEPROM.end();
+}
+
+void saveEEPROMnetwork(){
+/*
+  char buf[20] = {"ssid"};
+  char buf1[20] = {"pass"};
+  char buf2[20] = {"apikey"};
+  char buf3[40] = {"token"};
+  char buf4[20] = {"device"};
+  EEPROM.begin(150);
+  EEPROM.put(100, buf);
+  EEPROM.put(100+sizeof(buf), buf1);
+  EEPROM.put(100+sizeof(buf)+sizeof(buf1), buf2);
+  EEPROM.put(100+sizeof(buf)+sizeof(buf1)+sizeof(buf2), buf3);
+  EEPROM.put(100+sizeof(buf)+sizeof(buf1)+sizeof(buf2)+sizeof(buf3), buf4);
+  EEPROM.commit();
+  EEPROM.end();
+*/
+}
+
+
 
 void sendI2Cdata(){
   if(I2C_PRESENT){
@@ -152,15 +195,20 @@ void readI2Cdata(){
   measuredCurrent = (float)i2c_data[6]/10.0; 
 }
 
+  //char I2CText[80];
+
 void handleRoot() {
 
   char I2CText[80];
   if (I2C_PRESENT) {
-    strcpy(I2CText, "I2C Buck converter is connected at address 0x5E.");
+    //strcpy(I2CText, "I2C connected with address 0x5E.");
+    sprintf(I2CText, "NET: %s, %s, %s", IntSSID, IntPASS, thingWriteAPIKey);
+    //char buf[16];
+    //sprintf(I2CText, "IP:%d.%d.%d.%d", WiFi.localIP()[0], WiFi.localIP()[1], WiFi.localIP()[2], WiFi.localIP()[3] );
   }
 
   else {
-    strcpy(I2CText, "I2C Buck converter is not connected.");
+    strcpy(I2CText, "I2C is not connected.");
   }
 
 	unsigned long val = millis();
@@ -365,20 +413,43 @@ void setup() {
 
 	readI2Cdata();
 
+  //saveEEPROMnetwork(); // temp
+  restoreEEPROMnetwork();
+  
 	restoreEEPROMdata();	// restore PID settings
-	
+
+  	
 	Serial.println();
 	Serial.println("Configuring access point...");
-
-	WiFi.mode(WIFI_AP_STA);
 	
 	//You can remove the password parameter if you want the AP to be open.
 	WiFi.softAP(ssid, password);
 
+  WiFi.mode(WIFI_AP_STA);
+
 	IPAddress myIP = WiFi.softAPIP();
 	Serial.print("AP IP address: ");
 	Serial.println(myIP);
- 
+
+  Serial.println();
+  Serial.println("Connecting to Internet...");
+
+  WiFi.begin(IntSSID, IntPASS);
+
+  int i = 20;
+  while (WiFi.status() != WL_CONNECTED || i>0) {
+    delay(500);
+    Serial.print(".");
+    i--;
+    }
+
+  Serial.print("Internet IP address: ");
+  Serial.println(WiFi.localIP());
+
+//  WIFIlocIP = WiFi.localIP();
+
+  WiFi.setAutoReconnect(true);
+
 	httpServer.on ( "/", handleRoot );
 	httpServer.on("/setTemp", handleSetTemp);
 	httpServer.on("/settings", handleSettings);
@@ -405,8 +476,73 @@ void setup() {
 	myPID.SetTunings(pid_kP, pid_kI, pid_kD);	// Set values restored from EEPROM
 }
 
+/*
+void send2Ubidots(){
+char* body = (char *) malloc(sizeof(char) * 150);
+  char* data = (char *) malloc(sizeof(char) * 300);
+  // Space to store values to send 
+  char str_val[10];
+
+  dtostrf(curTemp, 4, 2, str_val);
+
+  sprintf(body, "{\"%s\":%s}", VARIABLE_LABEL, str_val);
+  
+  sprintf(data, "POST /api/v1.6/devices/%s", DEVICE_LABEL);
+  sprintf(data, "%s HTTP/1.1\r\n", data);
+  sprintf(data, "%sHost: things.ubidots.com\r\n", data);
+  sprintf(data, "%sUser-Agent: %s/%s\r\n", data, USER_AGENT, VERSION);
+  sprintf(data, "%sX-Auth-Token: %s\r\n", data, UBI_TOKEN);
+  sprintf(data, "%sConnection: close\r\n", data);
+  sprintf(data, "%sContent-Type: application/json\r\n", data);
+  sprintf(data, "%sContent-Length: %d\r\n\r\n", data, dataLen(body));
+  sprintf(data, "%s%s\r\n\r\n", data, body);
+
+  clientUbi.connect(HTTPSERVER, HTTPPORT);
+
+  if (clientUbi.connect(HTTPSERVER, HTTPPORT)) {
+        Serial.println(F("Posting your variables: "));
+        Serial.println(data);
+        clientSend.print(data);
+  }
+
+  free(data);
+  free(body);
+  clientUbi.stop();
+}
+}
+*/
+
+void send2Thingspeak(){
+  WiFiClient clientSend;
+  int cn=clientSend.connect(thingServer, 80);
+  if (cn) {
+    // Construct API request body
+    String body = "field1=";
+           body += String(curTemp);
+           body += "&field2=";
+           body += String(setTemp);
+           body += "&field3=";
+           body += String(setVoltage);
+    
+    clientSend.println("POST /update HTTP/1.1");
+    clientSend.println("Host: api.thingspeak.com");
+    clientSend.println("User-Agent: ESP8266/1.0");
+    clientSend.println("Connection: close");
+    clientSend.println("X-THINGSPEAKAPIKEY: " + String(thingWriteAPIKey));
+    clientSend.println("Content-Type: application/x-www-form-urlencoded");
+    clientSend.println("Content-Length: " + String(body.length()));
+    clientSend.println("");
+    clientSend.print(body);
+
+  }
+  clientSend.stop();
+
+}
+
+
 void loop() {
 	httpServer.handleClient();
+  delay(1);
 	
 	// request temperature every minute
 	if(millis()-DS18B20Interval>60000){
@@ -422,6 +558,9 @@ void loop() {
 		}
 		// we need to send new values to Buck Converter
 		sendI2Cdata();
+	  // Send data to Ubidots
+	  //send2Ubidots();
+    send2Thingspeak();
 	}
 	
 	
