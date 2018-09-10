@@ -6,6 +6,7 @@
 #include <DallasTemperature.h>
 #include <PID_v1.h>
 #include <EEPROM.h>
+#include "FS.h"
 
 #include "globals.h"
 #include "webpage.css.h"
@@ -36,6 +37,10 @@ OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature DS18B20(&oneWire);
 DeviceAddress  DS18B20_adr[2];
 unsigned long DS18B20Interval;
+unsigned long SendDataInterval;
+
+#define filterSamples 5
+int Temp_SmoothArray[filterSamples];   // array for holding raw sensor values for PT1000 sensor 
 
 
 // Default IP in AP mode is 192.168.4.1
@@ -44,7 +49,7 @@ const char *password = "1234Test";
 
 char IntSSID[20];
 char IntPASS[20];
-char thingWriteAPIKey[20];
+String thingWriteAPIKey;
 char ubiToken[40];
 char ubiDevice[20];
 //const char* VARIABLE_LABEL = "box_temperature"; // Your variable label
@@ -66,6 +71,49 @@ float pid_kD=DEFAULT_PID_KD;
 // Create PID with default values
 PID myPID(&(curTemp), &(setVoltage), &(setTemp), DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD, REVERSE);
 
+
+// smooth algorytm for ADC reading
+int digitalSmooth(int rawIn, int *sensSmoothArray){     // "int *sensSmoothArray" passes an array to the function - the asterisk indicates the array name is a pointer
+  int j, k, temp, top, bottom;
+  long total;
+  static int i;
+  static int sorted[filterSamples];
+  boolean done;
+
+  i = (i + 1) % filterSamples;    // increment counter and roll over if necc. -  % (modulo operator) rolls over variable
+  sensSmoothArray[i] = rawIn;                 // input new data into the oldest slot
+
+  for (j=0; j<filterSamples; j++){     // transfer data array into anther array for sorting and averaging
+    sorted[j] = sensSmoothArray[j];
+  }
+
+  done = 0;                // flag to know when we're done sorting              
+  while(done != 1){        // simple swap sort, sorts numbers from lowest to highest
+    done = 1;
+    for (j = 0; j < (filterSamples - 1); j++){
+      if (sorted[j] > sorted[j + 1]){     // numbers are out of order - swap
+        temp = sorted[j + 1];
+        sorted [j+1] =  sorted[j] ;
+        sorted [j] = temp;
+        done = 0;
+      }
+    }
+  }
+
+  // throw out top and bottom 15% of samples - limit to throw out at least one from top and bottom
+  bottom = max(((filterSamples * 15)  / 100), 1); 
+  top = min((((filterSamples * 85) / 100) + 1  ), (filterSamples - 1));   // the + 1 is to make up for asymmetry caused by integer rounding
+  k = 0;
+  total = 0;
+  for ( j = bottom; j< top; j++){
+    total += sorted[j];  // total remaining indices
+    k++; 
+  }
+
+  return total / k;    // divide by number of samples
+}
+
+
 void INIT_DS18B20(){
   DS18B20.begin();
   int available = DS18B20.getDeviceCount();
@@ -80,12 +128,11 @@ void INIT_DS18B20(){
 
 void restoreEEPROMdata(){
  struct {
-    float pid_kP=DEFAULT_PID_KP;
-    float pid_kI=DEFAULT_PID_KI;
-    float pid_kD=DEFAULT_PID_KD;
-	  float setTemp=18;
+    float pid_kP;
+    float pid_kI;
+    float pid_kD;
+	  float setTemp;
   } EEdata;
-  
 	EEPROM.begin(40);
 	EEPROM.get(0,EEdata);
   EEPROM.end();
@@ -94,6 +141,16 @@ void restoreEEPROMdata(){
 	if(EEdata.pid_kI<=300.0 && EEdata.pid_kI>=0.0){pid_kI = EEdata.pid_kI;}
 	if(EEdata.pid_kD<=300.0 && EEdata.pid_kD>=0.0){pid_kD = EEdata.pid_kD;}
 	if(EEdata.setTemp<=30.0 && EEdata.setTemp>=0.0){setTemp = EEdata.setTemp;}
+
+  File f = SPIFFS.open("/settings.txt", "r");
+  String s = f.readStringUntil('\n');
+  s.trim();
+  s.toCharArray(IntSSID,20);
+  s = f.readStringUntil('\n');
+  s.trim();
+  s.toCharArray(IntPASS,20);
+  thingWriteAPIKey = f.readStringUntil('\n');
+  f.close();  
 }
 
 void saveEEPROMdata(){
@@ -104,47 +161,16 @@ void saveEEPROMdata(){
 	  float setTemp;
   } EEdata;
   
-	EEPROM.begin(40);
-	EEPROM.get(0,EEdata);	// somebody explained that this is still needed....
+	//EEPROM.get(0,EEdata);	// somebody explained that this is still needed....
 	// fill struct with correct data
 	EEdata.pid_kP=pid_kP;
 	EEdata.pid_kI=pid_kI;
 	EEdata.pid_kD=pid_kD;
 	EEdata.setTemp=setTemp;
-	//update EEPROM
+  EEPROM.begin(40);
 	EEPROM.put(0,EEdata);
-	EEPROM.commit();
   EEPROM.end();
 }
-
-void restoreEEPROMnetwork(){
-  EEPROM.begin(150);
-  EEPROM.get(100, IntSSID);
-  EEPROM.get(100+sizeof(IntSSID), IntPASS);
-  EEPROM.get(100+sizeof(IntSSID)+sizeof(IntPASS), thingWriteAPIKey);
-  EEPROM.get(100+sizeof(IntSSID)+sizeof(IntPASS)+sizeof(thingWriteAPIKey),ubiToken);
-  EEPROM.get(100+sizeof(IntSSID)+sizeof(IntPASS)+sizeof(thingWriteAPIKey)+sizeof(ubiToken),ubiDevice);
-  EEPROM.end();
-}
-
-void saveEEPROMnetwork(){
-/*
-  char buf[20] = {"ssid"};
-  char buf1[20] = {"pass"};
-  char buf2[20] = {"apikey"};
-  char buf3[40] = {"token"};
-  char buf4[20] = {"device"};
-  EEPROM.begin(150);
-  EEPROM.put(100, buf);
-  EEPROM.put(100+sizeof(buf), buf1);
-  EEPROM.put(100+sizeof(buf)+sizeof(buf1), buf2);
-  EEPROM.put(100+sizeof(buf)+sizeof(buf1)+sizeof(buf2), buf3);
-  EEPROM.put(100+sizeof(buf)+sizeof(buf1)+sizeof(buf2)+sizeof(buf3), buf4);
-  EEPROM.commit();
-  EEPROM.end();
-*/
-}
-
 
 
 void sendI2Cdata(){
@@ -198,11 +224,11 @@ void readI2Cdata(){
   //char I2CText[80];
 
 void handleRoot() {
-
+  
   char I2CText[80];
   if (I2C_PRESENT) {
-    //strcpy(I2CText, "I2C connected with address 0x5E.");
-    sprintf(I2CText, "NET: %s, %s, %s", IntSSID, IntPASS, thingWriteAPIKey);
+    strcpy(I2CText, "I2C connected with address 0x5E.");
+    //sprintf(I2CText, "NET: %s, %s", IntSSID, IntPASS);
     //char buf[16];
     //sprintf(I2CText, "IP:%d.%d.%d.%d", WiFi.localIP()[0], WiFi.localIP()[1], WiFi.localIP()[2], WiFi.localIP()[3] );
   }
@@ -388,6 +414,8 @@ void setup() {
 	digitalWrite (Load1, HIGH);
 	pinMode (LED_WARN, OUTPUT);
 	digitalWrite (LED_WARN, LOW);
+  
+  SPIFFS.begin();
 
 	INIT_DS18B20();
 
@@ -412,11 +440,8 @@ void setup() {
 	delay(500);
 
 	readI2Cdata();
-
-  //saveEEPROMnetwork(); // temp
-  restoreEEPROMnetwork();
   
-	restoreEEPROMdata();	// restore PID settings
+	restoreEEPROMdata();	// restore PID and internet settings
 
   	
 	Serial.println();
@@ -436,19 +461,33 @@ void setup() {
 
   WiFi.begin(IntSSID, IntPASS);
 
+    for(byte i1=0;i1<filterSamples*2;i1++){
+      DS18B20.requestTemperatures(); 
+      delay(1000);
+      int tmpT = (int)round(DS18B20.getTempCByIndex(0)*100.0);
+      curTemp = (float)digitalSmooth(tmpT, Temp_SmoothArray) / 100.0;
+    }
+
   int i = 20;
-  while (WiFi.status() != WL_CONNECTED || i>0) {
+  while (WiFi.status() != WL_CONNECTED && i>0) {
     delay(500);
-    Serial.print(".");
+    Serial.print(i);
     i--;
     }
 
-  Serial.print("Internet IP address: ");
-  Serial.println(WiFi.localIP());
-
+  if(WiFi.status() == WL_CONNECTED){
+    Serial.print("Internet IP address: ");
+    Serial.println(WiFi.localIP());
+    WiFi.setAutoReconnect(true);
+  }else{
+    Serial.print("Internet connection failed.");
+    Serial.print(" Error is: ");
+    Serial.println(WiFi.status());
+    WiFi.setAutoReconnect(false);
+    WiFi.disconnect();
+  }
 //  WIFIlocIP = WiFi.localIP();
 
-  WiFi.setAutoReconnect(true);
 
 	httpServer.on ( "/", handleRoot );
 	httpServer.on("/setTemp", handleSetTemp);
@@ -467,9 +506,9 @@ void setup() {
 	httpServer.begin();
 	Serial.println("HTTP server started");
 
+    SendDataInterval=millis();
+
     DS18B20Interval=millis();
-    DS18B20.requestTemperatures(); 
-    curTemp = DS18B20.getTempCByIndex(0);
 	
 	myPID.SetOutputLimits(minVoltage, maxVoltage);	// same limits as for Buck converter
 	myPID.SetMode(AUTOMATIC);
@@ -545,10 +584,12 @@ void loop() {
   delay(1);
 	
 	// request temperature every minute
-	if(millis()-DS18B20Interval>60000){
+	if(millis()-DS18B20Interval>10000){
 		DS18B20Interval=millis();
 		DS18B20.requestTemperatures(); 
-		curTemp = DS18B20.getTempCByIndex(0);
+    delay(1000);
+    int tmpT = (int)round(DS18B20.getTempCByIndex(0)*100.0);
+    curTemp = (float)digitalSmooth(tmpT, Temp_SmoothArray) / 100.0;
 		// also calculate PID if needed
 		if(setTemp!=999.0){
 		  myPID.Compute();
@@ -559,8 +600,11 @@ void loop() {
 		// we need to send new values to Buck Converter
 		sendI2Cdata();
 	  // Send data to Ubidots
-	  //send2Ubidots();
-    send2Thingspeak();
+	  if(millis()-SendDataInterval>60000){
+  	  SendDataInterval = millis();
+  	  //send2Ubidots();
+      send2Thingspeak();
+	  }
 	}
 	
 	
