@@ -1,12 +1,10 @@
-const char HTTP_HEAD_START[] PROGMEM = R"V0G0N(
+const char HTTP_HEAD[] PROGMEM = R"V0G0N(
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
 <title>Cooler Box Controller</title>
-)V0G0N";
-
-const char HTTP_HEAD_END[] PROGMEM = R"V0G0N(
+<LINK href="/webpage.css" rel="stylesheet" type="text/css">
 </head>
 <body>
 <div class="container">
