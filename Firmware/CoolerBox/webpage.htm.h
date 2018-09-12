@@ -100,6 +100,7 @@ const char HTTP_SETTINGS_DATA[] PROGMEM = R"V0G0N(
 <TR><TD><button type="submit" class="btn btn_round">Save Settings</button></form></TD>
 <TD><form action="/update" method="get"><button type="submit" class="btn btn_round">Upload Firmware</button></form></TD>
 <TD><form action="/pids" method="get"><button type="submit" class="btn btn_round">PIDs</button></form></TD></TR>
+<TR><TD><form action="/network" method="get"><button type="submit" class="btn btn_round">Network</button></form></TD></TR>
 </TABLE>
 )V0G0N";
 
@@ -133,6 +134,54 @@ const char HTTP_PIDS_DATA[] PROGMEM = R"V0G0N(
 </TABLE>
 <TABLE width="100%">
 <TR><TD><button type="submit" class="btn btn_round">Save PIDs</button></TD></TR>
+</TABLE>
+</form>
+)V0G0N";
+
+const char HTTP_NETWORK_DATA[] PROGMEM = R"V0G0N(
+<BR>
+<script>function NumberChange(n,i){document.getElementById(i).stepUp(n);}</script>
+<form action="/network_store" method="get">
+<TABLE class="values_table">
+<BR>
+<tr class="values_header"><td colspan=4>SSID</td></tr>
+<tr><td colspan=3><input type="text" name="IntSSID" class="inputtext" value="{IntSSID}"/></td>
+<TD rowspan=2>SSID of the Access Point that has connection to the Internet</TD></tr>
+<TR><TD colspan=3>&nbsp;</TD><TR>
+<tr class="values_header"><td colspan=4>Password</td></tr>
+<tr><td colspan=3><input type="text" name="IntPASS" class="inputtext" value="{IntPASS}"/></td>
+<TD rowspan=2>Password for SSID</TD></tr>
+<TR><TD colspan=3>&nbsp;</TD><TR>
+<tr class="values_header"><td colspan=4>ThingSpeak Write API Key</td></tr>
+<tr><td colspan=3><input type="text" name="thingWriteAPIKey" class="inputtext" value="{thingWriteAPIKey}"/></td>
+<TD rowspan=2>Use this key to write data to a channel.</TD></tr>
+<TR><TD colspan=3>&nbsp;</TD><TR>
+<tr class="values_header"><td colspan=4>Ubidots Token</td></tr>
+<tr><td colspan=3><input type="text" name="ubiToken" class="inputtext" value="{ubiToken}"/></td>
+<TD rowspan=2>Use this Authentications Token to access Ubidots.</TD></tr>
+<TR><TD colspan=3>&nbsp;</TD><TR>
+<tr class="values_header"><td colspan=4>Ubidots Device API Label</td></tr>
+<tr><td colspan=3><input type="text" name="ubiDevice" class="inputtext" value="{ubiDevice}"/></td>
+<TD rowspan=2>Use this Label to indicate the Device you accessing.</TD></tr>
+<TR><TD colspan=3>&nbsp;</TD><TR>
+<tr class="values_header"><td colspan=4>Interval (s)</td></tr>
+<tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'sendInterval')">&#171;</button></td>
+<td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
+<input type="number" name="sendInterval" id="sendInterval" class="input" min="10" max="86400" step="1" value="{sendInterval}"/></td>
+<td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'sendInterval')">&#187;</button></td>
+<TD rowspan=2>Interval of sending data in seconds.</TD></tr>
+<TR><TD colspan=3>&nbsp;</TD><TR>
+<tr class="values_header"><td colspan=4>IoT Services</td></tr>
+<tr><td colspan=3 style="line-height: 2;text-align: left">
+<input type="checkbox" name="sendThing" id="sendThing" {sendThing_checked}><label for="sendThing"> ThingSpeak</label>
+<BR>
+<input type="checkbox" name="sendUbi" id="sendUbi" {sendUbi_checked}><label for="sendUbi"> Ubidots</label>
+</td>
+<TD rowspan=2>Select to what services values will be sent.</TD></tr>
+<TR><TD colspan=3>&nbsp;</TD><TR>
+</TABLE>
+<TABLE width="100%">
+<TR><TD><button type="submit" class="btn btn_round">Save Network Settings</button></TD></TR>
 </TABLE>
 </form>
 )V0G0N";

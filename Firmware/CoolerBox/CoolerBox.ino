@@ -36,8 +36,8 @@ float measuredCurrent;
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature DS18B20(&oneWire);
 DeviceAddress  DS18B20_adr[2];
-unsigned long DS18B20Interval;
-unsigned long SendDataInterval;
+unsigned long millisDS18B20Interval;
+unsigned long millisSendDataInterval;
 
 #define filterSamples 5
 int Temp_SmoothArray[filterSamples];   // array for holding raw sensor values for PT1000 sensor 
@@ -52,6 +52,9 @@ char IntPASS[20];
 String thingWriteAPIKey;
 char ubiToken[40];
 char ubiDevice[20];
+int sendInterval=60;	// Interval in seconds for sending data to IoT server
+byte sendUbi_checked=0;
+byte sendThing_checked=1;
 //const char* VARIABLE_LABEL = "box_temperature"; // Your variable label
 //const char* USER_AGENT = "ESP8266";
 //const char* VERSION = "1.0";
@@ -409,6 +412,27 @@ void handleNotFound() {
   digitalWrite ( LED_BUILTIN, HIGH ); //turn the built in LED on pin DO of NodeMCU off
 }
 
+void handleNetwork() {
+	// Build an HTML page to display on the web-server 
+	String html_head = FPSTR(HTTP_HEAD_START);
+	html_head += FPSTR(HTTP_STYLE);
+	String html = FPSTR(HTTP_HEAD_END);    
+	html.replace("{Caption}", "Network");
+	html = html_head + html;
+	html += FPSTR(HTTP_SETTINGS_DATA);
+	html.replace("{IntSSID}", String(IntSSID));
+	html.replace("{IntPASS}", String(IntPASS));
+	html.replace("{thingWriteAPIKey}",thingWriteAPIKey);
+	html.replace("{ubiToken}", String(ubiToken));
+	html.replace("{ubiDevice}", String(ubiDevice));
+	html.replace("{sendInterval}", String(sendInterval));
+	html.replace("{sendThing_checked}", String(sendThing_checked=0 ? "":"checked"));
+	html.replace("{sendUbi_checked}", String(sendUbi_checked=0 ? "":"checked"));
+	html += FPSTR(HTTP_END);
+	
+	httpServer.send ( 200, "text/html", html );
+}
+
 void setup() {
 	pinMode (Load1, OUTPUT);
 	digitalWrite (Load1, HIGH);
@@ -495,7 +519,8 @@ void setup() {
 	httpServer.on("/settings_store", handleSettingsStore);
 	httpServer.on("/pids", handlePIDs);
 	httpServer.on("/pids_store", handlePIDsStore);
-  httpServer.on("/stop", handleStop);
+	httpServer.on("/stop", handleStop);
+	httpServer.on("/network", handleNetwork);
 
 	httpServer.onNotFound ( handleNotFound );
 //	httpServer.on ( "/inline", []() {
@@ -506,9 +531,9 @@ void setup() {
 	httpServer.begin();
 	Serial.println("HTTP server started");
 
-    SendDataInterval=millis();
+    millisSendDataInterval=millis();
 
-    DS18B20Interval=millis();
+    millisDS18B20Interval=millis();
 	
 	myPID.SetOutputLimits(minVoltage, maxVoltage);	// same limits as for Buck converter
 	myPID.SetMode(AUTOMATIC);
@@ -584,8 +609,8 @@ void loop() {
   delay(1);
 	
 	// request temperature every minute
-	if(millis()-DS18B20Interval>10000){
-		DS18B20Interval=millis();
+	if(millis()-millisDS18B20Interval>10000){
+		millisDS18B20Interval=millis();
 		DS18B20.requestTemperatures(); 
     delay(1000);
     int tmpT = (int)round(DS18B20.getTempCByIndex(0)*100.0);
@@ -600,8 +625,8 @@ void loop() {
 		// we need to send new values to Buck Converter
 		sendI2Cdata();
 	  // Send data to Ubidots
-	  if(millis()-SendDataInterval>60000){
-  	  SendDataInterval = millis();
+	  if(millis()-millisSendDataInterval>(sendInterval * 1000)){
+  	  millisSendDataInterval = millis();
   	  //send2Ubidots();
       send2Thingspeak();
 	  }
