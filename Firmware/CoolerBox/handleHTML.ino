@@ -2,17 +2,12 @@
 
 void handleRoot() {
   
-  char I2CText[80];
-  if (I2C_PRESENT) {
-    strcpy(I2CText, "I2C connected with address 0x5E.");
-    //sprintf(I2CText, "NET: %s, %s", IntSSID, IntPASS);
-    //char buf[16];
-    //sprintf(I2CText, "IP:%d.%d.%d.%d", WiFi.localIP()[0], WiFi.localIP()[1], WiFi.localIP()[2], WiFi.localIP()[3] );
-  }
-
-  else {
-    strcpy(I2CText, "I2C is not connected.");
-  }
+	String I2CText;
+	if (I2C_PRESENT) {
+		I2CText = "I2C connected (0x5E).";
+	} else {
+		I2CText = "I2C is not connected.";
+	}
 
 	unsigned long val = millis();
 	int tdays = val / 86400000;
@@ -39,13 +34,22 @@ void handleRoot() {
 	html.replace("{PWM}", String(PWM_value));
 	html.replace("{Voltage}", String(measuredVoltage,1));
 	html.replace("{Current}", String(measuredCurrent,1));
-	html.replace("{I2CText}", String(I2CText));
+	html.replace("{I2CText}", I2CText);
 	html += FPSTR(HTTP_END);
-
 	httpServer.send ( 200, "text/html", html );
 }
 
 void handleSettings() {
+#ifdef DEBUG
+	StaticJsonBuffer<512> jsonBuffer;
+	File f = SPIFFS.open("/settings.json", "r");
+	JsonObject &jobj = jsonBuffer.parseObject(f);
+	ubiToken = jobj["ubiToken"].as<String>();
+	String tmpStr;
+	jobj.printTo(tmpStr);
+	debugOut += tmpStr;
+	debugOut += ubiToken;
+#endif  
 	// get temperature sensors addresses
 	//int available = DS18B20.getDeviceCount();
 	//for(byte x = 0; x!= available; x++){
@@ -59,8 +63,11 @@ void handleSettings() {
 	html.replace("{changeVoltageSpeed}", String(changeVoltageSpeed,1));
 	html.replace("{minVoltage}", String(minVoltage,1));
 	html.replace("{maxVoltage}", String(maxVoltage,1));
-	html += FPSTR(HTTP_END);
+	#ifdef DEBUG
+	html += "<pre>" + debugOut + "</pre>"
+	#endif
 
+	html += FPSTR(HTTP_END);
 	httpServer.send ( 200, "text/html", html );
 }
 
@@ -126,7 +133,7 @@ void handlePIDsStore(){
 		}
 	}
 	myPID.SetTunings(pid_kP, pid_kI, pid_kD);	// Set new values 
-	saveEEPROMdata();	// Store new PID values
+	saveSettings();	// Store new PID values
 
 	httpServer.sendHeader("Location", String("/"), true);
 	httpServer.send ( 302, "text/plain", "");

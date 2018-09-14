@@ -12,12 +12,18 @@
 #include "globals.h"
 #include "webpage.htm.h"
 
+#define DEBUG
+
 #define I2C_ADDRESS 0x5E  // Buck converter address
 #define I2C_DATALEN 11  // 11 bytes
 
 // pins definition
 #define LED_WARN D0   // LED indicates that peltie is under voltage and can't be just powered off
 #define ONE_WIRE_BUS D6  // DS18B20 pin
+
+#ifdef DEBUG
+String debugOut ="";
+#endif
 
 
 bool I2C_PRESENT;
@@ -125,7 +131,7 @@ void INIT_DS18B20(){
   }
 }
 
-void restoreEEPROMdata(){
+void restoreSetings(){
  struct {
     float pid_kP;
     float pid_kI;
@@ -149,9 +155,8 @@ void restoreEEPROMdata(){
   s.trim();
   s.toCharArray(IntPASS,20);
   thingWriteAPIKey = f.readStringUntil('\n');
-	f.readStringUntil('\n');	// DEBUG
-  //ubiToken = f.readStringUntil('\n');
-  //ubiToken.trim();
+  ubiToken = f.readStringUntil('\n');
+  ubiToken.trim();
   ubiDevice = f.readStringUntil('\n');
   ubiDevice.trim();
   s = f.readStringUntil('\n');
@@ -161,37 +166,54 @@ void restoreEEPROMdata(){
   s = f.readStringUntil('\n');
   sendUbi_checked = s.toInt();
   f.close();  
+
+	/*
+	const char *filename = "/settings.json";
+  
+	StaticJsonBuffer<512> jsonBuffer;
+	File f = SPIFFS.open("/settings.json", "r");
+	JsonObject &jobj = jsonBuffer.parseObject(f);
+	f.close();
+
+	IntSSID = jobj["IntSSID"];
+	IntPASS = jobj["IntPASS"];
+	thingWriteAPIKey = jobj["thingWriteAPIKey"].as<String>();
+	ubiToken = jobj["ubiToken"].as<String>();
+	ubiDevice = jobj["ubiDevice"].as<String>();
+	sendInterval = jobj["sendInterval"];
+	sendThing_checked = jobj["sendThing_checked"];
+	sendUbi_checked = jobj["sendUbi_checked"];
+	setTemp = jobj["setTemp"];
+	pid_kP = jobj["pid_kP"];
+	pid_kI = jobj["pid_kI"];
+	pid_kD = jobj["pid_kD"];
+	*/
 }
 
-void saveEEPROMdata(){
- struct {
-    float pid_kP;
-    float pid_kI;
-    float pid_kD;
-	  float setTemp;
-  } EEdata;
-  
-	//EEPROM.get(0,EEdata);	// somebody explained that this is still needed....
-	// fill struct with correct data
-	EEdata.pid_kP=pid_kP;
-	EEdata.pid_kI=pid_kI;
-	EEdata.pid_kD=pid_kD;
-	EEdata.setTemp=setTemp;
-  EEPROM.begin(40);
-	EEPROM.put(0,EEdata);
-  EEPROM.end();
-  
-  DynamicJsonBuffer jsonBuffer;
-	File f = SPIFFS.open("/settings.json", "r");
-	String line ="";
-	while (f.available()){
-	  line +=(f.readStringUntil('\n'));
-	}
-	JsonObject& jobj = jsonBuffer.parseObject( line );
-  const char* buf = jobj["ubiToken"];
-	ubiToken = String(buf);
+void saveSettings(){
+	const char *filename = "/settings.json";
+	
+	if(SPIFFS.exists(filename)) SPIFFS.remove(filename);
 
-  
+	File f = SPIFFS.open(filename, "w");
+
+	StaticJsonBuffer<512> jsonBuffer;
+	JsonObject &jobj = jsonBuffer.createObject();
+	jobj["IntSSID"] = String(IntSSID);
+	jobj["IntPASS"] = String(IntPASS);
+	jobj["thingWriteAPIKey"] = thingWriteAPIKey;
+	jobj["ubiToken"] = ubiToken;
+	jobj["ubiDevice"] = ubiDevice;
+	jobj["sendInterval"] = sendInterval;
+	jobj["sendThing_checked"] = sendThing_checked;
+	jobj["sendUbi_checked"] = sendUbi_checked;
+	jobj["setTemp"] = setTemp;
+	jobj["pid_kP"] = pid_kP;
+	jobj["pid_kI"] = pid_kI;
+	jobj["pid_kD"] = pid_kD;
+
+	jobj.printTo(f);
+	f.close(); 
 }
 
 
@@ -276,7 +298,7 @@ void setup() {
 
 	readI2Cdata();
   
-	restoreEEPROMdata();	// restore PID and internet settings
+	restoreSettings();	// restore PID and internet settings
 
   	
 	Serial.println();
