@@ -4,7 +4,7 @@ const char HTTP_HEAD[] PROGMEM = R"V0G0N(
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
 <title>Cooler Box Controller</title>
-<LINK href="/webpage.css" rel="stylesheet" type="text/css">
+<LINK href="webpage.css" rel="stylesheet" type="text/css">
 </head>
 <body>
 <div class="container">

@@ -1,9 +1,3 @@
-String thingWriteAPIKey;
-String ubiToken;
-String ubiDevice;
-int sendInterval=600;	// Interval in seconds for sending data to IoT server
-int sendUbi_checked=0;
-int sendThing_checked=0;
 const char* ubiServer = "industrial.api.ubidots.com";
 const char* thingServer = "api.thingspeak.com";
 

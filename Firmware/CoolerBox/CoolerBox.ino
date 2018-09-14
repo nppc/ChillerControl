@@ -49,6 +49,12 @@ const char *password = "1234Test";
 
 char IntSSID[20];
 char IntPASS[20];
+String thingWriteAPIKey;
+String ubiToken;
+String ubiDevice;
+int sendInterval=600;  // Interval in seconds for sending data to IoT server
+int sendUbi_checked=0;
+int sendThing_checked=0;
 
 
 // Define a web server at port 80 for HTTP
@@ -175,14 +181,15 @@ void saveEEPROMdata(){
 	EEPROM.put(0,EEdata);
   EEPROM.end();
   
-	DynamicJsonBuffer jsonBuffer;
+  DynamicJsonBuffer jsonBuffer;
 	File f = SPIFFS.open("/settings.json", "r");
 	String line ="";
 	while (f.available()){
 	  line +=(f.readStringUntil('\n'));
 	}
-	JsonObject& DataFile = jsonBuffer.parseObject( line );
-	ubiToken = DataFile["ubiToken"];
+	JsonObject& jobj = jsonBuffer.parseObject( line );
+  const char* buf = jobj["ubiToken"];
+	ubiToken = String(buf);
 
   
 }
@@ -325,7 +332,7 @@ void setup() {
 	httpServer.on("/pids_store", handlePIDsStore);
 	httpServer.on("/stop", handleStop);
 	httpServer.on("/network", handleNetwork);
-  httpServer.on("/webpage.css", handleCSS);
+  httpServer.on("webpage.css", handleCSS);
   
   handleFSWebServer();
 

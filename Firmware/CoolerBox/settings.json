@@ -1,8 +1,8 @@
 {
-	"IntSSID":"---", 
-	"IntPASS":"---", 
-	"thingWriteAPIKey":"---"
-	"ubiToken":"---"
+	"IntSSID":"---SSID---", 
+	"IntPASS":"---PASS---", 
+	"thingWriteAPIKey":"---Thing---"
+	"ubiToken":"---Ubi---"
 	"ubiDevice":"ispindel000"
 	"sendInterval":60
 	"sendThing_checked":1
