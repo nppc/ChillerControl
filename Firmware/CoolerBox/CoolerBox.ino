@@ -6,6 +6,7 @@
 #include <DallasTemperature.h>
 #include <PID_v1.h>
 #include <EEPROM.h>
+#include <ArduinoJson.h>
 #include "FS.h"
 
 #include "globals.h"
@@ -48,17 +49,7 @@ const char *password = "1234Test";
 
 char IntSSID[20];
 char IntPASS[20];
-String thingWriteAPIKey;
-String ubiToken;
-String ubiDevice;
-int sendInterval=600;	// Interval in seconds for sending data to IoT server
-int sendUbi_checked=0;
-int sendThing_checked=0;
-//const char* VARIABLE_LABEL = "box_temperature"; // Your variable label
-//const char* USER_AGENT = "ESP8266";
-//const char* VERSION = "1.0";
-const char* ubiServer = "industrial.api.ubidots.com";
-const char* thingServer = "api.thingspeak.com";
+
 
 // Define a web server at port 80 for HTTP
 ESP8266WebServer httpServer(80);
@@ -152,8 +143,9 @@ void restoreEEPROMdata(){
   s.trim();
   s.toCharArray(IntPASS,20);
   thingWriteAPIKey = f.readStringUntil('\n');
-  ubiToken = f.readStringUntil('\n');
-  ubiToken.trim();
+	f.readStringUntil('\n');	// DEBUG
+  //ubiToken = f.readStringUntil('\n');
+  //ubiToken.trim();
   ubiDevice = f.readStringUntil('\n');
   ubiDevice.trim();
   s = f.readStringUntil('\n');
@@ -182,6 +174,17 @@ void saveEEPROMdata(){
   EEPROM.begin(40);
 	EEPROM.put(0,EEdata);
   EEPROM.end();
+  
+	DynamicJsonBuffer jsonBuffer;
+	File f = SPIFFS.open("/settings.json", "r");
+	String line ="";
+	while (f.available()){
+	  line +=(f.readStringUntil('\n'));
+	}
+	JsonObject& DataFile = jsonBuffer.parseObject( line );
+	ubiToken = DataFile["ubiToken"];
+
+  
 }
 
 
@@ -344,68 +347,6 @@ void setup() {
 	myPID.SetTunings(pid_kP, pid_kI, pid_kD);	// Set values restored from EEPROM
 }
 
-/*
-void send2Ubidots(){
-char* body = (char *) malloc(sizeof(char) * 150);
-  char* data = (char *) malloc(sizeof(char) * 300);
-  // Space to store values to send 
-  char str_val[10];
-
-  dtostrf(curTemp, 4, 2, str_val);
-
-  sprintf(body, "{\"%s\":%s}", VARIABLE_LABEL, str_val);
-  
-  sprintf(data, "POST /api/v1.6/devices/%s", DEVICE_LABEL);
-  sprintf(data, "%s HTTP/1.1\r\n", data);
-  sprintf(data, "%sHost: things.ubidots.com\r\n", data);
-  sprintf(data, "%sUser-Agent: %s/%s\r\n", data, USER_AGENT, VERSION);
-  sprintf(data, "%sX-Auth-Token: %s\r\n", data, UBI_TOKEN);
-  sprintf(data, "%sConnection: close\r\n", data);
-  sprintf(data, "%sContent-Type: application/json\r\n", data);
-  sprintf(data, "%sContent-Length: %d\r\n\r\n", data, dataLen(body));
-  sprintf(data, "%s%s\r\n\r\n", data, body);
-
-  clientUbi.connect(HTTPSERVER, HTTPPORT);
-
-  if (clientUbi.connect(HTTPSERVER, HTTPPORT)) {
-        Serial.println(F("Posting your variables: "));
-        Serial.println(data);
-        clientSend.print(data);
-  }
-
-  free(data);
-  free(body);
-  clientUbi.stop();
-}
-}
-*/
-
-void send2Thingspeak(){
-  WiFiClient clientSend;
-  int cn=clientSend.connect(thingServer, 80);
-  if (cn) {
-    // Construct API request body
-    String body = "field1=";
-           body += String(curTemp);
-           body += "&field2=";
-           body += String(setTemp);
-           body += "&field3=";
-           body += String(setVoltage);
-    
-    clientSend.println("POST /update HTTP/1.1");
-    clientSend.println("Host: api.thingspeak.com");
-    clientSend.println("User-Agent: ESP8266/1.0");
-    clientSend.println("Connection: close");
-    clientSend.println("X-THINGSPEAKAPIKEY: " + String(thingWriteAPIKey));
-    clientSend.println("Content-Type: application/x-www-form-urlencoded");
-    clientSend.println("Content-Length: " + String(body.length()));
-    clientSend.println("");
-    clientSend.print(body);
-
-  }
-  clientSend.stop();
-
-}
 
 
 void loop() {
@@ -431,8 +372,8 @@ void loop() {
 	  // Send data to Ubidots
 	  if(millis()-millisSendDataInterval>(sendInterval * 1000)){
   	  millisSendDataInterval = millis();
-  	  //send2Ubidots();
-      send2Thingspeak();
+  	  if(sendUbi_checked==1){send2Ubidots();}
+      if(sendThing_checked==1){send2Thingspeak();}
 	  }
 	}
 	
