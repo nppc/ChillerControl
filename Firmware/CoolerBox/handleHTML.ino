@@ -40,16 +40,6 @@ void handleRoot() {
 }
 
 void handleSettings() {
-#ifdef DEBUG
-	StaticJsonBuffer<512> jsonBuffer;
-	File f = SPIFFS.open("/settings.json", "r");
-	JsonObject &jobj = jsonBuffer.parseObject(f);
-	ubiToken = jobj["ubiToken"].as<String>();
-	String tmpStr;
-	jobj.printTo(tmpStr);
-	debugOut += tmpStr;
-	debugOut += ubiToken;
-#endif  
 	// get temperature sensors addresses
 	//int available = DS18B20.getDeviceCount();
 	//for(byte x = 0; x!= available; x++){
@@ -64,7 +54,7 @@ void handleSettings() {
 	html.replace("{minVoltage}", String(minVoltage,1));
 	html.replace("{maxVoltage}", String(maxVoltage,1));
 	#ifdef DEBUG
-	html += "<pre>" + debugOut + "</pre>"
+	html += "<pre>" + debugOut + "</pre>";
 	#endif
 
 	html += FPSTR(HTTP_END);
@@ -148,7 +138,7 @@ void handleSetTemp(){
 				if(tmpTemp>25.0){tmpTemp=setTemp;}	// don't change just in case.
 				if(tmpTemp<0){tmpTemp=0.0;}
 				setTemp = tmpTemp;
-				saveEEPROMdata();	// Store new PID value
+				saveSettings();	// Store new PID value
 			}
 		}
 	}
@@ -201,6 +191,45 @@ void handleNetwork() {
 	
 	httpServer.send ( 200, "text/html", html );
 }
+
+void handleNetworkStore(){
+	if (httpServer.args() > 0 ) {
+		sendThing_checked = 0;
+		sendUbi_checked = 0;
+		for(uint8_t i=0;i<httpServer.args();i++) {
+			String s = httpServer.arg(i);
+			if (httpServer.argName(i) == "IntSSID") {
+				s.toCharArray(IntSSID,20);
+			}
+			if (httpServer.argName(i) == "IntPASS") {
+				s.toCharArray(IntPASS,20);
+			}
+			if (httpServer.argName(i) == "thingWriteAPIKey") {
+				thingWriteAPIKey=s;
+			}
+			if (httpServer.argName(i) == "ubiToken") {
+				ubiToken=s;
+			}
+			if (httpServer.argName(i) == "ubiDevice") {
+				ubiDevice=s;
+			}
+			if (httpServer.argName(i) == "sendInterval") {
+				sendInterval = s.toInt();
+			}
+			if (httpServer.argName(i) == "sendThing") {
+				sendThing_checked = 1;
+			}
+			if (httpServer.argName(i) == "sendUbi") {
+				sendUbi_checked = 1;
+			}
+		}
+	}
+	saveSettings();	// Store new PID values
+
+	httpServer.sendHeader("Location", String("/"), true);
+	httpServer.send ( 302, "text/plain", "");
+}
+
 
 void handleCSS() {
 	File file = SPIFFS.open("/webpage.css", "r");

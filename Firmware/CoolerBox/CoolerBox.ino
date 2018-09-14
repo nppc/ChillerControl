@@ -5,7 +5,7 @@
 #include <Wire.h>
 #include <DallasTemperature.h>
 #include <PID_v1.h>
-#include <EEPROM.h>
+//#include <EEPROM.h>
 #include <ArduinoJson.h>
 #include "FS.h"
 
@@ -131,52 +131,13 @@ void INIT_DS18B20(){
   }
 }
 
-void restoreSetings(){
- struct {
-    float pid_kP;
-    float pid_kI;
-    float pid_kD;
-	  float setTemp;
-  } EEdata;
-	EEPROM.begin(40);
-	EEPROM.get(0,EEdata);
-  EEPROM.end();
-	// assign data to variables and check for validity and if not valid leave default
-	if(EEdata.pid_kP<=300.0 && EEdata.pid_kP>=0.0){pid_kP = EEdata.pid_kP;}
-	if(EEdata.pid_kI<=300.0 && EEdata.pid_kI>=0.0){pid_kI = EEdata.pid_kI;}
-	if(EEdata.pid_kD<=300.0 && EEdata.pid_kD>=0.0){pid_kD = EEdata.pid_kD;}
-	if(EEdata.setTemp<=30.0 && EEdata.setTemp>=0.0){setTemp = EEdata.setTemp;}
-
-  File f = SPIFFS.open("/settings.txt", "r");
-  String s = f.readStringUntil('\n');
-  s.trim();
-  s.toCharArray(IntSSID,20);
-  s = f.readStringUntil('\n');
-  s.trim();
-  s.toCharArray(IntPASS,20);
-  thingWriteAPIKey = f.readStringUntil('\n');
-  ubiToken = f.readStringUntil('\n');
-  ubiToken.trim();
-  ubiDevice = f.readStringUntil('\n');
-  ubiDevice.trim();
-  s = f.readStringUntil('\n');
-  sendInterval = s.toInt();
-  s = f.readStringUntil('\n');
-  sendThing_checked = s.toInt();
-  s = f.readStringUntil('\n');
-  sendUbi_checked = s.toInt();
-  f.close();  
-
-	/*
-	const char *filename = "/settings.json";
-  
+void restoreSettings(){
 	StaticJsonBuffer<512> jsonBuffer;
 	File f = SPIFFS.open("/settings.json", "r");
 	JsonObject &jobj = jsonBuffer.parseObject(f);
 	f.close();
-
-	IntSSID = jobj["IntSSID"];
-	IntPASS = jobj["IntPASS"];
+	String s = jobj["IntSSID"].as<String>();s.toCharArray(IntSSID,20);
+	s = jobj["IntPASS"].as<String>();s.toCharArray(IntPASS,20);
 	thingWriteAPIKey = jobj["thingWriteAPIKey"].as<String>();
 	ubiToken = jobj["ubiToken"].as<String>();
 	ubiDevice = jobj["ubiDevice"].as<String>();
@@ -187,13 +148,19 @@ void restoreSetings(){
 	pid_kP = jobj["pid_kP"];
 	pid_kI = jobj["pid_kI"];
 	pid_kD = jobj["pid_kD"];
-	*/
+
+//	if(EEdata.pid_kP<=300.0 && EEdata.pid_kP>=0.0){pid_kP = EEdata.pid_kP;}
+//	if(EEdata.pid_kI<=300.0 && EEdata.pid_kI>=0.0){pid_kI = EEdata.pid_kI;}
+//	if(EEdata.pid_kD<=300.0 && EEdata.pid_kD>=0.0){pid_kD = EEdata.pid_kD;}
+//	if(EEdata.setTemp<=30.0 && EEdata.setTemp>=0.0){setTemp = EEdata.setTemp;}
+	
+	
 }
 
 void saveSettings(){
 	const char *filename = "/settings.json";
 	
-	if(SPIFFS.exists(filename)) SPIFFS.remove(filename);
+	//if(SPIFFS.exists(filename)) SPIFFS.remove(filename);
 
 	File f = SPIFFS.open(filename, "w");
 
@@ -354,7 +321,8 @@ void setup() {
 	httpServer.on("/pids_store", handlePIDsStore);
 	httpServer.on("/stop", handleStop);
 	httpServer.on("/network", handleNetwork);
-  httpServer.on("webpage.css", handleCSS);
+	httpServer.on("webpage.css", handleCSS);
+	httpServer.on("/network_store", handleNetworkStore);
   
   handleFSWebServer();
 
