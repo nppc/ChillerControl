@@ -27,7 +27,7 @@ void handleRoot() {
 	html.replace("{Caption}", "Main Info");
 	html += FPSTR(HTTP_MAIN_DATA);
 	html.replace("{FW}", FIRMWAREVERSION);
-	html.replace("{curTemp}", String(curTemp,1));
+	html.replace("{ColdTemp}", String(ColdTemp,1));
 	html.replace("{setTemp}", (setTemp==999.0 ? "<div style='color:RED;display:inline-block'>Stopping...</div>":String(setTemp,1)));
 	html.replace("{curTime}", CurTime);
 	html.replace("{setVoltage}", String(setVoltage,1));

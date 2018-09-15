@@ -8,7 +8,7 @@ void send2Ubidots(){
 	  
 	StaticJsonBuffer<100> jsonBuffer;
 	JsonObject &jobj = jsonBuffer.createObject();
-	jobj["box_temperature"] = String(curTemp);
+	jobj["box_temperature"] = String(ColdTemp);
 	jobj["box_voltage"] = String(setVoltage);
 	jobj["box_settemp"] = String(setTemp);
 
@@ -46,7 +46,7 @@ void send2Thingspeak(){
 	if (cn) {
 		// Construct API request body
 		String body = "field1=";
-			   body += String(curTemp);
+			   body += String(ColdTemp);
 			   body += "&field2=";
 			   body += String(setTemp);
 			   body += "&field3=";

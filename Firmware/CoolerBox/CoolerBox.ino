@@ -20,6 +20,7 @@
 // pins definition
 #define LED_WARN D0   // LED indicates that peltie is under voltage and can't be just powered off
 #define ONE_WIRE_BUS D6  // DS18B20 pin
+#define HOT_FAN D5		// Cooling fan for hot radiator
 
 #ifdef DEBUG
 String debugOut ="";
@@ -29,7 +30,8 @@ String debugOut ="";
 bool I2C_PRESENT;
 uint8_t i2c_data[I2C_DATALEN-1]; //11 bytes
 
-double curTemp;	// current measured temperature
+double ColdTemp;	// current measured temperature inside the box
+double HotTemp;	// current measured temperature of hot radiator
 double setTemp=18;	// preset temperature
 double setVoltage;
 float changeVoltageSpeed; 
@@ -49,7 +51,8 @@ int ColdSensorId = 0;
 int HotSensorId = 0;
 
 #define filterSamples 5
-int Temp_SmoothArray[filterSamples];   // array for holding raw sensor values for PT1000 sensor 
+int ColdTemp_SmoothArray[filterSamples];   // array for holding raw sensor values for PT1000 sensor 
+int HotTemp_SmoothArray[filterSamples];   // array for holding raw sensor values for PT1000 sensor 
 
 
 // Default IP in AP mode is 192.168.4.1
@@ -70,14 +73,11 @@ int sendThing_checked=0;
 ESP8266WebServer httpServer(80);
 ESP8266HTTPUpdateServer httpUpdater;
 
-
-const int Load1 = D5; // Cooler hot
-
 float pid_kP=DEFAULT_PID_KP;
 float pid_kI=DEFAULT_PID_KI;
 float pid_kD=DEFAULT_PID_KD;
 // Create PID with default values
-PID myPID(&(curTemp), &(setVoltage), &(setTemp), DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD, REVERSE);
+PID myPID(&(ColdTemp), &(setVoltage), &(setTemp), DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD, REVERSE);
 
 
 // smooth algorytm for ADC reading
@@ -241,8 +241,8 @@ void readI2Cdata(){
 
 
 void setup() {
-	pinMode (Load1, OUTPUT);
-	digitalWrite (Load1, HIGH);
+	pinMode (HOT_FAN, OUTPUT);
+	digitalWrite (HOT_FAN, LOW);
 	pinMode (LED_WARN, OUTPUT);
 	digitalWrite (LED_WARN, LOW);
   
@@ -296,7 +296,9 @@ void setup() {
       DS18B20.requestTemperatures(); 
       delay(1000);
       int tmpT = (int)round(DS18B20.getTempCByIndex(ColdSensorId)*100.0);
-      curTemp = (float)digitalSmooth(tmpT, Temp_SmoothArray) / 100.0;
+      ColdTemp = (float)digitalSmooth(tmpT, ColdTemp_SmoothArray) / 100.0;
+      tmpT = (int)round(DS18B20.getTempCByIndex(HotSensorId)*100.0);
+      HotTemp = (float)digitalSmooth(tmpT, HotTemp_SmoothArray) / 100.0;
     }
 
   int i = 20;
@@ -363,7 +365,9 @@ void loop() {
 		DS18B20.requestTemperatures(); 
     delay(1000);
     int tmpT = (int)round(DS18B20.getTempCByIndex(ColdSensorId)*100.0);
-    curTemp = (float)digitalSmooth(tmpT, Temp_SmoothArray) / 100.0;
+    ColdTemp = (float)digitalSmooth(tmpT, ColdTemp_SmoothArray) / 100.0;
+	tmpT = (int)round(DS18B20.getTempCByIndex(HotSensorId)*100.0);
+	HotTemp = (float)digitalSmooth(tmpT, HotTemp_SmoothArray) / 100.0;
 		// also calculate PID if needed
 		if(setTemp!=999.0){
 		  myPID.Compute();
@@ -375,17 +379,27 @@ void loop() {
 		sendI2Cdata();
 	  // Send data to Ubidots
 	  if(millis()-millisSendDataInterval>(sendInterval * 1000)){
-  	  millisSendDataInterval = millis();
-  	  if(sendUbi_checked==1){send2Ubidots();}
-      if(sendThing_checked==1){send2Thingspeak();}
+		millisSendDataInterval = millis();
+		if(sendUbi_checked==1){send2Ubidots();}
+		if(sendThing_checked==1){send2Thingspeak();}
 	  }
+		// control Fan
+		if(HotSensorId==ColdSensorId){
+			digitalWrite(HOT_FAN, HIGH);	// Fan always ON if only one temperature sensor detected
+		}else{
+		if(HotTemp>=35.0 && digitalRead(HOT_FAN)==LOW){
+			digitalWrite(HOT_FAN, HIGH);
+		}else if(HotTemp<=30.0 && digitalRead(HOT_FAN)==HIGH){
+			digitalWrite(HOT_FAN, LOW);
+		}
 	}
-	
+
+  }
 	
 	if(measuredVoltage<0.5){
-		digitalWrite (LED_WARN, LOW);
+		digitalWrite(LED_WARN, LOW);
 	}else{
-		digitalWrite (LED_WARN, HIGH);
+		digitalWrite(LED_WARN, HIGH);
 	}
 
 }
