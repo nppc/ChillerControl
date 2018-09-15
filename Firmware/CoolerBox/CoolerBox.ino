@@ -135,7 +135,8 @@ void INIT_DS18B20(){
 }
 
 void restoreSettings(){
-	StaticJsonBuffer<512> jsonBuffer;
+	//StaticJsonBuffer<1024> jsonBuffer;
+	DynamicJsonBuffer jsonBuffer;
 	File f = SPIFFS.open("/settings.json", "r");
 	JsonObject &jobj = jsonBuffer.parseObject(f);
 	f.close();
@@ -169,7 +170,7 @@ void saveSettings(){
 
 	File f = SPIFFS.open(filename, "w");
 
-	StaticJsonBuffer<512> jsonBuffer;
+	DynamicJsonBuffer jsonBuffer;
 	JsonObject &jobj = jsonBuffer.createObject();
 	jobj["IntSSID"] = String(IntSSID);
 	jobj["IntPASS"] = String(IntPASS);
@@ -246,7 +247,7 @@ void setup() {
 	pinMode (LED_WARN, OUTPUT);
 	digitalWrite (LED_WARN, LOW);
   
-  SPIFFS.begin();
+	SPIFFS.begin();
 
 	INIT_DS18B20();
 
