@@ -45,6 +45,9 @@ DeviceAddress  DS18B20_adr[2];
 unsigned long millisDS18B20Interval;
 unsigned long millisSendDataInterval;
 
+int ColdSensorId = 0;
+int HotSensorId = 0;
+
 #define filterSamples 5
 int Temp_SmoothArray[filterSamples];   // array for holding raw sensor values for PT1000 sensor 
 
@@ -148,6 +151,8 @@ void restoreSettings(){
 	pid_kP = jobj["pid_kP"];
 	pid_kI = jobj["pid_kI"];
 	pid_kD = jobj["pid_kD"];
+	ColdSensorId = jobj["ColdSensorId"];
+	HotSensorId = jobj["HotSensorId"];
 
 //	if(EEdata.pid_kP<=300.0 && EEdata.pid_kP>=0.0){pid_kP = EEdata.pid_kP;}
 //	if(EEdata.pid_kI<=300.0 && EEdata.pid_kI>=0.0){pid_kI = EEdata.pid_kI;}
@@ -178,7 +183,9 @@ void saveSettings(){
 	jobj["pid_kP"] = pid_kP;
 	jobj["pid_kI"] = pid_kI;
 	jobj["pid_kD"] = pid_kD;
-
+	jobj["ColdSensorId"] = ColdSensorId;
+	jobj["HotSensorId"] = HotSensorId;
+	
 	jobj.printTo(f);
 	f.close(); 
 }
@@ -288,7 +295,7 @@ void setup() {
     for(byte i1=0;i1<filterSamples*2;i1++){
       DS18B20.requestTemperatures(); 
       delay(1000);
-      int tmpT = (int)round(DS18B20.getTempCByIndex(0)*100.0);
+      int tmpT = (int)round(DS18B20.getTempCByIndex(ColdSensorId)*100.0);
       curTemp = (float)digitalSmooth(tmpT, Temp_SmoothArray) / 100.0;
     }
 
@@ -355,7 +362,7 @@ void loop() {
 		millisDS18B20Interval=millis();
 		DS18B20.requestTemperatures(); 
     delay(1000);
-    int tmpT = (int)round(DS18B20.getTempCByIndex(0)*100.0);
+    int tmpT = (int)round(DS18B20.getTempCByIndex(ColdSensorId)*100.0);
     curTemp = (float)digitalSmooth(tmpT, Temp_SmoothArray) / 100.0;
 		// also calculate PID if needed
 		if(setTemp!=999.0){

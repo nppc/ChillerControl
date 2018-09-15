@@ -39,13 +39,26 @@ void handleRoot() {
 	httpServer.send ( 200, "text/html", html );
 }
 
+String ConstructDS18B20list(int idx){
+	int available = DS18B20.getDeviceCount();
+	String AdrTbl = "";
+	for(byte x=0; x!= available; x++){
+		AdrTbl += F("<option value='");
+		AdrTbl += String(x) + "' " + (idx==x ? "selected" : "") + ">";
+		for( byte i=0; i<8; i++) {
+			if (DS18B20_adr[x][i] < 16) AdrTbl += "0";
+			AdrTbl += String(DS18B20_adr[x][i], HEX);
+		}
+		AdrTbl += " = " + String(DS18B20.getTempCByIndex(x),2);
+		AdrTbl += F("&deg; C</option>");
+	}
+	return AdrTbl;
+}	
+
 void handleSettings() {
 	// get temperature sensors addresses
-	//int available = DS18B20.getDeviceCount();
-	//for(byte x = 0; x!= available; x++){
-	//		DS18B20_adr[x];
-	//	}
-	//}
+	String ColdDSlist = ConstructDS18B20list(ColdSensorId);
+	String HotDSlist = ConstructDS18B20list(HotSensorId);
 	// Build an HTML page to display on the web-server 
 	String html = FPSTR(HTTP_HEAD);
 	html.replace("{Caption}", "Settings");
@@ -53,6 +66,8 @@ void handleSettings() {
 	html.replace("{changeVoltageSpeed}", String(changeVoltageSpeed,1));
 	html.replace("{minVoltage}", String(minVoltage,1));
 	html.replace("{maxVoltage}", String(maxVoltage,1));
+	html.replace("{ColdDSlist}", ColdDSlist);
+	html.replace("{HotDSlist}", HotDSlist);
 	#ifdef DEBUG
 	html += "<pre>" + debugOut + "</pre>";
 	#endif
@@ -63,7 +78,7 @@ void handleSettings() {
 
 void handleSettingsStore(){
   if (httpServer.args() > 0 ) {
-    for ( uint8_t i = 0; i < httpServer.args(); i++ ) {
+	for ( uint8_t i = 0; i < httpServer.args(); i++ ) {
       if (httpServer.argName(i) == "VoltChange") {
          //convert voltage to valid range
          float tmpVolt=httpServer.arg(i).toFloat();
@@ -85,12 +100,19 @@ void handleSettingsStore(){
          if(tmpVolt<1.0){tmpVolt=1.0;}
          maxVoltage = tmpVolt;
       }
+      if (httpServer.argName(i) == "SelColdSensor") {
+		ColdSensorId = httpServer.arg(i).toInt();
+      }
+      if (httpServer.argName(i) == "SelHotSensor") {
+		HotSensorId = httpServer.arg(i).toInt();
+      }
    }
   }
   myPID.SetOutputLimits(minVoltage, maxVoltage);  // same limits as for Buck converter
   delay(50);	// make sure, data is not sent too often
   sendI2Cdata();
   delay(50);	// make sure, data is not sent too often
+  saveSettings();	// Store new temperature sensors mapping
   httpServer.sendHeader("Location", String("/"), true);
   httpServer.send ( 302, "text/plain", "");
 }

@@ -63,13 +63,13 @@ document.getElementById("settemperature").style.display = (document.getElementBy
 
 const char HTTP_SETTINGS_DATA[] PROGMEM = R"V0G0N(
 <BR>
-<TABLE class="values_table">
-<TR class="values_header"><TD>Temperature Sensors here</TD></TR>
-<TR><TD>Will inject data here</TR>
-</TABLE>
-
-<script>function NumberChange(n,i){document.getElementById(i).stepUp(n);}</script>
 <form action="/settings_store" method="get">
+<TABLE class="values_table">
+<TR class="values_header"><TD colspan=2>Temperature Sensors</TD></TR>
+<TR><TD>Cold Sensor </TD><TD><select name="SelColdSensor">{ColdDSlist}</select></TD></TR>
+<TR><TD>Hot Sensor </TD><TD><select name="SelHotSensor">{HotDSlist}</select></TD></TR>
+</TABLE>
+<script>function NumberChange(n,i){document.getElementById(i).stepUp(n);}</script>
 <TABLE class="values_table">
 <BR>
 <tr class="values_header"><td colspan=4>Voltage change (V/S)</td></tr>
