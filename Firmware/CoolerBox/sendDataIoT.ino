@@ -6,11 +6,12 @@ void send2Ubidots(){
   int cn=clientSend.connect(ubiServer, 80);
   if (cn) {
 	  
-	StaticJsonBuffer<100> jsonBuffer;
+	DynamicJsonBuffer jsonBuffer;
 	JsonObject &jobj = jsonBuffer.createObject();
 	jobj["box_temperature"] = String(ColdTemp);
 	jobj["box_voltage"] = String(setVoltage);
 	jobj["box_settemp"] = String(setTemp);
+	jobj["box_radiator"] = String(HotTemp);
 
 	
 	String send = F("POST /api/v1.6/devices/");
