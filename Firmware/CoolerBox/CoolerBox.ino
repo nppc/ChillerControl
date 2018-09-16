@@ -388,9 +388,9 @@ void loop() {
 		if(HotSensorId==ColdSensorId){
 			digitalWrite(HOT_FAN, HIGH);	// Fan always ON if only one temperature sensor detected
 		}else{
-		if(HotTemp>=35.0 && digitalRead(HOT_FAN)==LOW){
+		if(HotTemp>=32.0 && digitalRead(HOT_FAN)==LOW){
 			digitalWrite(HOT_FAN, HIGH);
-		}else if(HotTemp<=30.0 && digitalRead(HOT_FAN)==HIGH){
+		}else if(HotTemp<=24.0 && digitalRead(HOT_FAN)==HIGH){
 			digitalWrite(HOT_FAN, LOW);
 		}
 	}
