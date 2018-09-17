@@ -23,37 +23,17 @@ const char HTTP_END[] PROGMEM = R"V0G0N(
 )V0G0N";
 
 const char HTTP_MAIN_DATA[] PROGMEM = R"V0G0N(
-<script>
-var x = setInterval(function() {loadData("ajax",updateData)}, 1000);
-function NumberChange(n,i){document.getElementById(i).stepUp(n);}
-function showhide() {
-document.getElementById("settemperature").style.display = (document.getElementById("settemperature").style.display !== "none") ? "none" : "block";
-}
-function loadData(url, callback){
-var xhttp = new XMLHttpRequest();
-xhttp.onreadystatechange = function(){
- if(this.readyState == 4 && this.status == 200){
- callback.apply(xhttp);
- }
-};
-xhttp.open("GET", url, true);
-xhttp.send();
-}
-function updateData(){
- document.getElementById("curTime").innerHTML = this.responseText;
-}
-</script>
-
-<TABLE width=100%><TR><TD><div align="left">Version: {FW}</div></TD><TD><div id="curTime" align="right">Uptime: {curTime}</div></TD></TR></TABLE>
+<script src="main.js"></script>
+<TABLE width=100%><TR><TD><div align="left">Version: {FW}</div></TD><TD><div align="right">Uptime: <div id="CurTime" style="display:inline">loading...</div></div></TD></TR></TABLE>
 <BR>
 <TABLE class="values_table">
 <TR class="values_header"><TD>Temperature (&deg;C)</TD></TR>
-<TR><TD><div style="font-size:100px">{ColdTemp}</div>Set to: {setTemp}</TD></TR>
+<TR><TD><div style="font-size:100px" id="ColdTemp">{ColdTemp}</div>Set to: {setTemp}</TD></TR>
 </TABLE>
 <BR>
 <TABLE class="values_table">
 <TR class="values_header"><TD>Set Voltage</TD><TD>Voltage</TD><TD>Current</TD><TD>Hot side</TD></TR>
-<TR><TD>{setVoltage}V</TD><TD>{Voltage}V</TD><TD>{Current}A</TD><TD>{HotTemp}&deg; C</TD></TR>
+<TR><TD id="setVoltage">{setVoltage}</TD><TD id="Voltage">{Voltage}</TD><TD id="Current">{Current}</TD><TD><div style="display:inline" id="HotTemp">{HotTemp}</div>&deg;&nbsp;C</TD></TR>
 </TABLE>
 <p>{I2CText}<p>
 <TABLE width="100%"><TR>

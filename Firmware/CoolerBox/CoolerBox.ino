@@ -327,6 +327,7 @@ void setup() {
 
 
 	httpServer.on ( "/", handleRoot );
+	httpServer.on("main.js", handleCSS);
 	httpServer.on("/setTemp", handleSetTemp);
 	httpServer.on("/settings", handleSettings);
 	httpServer.on("/settings_store", handleSettingsStore);

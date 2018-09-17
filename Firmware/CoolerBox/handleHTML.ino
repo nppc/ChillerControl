@@ -20,11 +20,11 @@ void handleRoot() {
 	html.replace("{FW}", FIRMWAREVERSION);
 	html.replace("{ColdTemp}", String(ColdTemp,1));
 	html.replace("{setTemp}", (setTemp==999.0 ? "<div style='color:RED;display:inline-block'>Stopping...</div>":String(setTemp,1)));
-	//html.replace("{curTime}", CurTime);
-	html.replace("{setVoltage}", String(setVoltage,1));
+	//html.replace("{CurTime}", CurTime);
+	html.replace("{setVoltage}", String(setVoltage,1) + "V");
 	html.replace("{HotTemp}", String(HotTemp,1));
-	html.replace("{Voltage}", String(measuredVoltage,1));
-	html.replace("{Current}", String(measuredCurrent,1));
+	html.replace("{Voltage}", String(measuredVoltage,1) + "V");
+	html.replace("{Current}", String(measuredCurrent,1) + "A");
 	html.replace("{I2CText}", I2CText);
 	html += FPSTR(HTTP_END);
 	httpServer.send ( 200, "text/html", html );

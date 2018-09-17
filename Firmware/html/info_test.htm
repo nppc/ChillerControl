@@ -15,31 +15,25 @@
 </td></tr></table>
 
 <!-----MAIN PART-------->
-<TABLE width=100%><TR><TD><div align="left">Version: {FW}</div></TD><TD><div align="right">Uptime: {curTime}</div></TD></TR></TABLE>
+<script src="main.js"></script>
+<TABLE width=100%><TR><TD><div align="left">Version: {FW}</div></TD><TD><div align="right">Uptime: <div id="CurTime" style="display:inline">loading...</div></div></TD></TR></TABLE>
 <BR>
 <TABLE class="values_table">
 <TR class="values_header"><TD>Temperature (&deg;C)</TD></TR>
-<TR><TD><div style="font-size:100px">{curTemp}</div>Set to: {setTemp}</TD></TR>
+<TR><TD><div style="font-size:100px" id="ColdTemp">{ColdTemp}</div>Set to: {setTemp}</TD></TR>
 </TABLE>
 <BR>
 <TABLE class="values_table">
-<TR class="values_header"><TD>Set Voltage</TD><TD>Voltage</TD><TD>Current</TD><TD>PWM</TD></TR>
-<TR><TD>{setVoltage}V</TD><TD>{Voltage}V</TD><TD>{Current}A</TD><TD>{PWM}</TD></TR>
+<TR class="values_header"><TD>Set Voltage</TD><TD>Voltage</TD><TD>Current</TD><TD>Hot side</TD></TR>
+<TR><TD id="setVoltage">{setVoltage}</TD><TD id="Voltage">{Voltage}</TD><TD id="Current">{Current}</TD><TD><div style="display:inline" id="HotTemp">{HotTemp}</div>&deg;&nbsp;C</TD></TR>
 </TABLE>
 <p>{I2CText}<p>
-
 <TABLE width="100%"><TR>
 <TD><button class="btn btn_round" onclick="showhide()">Temperature</button><TD/>
 <TD><form action="/settings" method="get"><button class="btn btn_round">Settings</button></form><TD/>
 <TD><form action="/stop" method="get"><button class="btn btn_round btn_red">STOP</button></form><TD/></TR>
 </TABLE>
 <div id="settemperature" style="display:none;">
-<script>
-function NumberChange(n,i) {document.getElementById(i).stepUp(n);}
-function showhide() {
-document.getElementById("settemperature").style.display = (document.getElementById("settemperature").style.display !== "none") ? "none" : "block";
-}
-</script>
 <form action="/setTemp" method="get">
 <TABLE>
 <tr class="values_header"><td colspan=4>Set Temperature</td></tr>
@@ -51,7 +45,6 @@ document.getElementById("settemperature").style.display = (document.getElementBy
 </TABLE>
 </form>
 </div>
-
 <!-----END OF MAIN PART-------->
 
 </div>
