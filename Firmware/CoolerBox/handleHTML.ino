@@ -19,8 +19,8 @@ void handleRoot() {
 	sprintf(buf,"%d days, %02d:%02d:%02d",tdays,hr,min % 60,sec % 60);
 	String CurTime=String(buf);
 
-	delay(50);	// make sure, data is not sent too often
-	readI2Cdata();
+	//delay(50);	// make sure, data is not sent too often
+	//readI2Cdata();
 
 // Build an HTML page to display on the web-server root address
 	String html = FPSTR(HTTP_HEAD);

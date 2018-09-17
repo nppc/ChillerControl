@@ -46,6 +46,7 @@ DallasTemperature DS18B20(&oneWire);
 DeviceAddress  DS18B20_adr[2];
 unsigned long millisDS18B20Interval;
 unsigned long millisSendDataInterval;
+unsigned long millisReadI2CDataInterval;
 
 int ColdSensorId = 0;
 int HotSensorId = 0;
@@ -273,6 +274,8 @@ void setup() {
 
 	readI2Cdata();
   
+	millisReadI2CDataInterval = millis();
+	
 	restoreSettings();	// restore PID and internet settings
 
   	
@@ -358,45 +361,48 @@ void setup() {
 
 void loop() {
 	httpServer.handleClient();
-  delay(1);
+	delay(1);
 	
 	// request temperature every minute
 	if(millis()-millisDS18B20Interval>10000){
 		millisDS18B20Interval=millis();
 		DS18B20.requestTemperatures(); 
-    delay(1000);
-    int tmpT = (int)round(DS18B20.getTempCByIndex(ColdSensorId)*100.0);
-    ColdTemp = (float)digitalSmooth(tmpT, ColdTemp_SmoothArray) / 100.0;
-	tmpT = (int)round(DS18B20.getTempCByIndex(HotSensorId)*100.0);
-	HotTemp = (float)digitalSmooth(tmpT, HotTemp_SmoothArray) / 100.0;
-	// also calculate PID if needed. But if radiator is very hot, reduce power.
-	if(setTemp!=999.0 && HotTemp<RADIATOR_EXTREME_TEMP){
-		myPID.Compute();
-	}else{
-		setVoltage-=1.0;
-		if(setVoltage<0.0){setVoltage=0.0;}
-	}
-	// we need to send new values to Buck Converter
-	sendI2Cdata();
-	  // Send data to Ubidots
-	  if(millis()-millisSendDataInterval>(sendInterval * 1000)){
-		millisSendDataInterval = millis();
-		if(sendUbi_checked==1){send2Ubidots();}
-		if(sendThing_checked==1){send2Thingspeak();}
-	  }
+		delay(1000);
+		int tmpT = (int)round(DS18B20.getTempCByIndex(ColdSensorId)*100.0);
+		ColdTemp = (float)digitalSmooth(tmpT, ColdTemp_SmoothArray) / 100.0;
+		tmpT = (int)round(DS18B20.getTempCByIndex(HotSensorId)*100.0);
+		HotTemp = (float)digitalSmooth(tmpT, HotTemp_SmoothArray) / 100.0;
+		// also calculate PID if needed. But if radiator is very hot, reduce power.
+		if(setTemp!=999.0 && HotTemp<RADIATOR_EXTREME_TEMP){
+			myPID.Compute();
+		}else{
+			setVoltage-=1.0;
+			if(setVoltage<0.0){setVoltage=0.0;}
+		}
+		// we need to send new values to Buck Converter
+		sendI2Cdata();
+		// Send data to Ubidots
+		if(millis()-millisSendDataInterval>(sendInterval * 1000)){
+			millisSendDataInterval = millis();
+			if(sendUbi_checked==1){send2Ubidots();}
+			if(sendThing_checked==1){send2Thingspeak();}
+		}
 		// control Fan
 		if(HotSensorId==ColdSensorId){
 			digitalWrite(HOT_FAN, HIGH);	// Fan always ON if only one temperature sensor detected
 		}else{
-		if(HotTemp>=32.0 && digitalRead(HOT_FAN)==LOW){
-			digitalWrite(HOT_FAN, HIGH);
-		}else if(HotTemp<=24.0 && digitalRead(HOT_FAN)==HIGH){
-			digitalWrite(HOT_FAN, LOW);
+			if(HotTemp>=32.0 && digitalRead(HOT_FAN)==LOW){
+				digitalWrite(HOT_FAN, HIGH);
+			}else if(HotTemp<=24.0 && digitalRead(HOT_FAN)==HIGH){
+				digitalWrite(HOT_FAN, LOW);
+			}		
 		}
-		
 	}
-
-  }
+	
+	if(millis()-millisReadI2CDataInterval>2000){
+		millisReadI2CDataInterval = millis();
+		readI2Cdata();
+	}
 	
 	if(measuredVoltage<0.5){
 		digitalWrite(LED_WARN, LOW);
