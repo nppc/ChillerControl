@@ -369,15 +369,15 @@ void loop() {
     ColdTemp = (float)digitalSmooth(tmpT, ColdTemp_SmoothArray) / 100.0;
 	tmpT = (int)round(DS18B20.getTempCByIndex(HotSensorId)*100.0);
 	HotTemp = (float)digitalSmooth(tmpT, HotTemp_SmoothArray) / 100.0;
-		// also calculate PID if needed
-		if(setTemp!=999.0){
-		  myPID.Compute();
-		}else{
-      setVoltage-=1.0;
-		  if(setVoltage<0.0){setVoltage=0.0;}
-		}
-		// we need to send new values to Buck Converter
-		sendI2Cdata();
+	// also calculate PID if needed. But if radiator is very hot, reduce power.
+	if(setTemp!=999.0 && HotTemp<RADIATOR_EXTREME_TEMP){
+		myPID.Compute();
+	}else{
+		setVoltage-=1.0;
+		if(setVoltage<0.0){setVoltage=0.0;}
+	}
+	// we need to send new values to Buck Converter
+	sendI2Cdata();
 	  // Send data to Ubidots
 	  if(millis()-millisSendDataInterval>(sendInterval * 1000)){
 		millisSendDataInterval = millis();
@@ -393,6 +393,7 @@ void loop() {
 		}else if(HotTemp<=24.0 && digitalRead(HOT_FAN)==HIGH){
 			digitalWrite(HOT_FAN, LOW);
 		}
+		
 	}
 
   }

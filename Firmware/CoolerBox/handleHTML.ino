@@ -31,7 +31,7 @@ void handleRoot() {
 	html.replace("{setTemp}", (setTemp==999.0 ? "<div style='color:RED;display:inline-block'>Stopping...</div>":String(setTemp,1)));
 	html.replace("{curTime}", CurTime);
 	html.replace("{setVoltage}", String(setVoltage,1));
-	html.replace("{PWM}", String(PWM_value));
+	html.replace("{HotTemp}", String(HotTemp,1));
 	html.replace("{Voltage}", String(measuredVoltage,1));
 	html.replace("{Current}", String(measuredCurrent,1));
 	html.replace("{I2CText}", I2CText);
