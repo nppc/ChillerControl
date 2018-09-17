@@ -244,7 +244,7 @@ void readI2Cdata(){
 
 void setup() {
 	pinMode (HOT_FAN, OUTPUT);
-	digitalWrite (HOT_FAN, LOW);
+	digitalWrite (HOT_FAN, HIGH);
 	pinMode (LED_WARN, OUTPUT);
 	digitalWrite (LED_WARN, LOW);
   
