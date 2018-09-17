@@ -23,7 +23,28 @@ const char HTTP_END[] PROGMEM = R"V0G0N(
 )V0G0N";
 
 const char HTTP_MAIN_DATA[] PROGMEM = R"V0G0N(
-<TABLE width=100%><TR><TD><div align="left">Version: {FW}</div></TD><TD><div align="right">Uptime: {curTime}</div></TD></TR></TABLE>
+<script>
+var x = setInterval(function() {loadData("ajax",updateData)}, 1000);
+function NumberChange(n,i){document.getElementById(i).stepUp(n);}
+function showhide() {
+document.getElementById("settemperature").style.display = (document.getElementById("settemperature").style.display !== "none") ? "none" : "block";
+}
+function loadData(url, callback){
+var xhttp = new XMLHttpRequest();
+xhttp.onreadystatechange = function(){
+ if(this.readyState == 4 && this.status == 200){
+ callback.apply(xhttp);
+ }
+};
+xhttp.open("GET", url, true);
+xhttp.send();
+}
+function updateData(){
+ document.getElementById("curTime").innerHTML = this.responseText;
+}
+</script>
+
+<TABLE width=100%><TR><TD><div align="left">Version: {FW}</div></TD><TD><div id="curTime" align="right">Uptime: {curTime}</div></TD></TR></TABLE>
 <BR>
 <TABLE class="values_table">
 <TR class="values_header"><TD>Temperature (&deg;C)</TD></TR>
@@ -35,19 +56,12 @@ const char HTTP_MAIN_DATA[] PROGMEM = R"V0G0N(
 <TR><TD>{setVoltage}V</TD><TD>{Voltage}V</TD><TD>{Current}A</TD><TD>{HotTemp}&deg; C</TD></TR>
 </TABLE>
 <p>{I2CText}<p>
-
 <TABLE width="100%"><TR>
 <TD><button class="btn btn_round" onclick="showhide()">Temperature</button><TD/>
 <TD><form action="/settings" method="get"><button class="btn btn_round">Settings</button></form><TD/>
 <TD><form action="/stop" method="get"><button class="btn btn_round btn_red">STOP</button></form><TD/></TR>
 </TABLE>
 <div id="settemperature" style="display:none;">
-<script>
-function NumberChange(n,i){document.getElementById(i).stepUp(n);}
-function showhide() {
-document.getElementById("settemperature").style.display = (document.getElementById("settemperature").style.display !== "none") ? "none" : "block";
-}
-</script>
 <form action="/setTemp" method="get">
 <TABLE>
 <tr class="values_header"><td colspan=4>Set Temperature</td></tr>

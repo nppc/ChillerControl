@@ -9,15 +9,6 @@ void handleRoot() {
 		I2CText = "I2C is not connected.";
 	}
 
-	unsigned long val = millis();
-	int tdays = val / 86400000;
-	unsigned long sec = val / 1000;
-	unsigned long min = sec / 60;
-	int hr = min / 60;
-
-	char buf[20];
-	sprintf(buf,"%d days, %02d:%02d:%02d",tdays,hr,min % 60,sec % 60);
-	String CurTime=String(buf);
 
 	//delay(50);	// make sure, data is not sent too often
 	//readI2Cdata();
@@ -29,7 +20,7 @@ void handleRoot() {
 	html.replace("{FW}", FIRMWAREVERSION);
 	html.replace("{ColdTemp}", String(ColdTemp,1));
 	html.replace("{setTemp}", (setTemp==999.0 ? "<div style='color:RED;display:inline-block'>Stopping...</div>":String(setTemp,1)));
-	html.replace("{curTime}", CurTime);
+	//html.replace("{curTime}", CurTime);
 	html.replace("{setVoltage}", String(setVoltage,1));
 	html.replace("{HotTemp}", String(HotTemp,1));
 	html.replace("{Voltage}", String(measuredVoltage,1));

@@ -336,8 +336,9 @@ void setup() {
 	httpServer.on("/network", handleNetwork);
 	httpServer.on("webpage.css", handleCSS);
 	httpServer.on("/network_store", handleNetworkStore);
+	httpServer.on("/ajax", handleAJAXrequest);
   
-  handleFSWebServer();
+	handleFSWebServer();
 
 //	httpServer.onNotFound ( handleNotFound );
 //	httpServer.on ( "/inline", []() {
