@@ -103,7 +103,7 @@ void handleFileList() {
   Dir dir = SPIFFS.openDir("/");
 //  path = String();
 
-  String output = "<HTML><BODY><TABLE>";
+  String output = F("<HTML><BODY><TABLE>");
   while (dir.next()) {
     File entry = dir.openFile("r");
     output += "<TR><TD>";
@@ -113,16 +113,14 @@ void handleFileList() {
     output += (isDir) ? "" : "<a href=/file_download?filename="+String(entry.name()).substring(1)+">";
     output += String(entry.name()).substring(1);
     output += (isDir) ? "" : "</a>";
-    output += "</TD><TD>[<a href=/file_delete?filename=/";
+    output += F("</TD><TD>[<a href=/file_delete?filename=/");
     output += String(entry.name()).substring(1);
-	output += ">X</a>]</TD></TR>";
+	output += F("onclick=\"return confirm('Delete?')\">X</a>]</TD></TR>");
     entry.close();
   }
 
-  output += "</TABLE><BR>";
-  output += "<form method='POST' action='/filelist' enctype='multipart/form-data'>";
-  output += "<input type='file' name='filename'><input type='submit'></form>";
-  output += "</BODY></HTML>";
+  output += F("</TABLE><BR><form method='POST' action='/filelist' enctype='multipart/form-data'>");
+  output += F("<input type='file' name='filename'><input type='submit'></form></BODY></HTML>");
   httpServer.send(200, "text/html", output);
 }
 
