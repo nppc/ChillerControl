@@ -113,9 +113,9 @@ void handleFileList() {
     output += (isDir) ? "" : "<a href=/file_download?filename="+String(entry.name()).substring(1)+">";
     output += String(entry.name()).substring(1);
     output += (isDir) ? "" : "</a>";
-    output += F("</TD><TD>[<a href=/file_delete?filename=/");
+    output += F("</TD><TD>[<a href='/file_delete?filename=/");
     output += String(entry.name()).substring(1);
-	output += F("onclick=\"return confirm('Delete?')\">X</a>]</TD></TR>");
+	output += F("' onclick=\"return confirm('Delete?')\">X</a>]</TD></TR>");
     entry.close();
   }
 
