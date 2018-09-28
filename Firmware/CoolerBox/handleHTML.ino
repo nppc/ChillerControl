@@ -114,7 +114,7 @@ void handlePIDs() {
 	html.replace("{Caption}", "PID Settings");
 	html += FPSTR(HTTP_PIDS_DATA);
 	html.replace("{pid_kP}", String(pid_kP,2));
-	html.replace("{pid_kI}", String(pid_kI,2));
+	html.replace("{pid_kI}", String(pid_kI,4));
 	html.replace("{pid_kD}", String(pid_kD,2));
 	html += FPSTR(HTTP_END);
 

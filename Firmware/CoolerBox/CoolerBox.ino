@@ -44,7 +44,7 @@ float measuredCurrent;
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature DS18B20(&oneWire);
 DeviceAddress  DS18B20_adr[2];
-unsigned long millisDS18B20Interval;
+unsigned long millisPIDinterval;
 unsigned long millisSendDataInterval;
 unsigned long millisReadI2CDataInterval;
 
@@ -352,7 +352,7 @@ void setup() {
 
     millisSendDataInterval=millis();
 
-    millisDS18B20Interval=millis();
+    millisPIDinterval=millis();
 	
 	myPID.SetOutputLimits(minVoltage, maxVoltage);	// same limits as for Buck converter
 	myPID.SetMode(AUTOMATIC);
@@ -366,8 +366,8 @@ void loop() {
 	delay(1);
 	
 	// request temperature every minute
-	if(millis()-millisDS18B20Interval>10000){
-		millisDS18B20Interval=millis();
+	if(millis()-millisPIDinterval>(PIDCOMPUTE_INTERVAL * 1000)){
+		millisPIDinterval=millis();
 		DS18B20.requestTemperatures(); 
 		delay(1000);
 		int tmpT = (int)round(DS18B20.getTempCByIndex(ColdSensorId)*100.0);
@@ -383,7 +383,7 @@ void loop() {
 		}
 		// we need to send new values to Buck Converter
 		sendI2Cdata();
-		// Send data to Ubidots
+		// Send data to IoT
 		if(millis()-millisSendDataInterval>(sendInterval * 1000)){
 			millisSendDataInterval = millis();
 			if(sendUbi_checked==1){send2Ubidots();}
@@ -401,12 +401,12 @@ void loop() {
 		}
 	}
 	
-	if(millis()-millisReadI2CDataInterval>2000){
+	if(millis()-millisReadI2CDataInterval>(I2C_INTERVAL * 1000)){
 		millisReadI2CDataInterval = millis();
 		readI2Cdata();
 	}
 	
-	if(measuredVoltage<0.5){
+	if(measuredVoltage<1.0){
 		digitalWrite(LED_WARN, LOW);
 	}else{
 		digitalWrite(LED_WARN, HIGH);

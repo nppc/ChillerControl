@@ -111,10 +111,10 @@ const char HTTP_PIDS_DATA[] PROGMEM = R"V0G0N(
 <TD rowspan=2>Current value is {pid_kP}</TD></tr>
 <TR><TD colspan=3>&nbsp;</TD><TR>
 <tr class="values_header"><td colspan=4>I</td></tr>
-<tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'pid_kI')">&#171;</button></td>
+<tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-1,'pid_kI')">&#171;</button></td>
 <td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
-<input type="number" name="pid_kI" id="pid_kI" class="input" min="0.0" max="100.0" step="0.1" value="{pid_kI}"/></td>
-<td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'pid_kI')">&#187;</button></td>
+<input type="number" name="pid_kI" id="pid_kI" class="input" min="0.0" max="100.0" step="0.001" value="{pid_kI}"/></td>
+<td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(1,'pid_kI')">&#187;</button></td>
 <TD rowspan=2>Current value is {pid_kI}</TD></tr>
 <TR><TD colspan=3>&nbsp;</TD><TR>
 <tr class="values_header"><td colspan=4>D</td></tr>
