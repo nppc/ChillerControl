@@ -1,6 +1,6 @@
 lockWidth=20;
 lockDiam=6;
-coverThick=42;
+coverThick=45;
 
 PRINT=1;
 PRINTONLYJOINT=0;
@@ -39,11 +39,11 @@ module lockSide(){
 module lockUp(){
     difference(){
         hull(){
-            translate([-lockWidth/2,8,0])cube([lockWidth,5,8]);
+            translate([-lockWidth/2,6,0])cube([lockWidth,5,8]);
         translate([0,2,-33])rotate([90,0,0])cylinder(d=20,h=2,$fn=50);
             translate([0,2,6])rotate([0,90,0])cylinder(d=4,h=lockWidth, center=true, $fn=20);
         }
-        translate([0,14,4])rotate([0,90,0])cylinder(d=lockDiam+0.5,h=lockWidth, center=true, $fn=20);
+        translate([0,12,4])rotate([0,90,0])cylinder(d=lockDiam+0.5,h=lockWidth, center=true, $fn=20);
     }
     hull(){
         translate([-(lockWidth+50)/2-2,2,-3])rotate([90,0,0])cylinder(d=6,h=2,$fn=30);
@@ -57,19 +57,19 @@ module lockUp(){
 module traat(){
     translate([0,-2,4])rotate([0,90,0])cylinder(d=lockDiam,h=lockWidth+2, center=true, $fn=20);
 
-    translate([0,coverThick+36,4])rotate([0,90,0])cylinder(d=lockDiam,h=lockWidth+2, center=true, $fn=20);
+    translate([0,coverThick+34,4])rotate([0,90,0])cylinder(d=lockDiam,h=lockWidth+2, center=true, $fn=20);
     
     translate([15,0,0])hull(){
         translate([0,-2,4])rotate([0,90,0])cylinder(d=lockDiam,h=8, center=true, $fn=20);
-        translate([0,coverThick+36,4])rotate([0,90,0])cylinder(d=lockDiam,h=8, center=true, $fn=20);
-        translate([0,coverThick+36-1,2])cube([8,8,2],true);
+        translate([0,coverThick+34,4])rotate([0,90,0])cylinder(d=lockDiam,h=8, center=true, $fn=20);
+        translate([0,coverThick+34-1,2])cube([8,8,2],true);
         translate([0,-1,2])cube([8,8,2],true);
     }
 
     translate([-15,0,0])hull(){
         translate([0,-2,4])rotate([0,90,0])cylinder(d=lockDiam,h=8, center=true, $fn=20);
-        translate([0,coverThick+36,4])rotate([0,90,0])cylinder(d=lockDiam,h=8, center=true, $fn=20);
-        translate([0,coverThick+36-1,2])cube([8,8,2],true);
+        translate([0,coverThick+34,4])rotate([0,90,0])cylinder(d=lockDiam,h=8, center=true, $fn=20);
+        translate([0,coverThick+34-1,2])cube([8,8,2],true);
         translate([0,-1,2])cube([8,8,2],true);
     }
 
