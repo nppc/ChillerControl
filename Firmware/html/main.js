@@ -38,4 +38,8 @@ document.getElementById('Voltage').innerHTML=message;
 xmldoc = xmlResponse.getElementsByTagName('C');
 message = xmldoc[0].firstChild.nodeValue;
 document.getElementById('Current').innerHTML=message;
+
+xmldoc = xmlResponse.getElementsByTagName('F');
+message = xmldoc[0].firstChild.nodeValue;
+document.getElementById('Fan').style.backgroundColor = message;
 }

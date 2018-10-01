@@ -9,6 +9,7 @@ void handleAJAXrequest() {
 	sprintf(buf,"%d days, %02d:%02d:%02d",tdays,hr,min % 60,sec % 60);
 	String CurTime=String(buf);
 
+	String Fan= (digitalRead(HOT_FAN)? "#ffd699" : "Transparent");
 	String XML=F("<?xml version='1.0'?><xml>");
 	XML += "<Tm>" + CurTime + "</Tm>";
 	XML += "<HT>" + String(HotTemp,1) + "</HT>";
@@ -16,6 +17,7 @@ void handleAJAXrequest() {
 	XML += "<sV>" + String(setVoltage,1) + "V</sV>";
 	XML += "<V>" + String(measuredVoltage,1) + "V</V>";
 	XML += "<C>" + String(measuredCurrent,1) + "A</C>";
+	XML += "<F>" + Fan + "</F>";
 	XML += "</xml>";
 	httpServer.send(200,"text/xml",XML);
 }

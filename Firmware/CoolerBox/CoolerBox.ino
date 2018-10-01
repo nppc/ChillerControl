@@ -12,7 +12,7 @@
 #include "globals.h"
 #include "webpage.htm.h"
 
-#define DEBUG
+//#define DEBUG
 
 #define I2C_ADDRESS 0x5E  // Buck converter address
 #define I2C_DATALEN 11  // 11 bytes
@@ -26,8 +26,7 @@
 String debugOut ="";
 #endif
 
-
-bool I2C_PRESENT;
+byte I2C_PRESENT;
 uint8_t i2c_data[I2C_DATALEN-1]; //11 bytes
 
 double ColdTemp;	// current measured temperature inside the box
@@ -194,21 +193,40 @@ void saveSettings(){
 
 
 void sendI2Cdata(){
-  if(I2C_PRESENT){
-    Wire.beginTransmission(I2C_ADDRESS); //Start bit
-    Wire.write((uint8_t)(setVoltage * 10.0)); // Set Voltage
-    Wire.write((uint8_t)(changeVoltageSpeed * 10.0)); // Speed of voltae change (means 0.4v/s)
-    Wire.write((uint8_t)(minVoltage * 10.0)); //Min Voltage
-    Wire.write((uint8_t)(maxVoltage * 10.0)); //Max Voltage
-    Wire.write(PWM_value); //No affect on Buck Converter
-    Wire.write((uint8_t)(measuredVoltage * 10.0)); //No affect on Buck Converter
-    Wire.write((uint8_t)(measuredCurrent * 10.0)); //No affect on Buck Converter
-    Wire.write(0); //Only filled in Read
-    Wire.write(0); //Only filled in Read
-    Wire.write(0); //Only filled in Read
-    Wire.write(0); //Only filled in Read
-    Wire.endTransmission();
-  }
+	if(I2C_PRESENT){
+		Wire.beginTransmission(I2C_ADDRESS); //Start bit
+		Wire.write((uint8_t)(setVoltage * 10.0)); // Set Voltage
+		Wire.write((uint8_t)(changeVoltageSpeed * 10.0)); // Speed of voltae change (means 0.4v/s)
+		Wire.write((uint8_t)(minVoltage * 10.0)); //Min Voltage
+		Wire.write((uint8_t)(maxVoltage * 10.0)); //Max Voltage
+		Wire.write(PWM_value); //No affect on Buck Converter
+		Wire.write((uint8_t)(measuredVoltage * 10.0)); //No affect on Buck Converter
+		Wire.write((uint8_t)(measuredCurrent * 10.0)); //No affect on Buck Converter
+		Wire.write(0); //Only filled in Read
+		Wire.write(0); //Only filled in Read
+		Wire.write(0); //Only filled in Read
+		Wire.write(0); //Only filled in Read
+		Wire.endTransmission();
+		byte error = Wire.endTransmission();
+		if (error==0){
+		I2C_PRESENT=HIGH;
+		Serial.println("I2C Buck converter fund at address 0x5E");
+		}else{
+		I2C_PRESENT=LOW;
+		Serial.println("I2C Buck converter is not connected.");
+		}
+	} else {
+		// check i2c again
+		Wire.beginTransmission(I2C_ADDRESS);
+		byte error = Wire.endTransmission();
+		if (error==0){
+			I2C_PRESENT=HIGH;
+			Serial.println("I2C Buck converter fund at address 0x5E");
+		}else{
+			I2C_PRESENT=LOW;
+			Serial.println("I2C Buck converter is not connected.");
+		}
+	}
 }
 
 void readI2Cdata(){
