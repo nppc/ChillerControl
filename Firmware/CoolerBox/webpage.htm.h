@@ -39,7 +39,7 @@ const char HTTP_MAIN_DATA[] PROGMEM = R"V0G0N(
 <TABLE width="100%"><TR>
 <TD><button class="btn btn_round" onclick="showhide()">Temperature</button><TD/>
 <TD><form action="/settings" method="get"><button class="btn btn_round">Settings</button></form><TD/>
-<TD><form action="/stop" method="get"><button class="btn btn_round btn_red">STOP</button></form><TD/></TR>
+<TD><form action="/stop" method="get"><button class="btn btn_round btn_red" onclick="return confirm('Stop?')">STOP</button></form><TD/></TR>
 </TABLE>
 <div id="settemperature" style="display:none;">
 <form action="/setTemp" method="get">
