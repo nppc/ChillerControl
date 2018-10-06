@@ -35,7 +35,7 @@ const char HTTP_MAIN_DATA[] PROGMEM = R"V0G0N(
 <TR class="values_header"><TD>Set Voltage</TD><TD>Voltage</TD><TD>Current</TD><TD>Hot side</TD></TR>
 <TR><TD id="setVoltage">{setVoltage}</TD><TD id="Voltage">{Voltage}</TD><TD id="Current">{Current}</TD><TD id="Fan"><div style="display:inline" id="HotTemp">{HotTemp}</div>&deg;&nbsp;C</TD></TR>
 </TABLE>
-<p>{I2CText}<p>
+<div style="line-height:3">{I2CText} (<div style="display:inline" id="I2CError">-</div>).</div>
 <TABLE width="100%"><TR>
 <TD><button class="btn btn_round" onclick="showhide()">Temperature</button><TD/>
 <TD><form action="/settings" method="get"><button class="btn btn_round">Settings</button></form><TD/>

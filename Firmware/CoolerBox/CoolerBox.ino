@@ -5,7 +5,6 @@
 #include <Wire.h>
 #include <DallasTemperature.h>
 #include <PID_v1.h>
-//#include <EEPROM.h>
 #include <ArduinoJson.h>
 #include "FS.h"
 
@@ -26,7 +25,8 @@
 String debugOut ="";
 #endif
 
-byte I2C_PRESENT;
+unsigned long I2C_error;
+bool I2C_PRESENT;
 uint8_t i2c_data[I2C_DATALEN-1]; //11 bytes
 
 double ColdTemp;	// current measured temperature inside the box
@@ -206,14 +206,14 @@ void sendI2Cdata(){
 		Wire.write(0); //Only filled in Read
 		Wire.write(0); //Only filled in Read
 		Wire.write(0); //Only filled in Read
-		Wire.endTransmission();
 		byte error = Wire.endTransmission();
 		if (error==0){
-		I2C_PRESENT=HIGH;
-		Serial.println("I2C Buck converter fund at address 0x5E");
+			I2C_PRESENT=HIGH;
+			Serial.println(F("I2C Buck converter fund at address 0x5E"));
 		}else{
-		I2C_PRESENT=LOW;
-		Serial.println("I2C Buck converter is not connected.");
+			I2C_PRESENT=LOW;
+			Serial.println(F("I2C Buck converter is not connected."));
+			I2C_error++;
 		}
 	} else {
 		// check i2c again
@@ -221,10 +221,10 @@ void sendI2Cdata(){
 		byte error = Wire.endTransmission();
 		if (error==0){
 			I2C_PRESENT=HIGH;
-			Serial.println("I2C Buck converter fund at address 0x5E");
+			Serial.println(F("I2C Buck converter fund at address 0x5E"));
 		}else{
 			I2C_PRESENT=LOW;
-			Serial.println("I2C Buck converter is not connected.");
+			Serial.println(F("I2C Buck converter is not connected."));
 		}
 	}
 }
@@ -232,18 +232,19 @@ void sendI2Cdata(){
 void readI2Cdata(){
     // Read data from I2CBuck
   if(I2C_PRESENT){
-    Wire.requestFrom(I2C_ADDRESS, 11);
-    Serial.print("I2C bytes Available ");
-    Serial.print(Wire.available());
+    Serial.print(F("I2C bytes Available "));
+    Wire.requestFrom(I2C_ADDRESS, I2C_DATALEN);
+    uint8_t b_avail = Wire.available();
+	Serial.print(b_avail);
     Serial.print(": ");
-    byte i=0;
+    uint8_t i=0;
     while(Wire.available()!=0) {
-      i2c_data[i] = Wire.read();
+      if(b_avail==I2C_DATALEN) i2c_data[i] = Wire.read();
       Serial.print(i2c_data[i]);
       Serial.print(" ");
-      //if(i==5){I2Cvolt = c;}
       i++;
     }
+	if(b_avail!=I2C_DATALEN) I2C_error++;
     Serial.println();
   }else{
     // clear array
@@ -278,15 +279,16 @@ void setup() {
 	Serial.begin(115200);
 
 	 // Detect I2C device
-  Wire.beginTransmission(I2C_ADDRESS);
-  byte error = Wire.endTransmission();
-  if (error==0){
-    I2C_PRESENT=HIGH;
-    Serial.println("I2C Buck converter fund at address 0x5E");
-  }else{
-    I2C_PRESENT=LOW;
-    Serial.println("I2C Buck converter is not connected.");
-  }
+	I2C_error=0;
+	Wire.beginTransmission(I2C_ADDRESS);
+	byte error = Wire.endTransmission();
+	if (error==0){
+		I2C_PRESENT=HIGH;
+		Serial.println(F("I2C Buck converter fund at address 0x5E"));
+	}else{
+		I2C_PRESENT=LOW;
+		Serial.println(F("I2C Buck converter is not connected."));
+	}
    
 	delay(500);
 
@@ -331,12 +333,12 @@ void setup() {
     }
 
   if(WiFi.status() == WL_CONNECTED){
-    Serial.print("Internet IP address: ");
+    Serial.print(F("Internet IP address: "));
     Serial.println(WiFi.localIP());
     WiFi.setAutoReconnect(true);
   }else{
-    Serial.print("Internet connection failed.");
-    Serial.print(" Error is: ");
+    Serial.print(F("Internet connection failed."));
+    Serial.print(F(" Error is: "));
     Serial.println(WiFi.status());
     WiFi.setAutoReconnect(false);
     WiFi.disconnect();

@@ -42,4 +42,8 @@ document.getElementById('Current').innerHTML=message;
 xmldoc = xmlResponse.getElementsByTagName('F');
 message = xmldoc[0].firstChild.nodeValue;
 document.getElementById('Fan').style.backgroundColor = message;
+
+xmldoc = xmlResponse.getElementsByTagName('E');
+message = xmldoc[0].firstChild.nodeValue;
+document.getElementById('I2CError').innerHTML = message;
 }

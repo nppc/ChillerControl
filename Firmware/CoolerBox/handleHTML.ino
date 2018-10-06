@@ -4,9 +4,9 @@ void handleRoot() {
   
 	String I2CText;
 	if (I2C_PRESENT) {
-		I2CText = "I2C connected (0x5E).";
+		I2CText = "I2C connected";
 	} else {
-		I2CText = "I2C is not connected.";
+		I2CText = "I2C is not connected";
 	}
 
 
