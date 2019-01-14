@@ -10,5 +10,8 @@
 	"setTemp":19.3,
 	"pid_kP":2.3,
 	"pid_kI":1.0,
-	"pid_kD":0.6
+	"pid_kD":0.6,
+	"i2cDCDC_minVoltage":2.0,
+	"i2cDCDC_maxVoltage":12.0,
+	"i2cDCDC_changeVoltage":0.4
 }

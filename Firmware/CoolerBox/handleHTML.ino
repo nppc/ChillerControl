@@ -105,7 +105,7 @@ void handleSettingsStore(){
   delay(50);	// make sure, data is not sent too often
   sendI2Cdata();
   delay(50);	// make sure, data is not sent too often
-  saveSettings();	// Store new temperature sensors mapping
+  saveSettings();	// Store settings
   httpServer.sendHeader("Location", String("/"), true);
   httpServer.send ( 302, "text/plain", "");
 }

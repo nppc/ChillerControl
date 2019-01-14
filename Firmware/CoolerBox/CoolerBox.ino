@@ -157,6 +157,10 @@ void restoreSettings(){
 	pid_kD = jobj["pid_kD"];
 	ColdSensorId = jobj["ColdSensorId"];
 	HotSensorId = jobj["HotSensorId"];
+	// read settings for i2c DC/DC converter
+	minVoltage = jobj["i2cDCDC_minVoltage"];
+	maxVoltage = jobj["i2cDCDC_maxVoltage"];
+	changeVoltageSpeed = jobj["i2cDCDC_changeVoltage"];
 
 //	if(EEdata.pid_kP<=300.0 && EEdata.pid_kP>=0.0){pid_kP = EEdata.pid_kP;}
 //	if(EEdata.pid_kI<=300.0 && EEdata.pid_kI>=0.0){pid_kI = EEdata.pid_kI;}
@@ -189,6 +193,10 @@ void saveSettings(){
 	jobj["pid_kD"] = pid_kD;
 	jobj["ColdSensorId"] = ColdSensorId;
 	jobj["HotSensorId"] = HotSensorId;
+	// store settings for i2c DC/DC converter
+	jobj["i2cDCDC_minVoltage"] = minVoltage;
+	jobj["i2cDCDC_maxVoltage"] = maxVoltage;
+	jobj["i2cDCDC_changeVoltage"] = changeVoltageSpeed;
 	
 	jobj.printTo(f);
 	f.close(); 
@@ -199,7 +207,7 @@ void sendI2Cdata(){
 	if(I2C_PRESENT){
 		Wire.beginTransmission(I2C_ADDRESS); //Start bit
 		Wire.write((uint8_t)(setVoltage * 10.0)); // Set Voltage
-		Wire.write((uint8_t)(changeVoltageSpeed * 10.0)); // Speed of voltae change (means 0.4v/s)
+		Wire.write((uint8_t)(changeVoltageSpeed * 10.0)); // Speed of voltage change (means 0.4v/s)
 		Wire.write((uint8_t)(minVoltage * 10.0)); //Min Voltage
 		Wire.write((uint8_t)(maxVoltage * 10.0)); //Max Voltage
 		Wire.write(PWM_value); //No affect on Buck Converter
@@ -255,9 +263,9 @@ void readI2Cdata(){
   }
   // assign to variables
   setVoltage = (float)i2c_data[0]/10.0;
-  changeVoltageSpeed = (float)i2c_data[1]/10.0;
-  minVoltage = (float)i2c_data[2]/10.0; 
-  maxVoltage = (float)i2c_data[3]/10.0; 
+  //changeVoltageSpeed = (float)i2c_data[1]/10.0;
+  //minVoltage = (float)i2c_data[2]/10.0; 
+  //maxVoltage = (float)i2c_data[3]/10.0; 
   PWM_value = i2c_data[4];
   measuredVoltage = (float)i2c_data[5]/10.0; 
   measuredCurrent = (float)i2c_data[6]/10.0; 
@@ -295,13 +303,12 @@ void setup() {
    
 	delay(500);
 
-	readI2Cdata();
-	maxVoltage_backup = maxVoltage; // update backup
+	//readI2Cdata();
   
 	millisReadI2CDataInterval = millis();
 	
 	restoreSettings();	// restore PID and internet settings
-
+	maxVoltage_backup = maxVoltage; // update backup
   	
 	Serial.println();
 	Serial.println("Configuring access point...");
@@ -309,7 +316,7 @@ void setup() {
 	//You can remove the password parameter if you want the AP to be open.
 	WiFi.softAP(ssid, password);
 
-  WiFi.mode(WIFI_AP_STA);
+	WiFi.mode(WIFI_AP_STA);
 
 	IPAddress myIP = WiFi.softAPIP();
 	Serial.print("AP IP address: ");
@@ -404,6 +411,7 @@ void loop() {
 			maxVoltage = maxVoltage + (HotTemp=>RADIATOR_EXTREME_TEMP ? -0.1 : 0.1); // change voltage slowly to avoid spikes
 			if(maxVoltage>maxVoltage_backup){maxVoltage=maxVoltage_backup;}
 			if(maxVoltage<minVoltage){maxVoltage=minVoltage;}
+			myPID.SetOutputLimits(minVoltage, maxVoltage);  // set new max limit to the PID
 			if(HotTemp<RADIATOR_EXTREME_TEMP && maxVoltage==maxVoltage_backup){flagExtremeTemp = LOW;}
 		}
 		// if we in stopping process then just reduce the voltage every PID loop for 1v
@@ -440,7 +448,7 @@ void loop() {
 		readI2Cdata();
 	}
 	
-	if(measuredVoltage<1.0){
+	if(measuredVoltage<2.0){
 		digitalWrite(LED_WARN, LOW);
 	}else{
 		digitalWrite(LED_WARN, HIGH);
