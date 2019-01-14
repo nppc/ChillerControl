@@ -421,9 +421,9 @@ void loop() {
 		tmpT = (int)round(DS18B20.getTempCByIndex(HotSensorId)*100.0);
 		HotTemp = (float)digitalSmooth(tmpT, HotTemp_SmoothArray) / 100.0;
 		// If radiator is very hot, reduce power (decrease max voltage allowed).
-		if(HotTemp=>RADIATOR_EXTREME_TEMP && !flagExtremeTemp) {flagExtremeTemp = HIGH;}
+		if(HotTemp>=RADIATOR_EXTREME_TEMP && !flagExtremeTemp) {flagExtremeTemp = HIGH;}
 		if(flagExtremeTemp){
-			maxVoltage = maxVoltage + (HotTemp=>RADIATOR_EXTREME_TEMP ? -0.1 : 0.1); // change voltage slowly to avoid spikes
+			maxVoltage = maxVoltage + (HotTemp>=RADIATOR_EXTREME_TEMP ? -0.1 : 0.1); // change voltage slowly to avoid spikes
 			if(maxVoltage>maxVoltage_backup){maxVoltage=maxVoltage_backup;}
 			if(maxVoltage<minVoltage){maxVoltage=minVoltage;}
 			myPID.SetOutputLimits(minVoltage, maxVoltage);  // set new max limit to the PID
