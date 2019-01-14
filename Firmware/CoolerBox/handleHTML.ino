@@ -90,6 +90,8 @@ void handleSettingsStore(){
          if(tmpVolt>12.0){tmpVolt=maxVoltage;}	// don't change just in case.
          if(tmpVolt<1.0){tmpVolt=1.0;}
          maxVoltage = tmpVolt;
+         maxVoltage_backup = maxVoltage; // update backup
+
       }
       if (httpServer.argName(i) == "SelColdSensor") {
 		ColdSensorId = httpServer.arg(i).toInt();

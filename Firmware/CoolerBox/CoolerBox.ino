@@ -29,6 +29,9 @@ unsigned long I2C_error;
 bool I2C_PRESENT;
 uint8_t i2c_data[I2C_DATALEN-1]; //11 bytes
 
+bool flagExtremeTemp = LOW;
+float maxVoltage_backup; // backup original value
+
 double ColdTemp;	// current measured temperature inside the box
 double HotTemp;	// current measured temperature of hot radiator
 double setTemp=18;	// preset temperature
@@ -293,6 +296,7 @@ void setup() {
 	delay(500);
 
 	readI2Cdata();
+	maxVoltage_backup = maxVoltage; // update backup
   
 	millisReadI2CDataInterval = millis();
 	
@@ -394,13 +398,23 @@ void loop() {
 		ColdTemp = (float)digitalSmooth(tmpT, ColdTemp_SmoothArray) / 100.0;
 		tmpT = (int)round(DS18B20.getTempCByIndex(HotSensorId)*100.0);
 		HotTemp = (float)digitalSmooth(tmpT, HotTemp_SmoothArray) / 100.0;
-		// also calculate PID if needed. But if radiator is very hot, reduce power.
-		if(setTemp!=999.0 && HotTemp<RADIATOR_EXTREME_TEMP){
-			myPID.Compute();
-		}else{
-			setVoltage-=1.0;
-			if(setVoltage<0.0){setVoltage=0.0;}
+		// If radiator is very hot, reduce power (decrease max voltage allowed).
+		if(HotTemp=>RADIATOR_EXTREME_TEMP && !flagExtremeTemp) {flagExtremeTemp = HIGH;}
+		if(flagExtremeTemp){
+			maxVoltage = maxVoltage + (HotTemp=>RADIATOR_EXTREME_TEMP ? -0.1 : 0.1); // change voltage slowly to avoid spikes
+			if(maxVoltage>maxVoltage_backup){maxVoltage=maxVoltage_backup;}
+			if(maxVoltage<minVoltage){maxVoltage=minVoltage;}
+			if(HotTemp<RADIATOR_EXTREME_TEMP && maxVoltage==maxVoltage_backup){flagExtremeTemp = LOW;}
 		}
+		// if we in stopping process then just reduce the voltage every PID loop for 1v
+		// also calculate PID if not stopping
+		if(setTemp==999.0){
+			setVoltage-=1; // reduce current voltage
+			if(setVoltage<0.0){setVoltage=0.0;}
+		}else{
+			myPID.Compute();
+		}
+
 		// we need to send new values to Buck Converter
 		sendI2Cdata();
 		// Send data to IoT
