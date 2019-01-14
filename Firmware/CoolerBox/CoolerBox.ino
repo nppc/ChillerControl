@@ -49,6 +49,7 @@ DeviceAddress  DS18B20_adr[2];
 unsigned long millisPIDinterval;
 unsigned long millisSendDataInterval;
 unsigned long millisReadI2CDataInterval;
+unsigned long millisWIFIcheckInterval;
 
 int ColdSensorId = 0;
 int HotSensorId = 0;
@@ -279,6 +280,8 @@ void setup() {
 	digitalWrite (HOT_FAN, HIGH);
 	pinMode (LED_WARN, OUTPUT);
 	digitalWrite (LED_WARN, LOW);
+	
+	millisWIFIcheckInterval = millis();
   
 	SPIFFS.begin();
 
@@ -318,16 +321,19 @@ void setup() {
 	//You can remove the password parameter if you want the AP to be open.
 	WiFi.softAP(ssid, password);
 
+	WiFi.persistent(false); // don't write wifi settings to flash
 	WiFi.mode(WIFI_AP_STA);
 
 	IPAddress myIP = WiFi.softAPIP();
 	Serial.print("AP IP address: ");
 	Serial.println(myIP);
 
-  Serial.println();
-  Serial.println("Connecting to Internet...");
+	Serial.println();
+	Serial.println("Connecting to Internet...");
 
-  WiFi.begin(IntSSID, IntPASS);
+	WiFi.setAutoConnect(false);
+	WiFi.setAutoReconnect(true);
+	WiFi.begin(IntSSID, IntPASS);
 
     for(byte i1=0;i1<filterSamples*2;i1++){
       DS18B20.requestTemperatures(); 
@@ -348,13 +354,11 @@ void setup() {
   if(WiFi.status() == WL_CONNECTED){
     Serial.print(F("Internet IP address: "));
     Serial.println(WiFi.localIP());
-    WiFi.setAutoReconnect(true);
   }else{
     Serial.print(F("Internet connection failed."));
     Serial.print(F(" Error is: "));
     Serial.println(WiFi.status());
-    WiFi.setAutoReconnect(false);
-    WiFi.disconnect();
+    //WiFi.disconnect();
   }
 //  WIFIlocIP = WiFi.localIP();
 
@@ -396,6 +400,14 @@ void setup() {
 
 
 void loop() {
+	//check connection every 5 minutes
+	if(millis()-millisWIFIcheckInterval>(300 * 1000)){
+		if(WiFi.status() != WL_CONNECTED || WiFi.localIP() == IPAddress(0,0,0,0)) {
+			WiFi.reconnect();
+			delay(1000);
+		}
+  }
+
 	httpServer.handleClient();
 	delay(1);
 	
