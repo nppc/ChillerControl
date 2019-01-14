@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>Cooler Box Controller</title>
+<link rel="stylesheet" type="text/css" href="webpage.css" />
+</head>
+<body>
+<div class="container">
+<table class="hdr_table">
+<tr><td class="hdr_caption">{Caption}</td>
+<td class="hdr_logo">
+<div class="hdr_logo_text_short">COOLER</div>
+<div class="hdr_logo_text_long">Peltie Voltage Controller</div>
+</td></tr></table>
+
+<!-----MAIN PART-------->
+
+<BR>
+<TABLE class="values_table">
+<TR class="values_header"><TD>Ubidots reply output</TD></TR>
+<TR><TD>{ubiDebug}</TD></TR>
+</TABLE>
+
+<BR>
+<TABLE class="values_table">
+<TR class="values_header"><TD>ThingSpeak reply output</TD></TR>
+<TR><TD>{thingDebug}</TD></TR>
+</TABLE>
+
+<BR>
+<TABLE width="100%">
+<TR><TD><form action="/debug" method="get"><button type="submit" class="btn btn_round">Refresh</button></form></TD></TR>
+</TABLE>
+
+<!-----END OF MAIN PART-------->
+
+</div>
+</body>
+</html>

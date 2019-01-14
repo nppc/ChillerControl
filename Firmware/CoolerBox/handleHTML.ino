@@ -245,6 +245,18 @@ void handleNetworkStore(){
 	httpServer.send ( 302, "text/plain", "");
 }
 
+void handleDebug() {
+	// Build an HTML page to display on the web-server 
+	String html = FPSTR(HTTP_HEAD);
+	html.replace("{Caption}", "Debug");
+	html += FPSTR(HTTP_DEBUG_DATA);
+	html.replace("{ubiDebug}", ubiDebugData);
+	html.replace("{thingDebug}", thingDebugData);
+	html += FPSTR(HTTP_END);
+	
+	httpServer.send ( 200, "text/html", html );
+}
+
 
 void handleCSS() {
 	File file = SPIFFS.open("/webpage.css", "r");

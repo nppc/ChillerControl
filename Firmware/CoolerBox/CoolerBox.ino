@@ -70,6 +70,8 @@ String ubiDevice;
 int sendInterval=600;  // Interval in seconds for sending data to IoT server
 int sendUbi_checked=0;
 int sendThing_checked=0;
+String ubiDebugData="No data.";	// debug data for output on debug screen (this is not for DEBUG compilation switch)
+String thingDebugData="No data.";	// debug data for output on debug screen (this is not for DEBUG compilation switch)
 
 
 // Define a web server at port 80 for HTTP
@@ -366,6 +368,7 @@ void setup() {
 	httpServer.on("/pids_store", handlePIDsStore);
 	httpServer.on("/stop", handleStop);
 	httpServer.on("/network", handleNetwork);
+	httpServer.on("/debug", handleDebug);
 	httpServer.on("webpage.css", handleCSS);
 	httpServer.on("/network_store", handleNetworkStore);
 	httpServer.on("/ajax", handleAJAXrequest);

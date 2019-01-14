@@ -93,7 +93,8 @@ const char HTTP_SETTINGS_DATA[] PROGMEM = R"V0G0N(
 <TD><form action="/update" method="get"><button type="submit" class="btn btn_round">Upload Firmware</button></form></TD>
 <TD><form action="/pids" method="get"><button type="submit" class="btn btn_round">PIDs</button></form></TD></TR>
 <TR><TD><form action="/network" method="get"><button type="submit" class="btn btn_round">Network</button></form></TD>
-<TD><form action="/filelist" method="get"><button type="submit" class="btn btn_round">File Browser</button></form></TD></TR>
+<TD><form action="/filelist" method="get"><button type="submit" class="btn btn_round">File Browser</button></form></TD>
+<TD><form action="/debug" method="get"><button type="submit" class="btn btn_round">Debug</button></form></TD></TR>
 </TABLE>
 )V0G0N";
 
@@ -177,4 +178,23 @@ const char HTTP_NETWORK_DATA[] PROGMEM = R"V0G0N(
 <TR><TD><button type="submit" class="btn btn_round">Save Network Settings</button></TD></TR>
 </TABLE>
 </form>
+)V0G0N";
+
+const char HTTP_DEBUG_DATA[] PROGMEM = R"V0G0N(
+<BR>
+<TABLE class="values_table">
+<TR class="values_header"><TD>Ubidots reply output</TD></TR>
+<TR><TD>{ubiDebug}</TD></TR>
+</TABLE>
+
+<BR>
+<TABLE class="values_table">
+<TR class="values_header"><TD>ThingSpeak reply output</TD></TR>
+<TR><TD>{thingDebug}</TD></TR>
+</TABLE>
+
+<BR>
+<TABLE width="100%">
+<TR><TD><form action="/debug" method="get"><button type="submit" class="btn btn_round">Refresh</button></form></TD></TR>
+</TABLE>
 )V0G0N";

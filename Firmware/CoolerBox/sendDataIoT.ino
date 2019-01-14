@@ -31,9 +31,11 @@ void send2Ubidots(){
         timeout++;
         delay(1);
     }
+	ubiDebugData = ""; // clear previous data
 	while (clientSend.available())
     {
-        clientSend.readStringUntil('\r');
+		String dadaLine = clientSend.readStringUntil('\r');
+		ubiDebugData += dadaLine;
     }
 	
 	clientSend.stop();
@@ -70,9 +72,12 @@ void send2Thingspeak(){
         timeout++;
         delay(1);
     }
+
+	thingDebugData = ""; // clear previous data
 	while (clientSend.available())
     {
-        clientSend.readStringUntil('\r');
+		String dadaLine = clientSend.readStringUntil('\r');
+		thingDebugData += dadaLine;
     }
 
 	clientSend.stop();
