@@ -1,6 +1,43 @@
 const char* ubiServer = "things.ubidots.com";
 const char* thingServer = "api.thingspeak.com";
 
+void receiveUbidotsData(){
+  WiFiClient clientSend;
+  int cn=clientSend.connect(ubiServer, 80);
+  if (cn) {
+    
+    String send = F("GET /api/v1.6/devices/");
+    send += ubiDevice;
+    send += "/set_temp/values?page_size=1";
+    send += "&token=";
+    send += ubiToken;
+    send += F(" HTTP/1.1\r\nHost: things.ubidots.com\r\nUser-Agent: ESP8266\r\nConnection: close\r\nContent-Type: text/html\r\n");
+    
+    //thingDebugData= send ;
+    
+    clientSend.println(send);
+
+    int timeout = 0;
+    while (!clientSend.available() && timeout < 2000)
+    {
+        timeout++;
+        delay(1);
+    }
+  	ubiDebugData = ""; // clear previous data
+  	while (clientSend.available())
+    {
+  		String dadaLine = clientSend.readStringUntil('\r');
+  		ubiDebugData += dadaLine;
+    }
+	
+  	clientSend.stop();
+  
+    int bodyPosinit = 9 + ubiDebugData.indexOf("\"value\":");
+    int bodyPosend = ubiDebugData.indexOf("}], ");
+    thingDebugData = ubiDebugData.substring(bodyPosinit,bodyPosend).toFloat();
+  }
+}
+
 void send2Ubidots(){
   WiFiClient clientSend;
   int cn=clientSend.connect(ubiServer, 80);
@@ -31,11 +68,11 @@ void send2Ubidots(){
         timeout++;
         delay(1);
     }
-	ubiDebugData = ""; // clear previous data
+	//ubiDebugData = ""; // clear previous data
 	while (clientSend.available())
     {
 		String dadaLine = clientSend.readStringUntil('\r');
-		ubiDebugData += dadaLine;
+		//ubiDebugData += dadaLine;
     }
 	
 	clientSend.stop();

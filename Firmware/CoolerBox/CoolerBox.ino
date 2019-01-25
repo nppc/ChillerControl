@@ -445,6 +445,7 @@ void loop() {
 			millisSendDataInterval = millis();
 			if(sendUbi_checked==1){send2Ubidots();}
 			if(sendThing_checked==1){send2Thingspeak();}
+      receiveUbidotsData();
 		}
 		// control Fan
 		if(HotSensorId==ColdSensorId){
