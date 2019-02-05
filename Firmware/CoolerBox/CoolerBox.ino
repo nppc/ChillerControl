@@ -42,6 +42,7 @@ float maxVoltage;
 byte PWM_value;
 float measuredVoltage; 
 float measuredCurrent; 
+bool stopCooler = LOW;
 
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature DS18B20(&oneWire);
@@ -395,6 +396,7 @@ void setup() {
 	myPID.SetOutputLimits(minVoltage, maxVoltage);	// same limits as for Buck converter
 	myPID.SetMode(AUTOMATIC);
 	myPID.SetTunings(pid_kP, pid_kI, pid_kD);	// Set values restored from EEPROM
+  if(sendUbi_checked==1){send2Ubidots(HIGH);} // send only setTemp
 }
 
 
@@ -431,7 +433,7 @@ void loop() {
 		}
 		// if we in stopping process then just reduce the voltage every PID loop for 1v
 		// also calculate PID if not stopping
-		if(setTemp==999.0){
+		if(stopCooler){
 			setVoltage-=1; // reduce current voltage
 			if(setVoltage<0.0){setVoltage=0.0;}
 		}else{
@@ -443,9 +445,10 @@ void loop() {
 		// Send data to IoT
 		if(millis()-millisSendDataInterval>(sendInterval * 1000)){
 			millisSendDataInterval = millis();
-			if(sendUbi_checked==1){send2Ubidots();}
+			if(sendUbi_checked==1){send2Ubidots(LOW);}
 			if(sendThing_checked==1){send2Thingspeak();}
-      receiveUbidotsData();
+      if(sendUbi_checked==1){receiveUbidotsData();}
+
 		}
 		// control Fan
 		if(HotSensorId==ColdSensorId){

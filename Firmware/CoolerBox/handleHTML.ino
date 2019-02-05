@@ -162,10 +162,12 @@ void handleSetTemp(){
 	delay(50);	// make sure, data is not sent too often
 	httpServer.sendHeader("Location", String("/"), true);
 	httpServer.send ( 302, "text/plain", "");
+  if(sendUbi_checked==1){send2Ubidots(HIGH);} // send only setTemp
+  stopCooler = LOW; // resume Cooler if temperature changed
 }
 
 void handleStop(){
-  setTemp=999;
+  stopCooler=HIGH;
   httpServer.sendHeader("Location", String("/"), true);
   httpServer.send ( 302, "text/plain", "");
 }

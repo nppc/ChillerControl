@@ -8,7 +8,7 @@ void receiveUbidotsData(){
     
     String send = F("GET /api/v1.6/devices/");
     send += ubiDevice;
-    send += "/set_temp/values?page_size=1";
+    send += "/box_settemp/values?page_size=1";
     send += "&token=";
     send += ubiToken;
     send += F(" HTTP/1.1\r\nHost: things.ubidots.com\r\nUser-Agent: ESP8266\r\nConnection: close\r\nContent-Type: text/html\r\n");
@@ -34,22 +34,30 @@ void receiveUbidotsData(){
   
     int bodyPosinit = 9 + ubiDebugData.indexOf("\"value\":");
     int bodyPosend = ubiDebugData.indexOf("}], ");
-    thingDebugData = ubiDebugData.substring(bodyPosinit,bodyPosend).toFloat();
+    double tmp_setTemp = ubiDebugData.substring(bodyPosinit,bodyPosend).toFloat();
+    // store setTemp if changed
+    if(setTemp != tmp_setTemp){
+      setTemp = tmp_setTemp;
+      saveSettings();
+    }
   }
 }
 
-void send2Ubidots(){
+void send2Ubidots(bool send_setTemp){
   WiFiClient clientSend;
   int cn=clientSend.connect(ubiServer, 80);
   if (cn) {
 	  
 	DynamicJsonBuffer jsonBuffer;
 	JsonObject &jobj = jsonBuffer.createObject();
-	jobj["box_temperature"] = String(ColdTemp);
-	jobj["box_voltage"] = String(setVoltage);
-	jobj["box_settemp"] = String(setTemp);
-	jobj["box_radiator"] = String(HotTemp);
-
+  // send setTemp to Ubidots only when requested
+	if(send_setTemp){
+	  jobj["box_settemp"] = String(setTemp);
+	}else{
+  	jobj["box_temperature"] = String(ColdTemp);
+  	jobj["box_voltage"] = String(setVoltage);
+  	jobj["box_radiator"] = String(HotTemp);
+	}
 	
 	String send = F("POST /api/v1.6/devices/");
 	send += ubiDevice;
