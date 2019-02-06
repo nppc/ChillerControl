@@ -19,7 +19,7 @@ void handleRoot() {
 	html += FPSTR(HTTP_MAIN_DATA);
 	html.replace("{FW}", FIRMWAREVERSION);
 	html.replace("{ColdTemp}", String(ColdTemp,1));
-	html.replace("{setTemp}", (setTemp==999.0 ? "<div style='color:RED;display:inline-block'>Stopping...</div>":String(setTemp,1)));
+	html.replace("{setTemp}", (stopCooler ? "<div style='color:RED;display:inline-block'>Stopping...</div>":String(setTemp,1)));
 	//html.replace("{CurTime}", CurTime);
 	html.replace("{setVoltage}", String(setVoltage,1) + "V");
 	html.replace("{HotTemp}", String(HotTemp,1));
@@ -174,7 +174,7 @@ void handleStop(){
 
 void handleNotFound() {
   digitalWrite ( LED_BUILTIN, LOW );
-  String message = "File Not Found\n\n";
+  String message = F("File Not Found\n\n");
   message += "URI: ";
   message += httpServer.uri();
   message += "\nMethod: ";
