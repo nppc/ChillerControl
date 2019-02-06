@@ -74,6 +74,7 @@ int sendInterval;  // Interval in seconds for sending data to IoT server
 int receiveInterval;  // Interval in seconds for reading data from IoT server
 int sendUbi_checked=0;
 int sendThing_checked=0;
+int fanDynamic_checked = 0;
 String ubiDebugData="No data.";	// debug data for output on debug screen (this is not for DEBUG compilation switch)
 String thingDebugData="No data.";	// debug data for output on debug screen (this is not for DEBUG compilation switch)
 
@@ -168,6 +169,7 @@ void restoreSettings(){
 	minVoltage = jobj["i2cDCDC_minVoltage"];
 	maxVoltage = jobj["i2cDCDC_maxVoltage"];
 	changeVoltageSpeed = jobj["i2cDCDC_changeVoltage"];
+	fanDynamic_checked = jobj["fanDynamic_checked"];
 
 //	if(EEdata.pid_kP<=300.0 && EEdata.pid_kP>=0.0){pid_kP = EEdata.pid_kP;}
 //	if(EEdata.pid_kI<=300.0 && EEdata.pid_kI>=0.0){pid_kI = EEdata.pid_kI;}
@@ -204,6 +206,7 @@ void saveSettings(){
 	jobj["i2cDCDC_minVoltage"] = minVoltage;
 	jobj["i2cDCDC_maxVoltage"] = maxVoltage;
 	jobj["i2cDCDC_changeVoltage"] = changeVoltageSpeed;
+	jobj["fanDynamic_checked"] = fanDynamic_checked;
 	
 	jobj.printTo(f);
 	f.close(); 
@@ -458,8 +461,8 @@ void loop() {
 			if(sendUbi_checked==1){receiveUbidotsData();} // TODO separate setting for receiving data
 		}		
 		// control Fan
-		if(HotSensorId==ColdSensorId){
-			digitalWrite(HOT_FAN, HIGH);	// Fan always ON if only one temperature sensor detected
+		if(HotSensorId==ColdSensorId || fanDynamic_checked==0){
+			digitalWrite(HOT_FAN, HIGH);	// Fan always ON if only one temperature sensor detected or Dynamic control is disabled
 		}else{
 			if(HotTemp>=32.0 && digitalRead(HOT_FAN)==LOW){
 				digitalWrite(HOT_FAN, HIGH);

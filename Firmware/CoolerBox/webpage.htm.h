@@ -87,6 +87,12 @@ const char HTTP_SETTINGS_DATA[] PROGMEM = R"V0G0N(
 <td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'VoltMax')">&#187;</button></td>
 <TD rowspan=2>Maximum voltage that is allowed for the DC/DC to be during temperature regulation.</TD></tr>
 <TR><TD colspan=3>&nbsp;</TD><TR>
+<tr class="values_header"><td colspan=4>Dynamic Fan Control</td></tr>
+<tr><td colspan=3 style="line-height: 2;text-align: left">
+<input type="checkbox" name="fanDynamic" id="fanDynamic" {fanDynamic_checked}><label for="sendThing"> Enable Dynamic control</label>
+</td>
+<TD rowspan=2>Cooling fan on the top of the fridge can be turned off automatically if radiator is not hot.</TD></tr>
+<TR><TD colspan=3>&nbsp;</TD><TR>
 </TABLE>
 <TABLE width="100%">
 <TR><TD><button type="submit" class="btn btn_round">Save Settings</button></form></TD>

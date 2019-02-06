@@ -59,6 +59,7 @@ void handleSettings() {
 	html.replace("{maxVoltage}", String(maxVoltage,1));
 	html.replace("{ColdDSlist}", ColdDSlist);
 	html.replace("{HotDSlist}", HotDSlist);
+	html.replace("{fanDynamic_checked}", String(fanDynamic_checked==0 ? "":"checked"));
 	#ifdef DEBUG
 	html += "<pre>" + debugOut + "</pre>";
 	#endif
@@ -69,6 +70,7 @@ void handleSettings() {
 
 void handleSettingsStore(){
   if (httpServer.args() > 0 ) {
+	fanDynamic_checked = 0;
 	for ( uint8_t i = 0; i < httpServer.args(); i++ ) {
       if (httpServer.argName(i) == "VoltChange") {
          //convert voltage to valid range
@@ -98,6 +100,9 @@ void handleSettingsStore(){
       }
       if (httpServer.argName(i) == "SelHotSensor") {
 		HotSensorId = httpServer.arg(i).toInt();
+      }
+      if (httpServer.argName(i) == "fanDynamic") {
+		fanDynamic_checked = 1;
       }
    }
   }
