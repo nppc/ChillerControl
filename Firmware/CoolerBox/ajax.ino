@@ -15,6 +15,7 @@ void handleAJAXrequest() {
 	XML += "<HT>" + String(HotTemp,1) + "</HT>";
 	XML += "<CT>" + String(ColdTemp,1) + "</CT>";
 	XML += "<sV>" + String(setVoltage,1) + "V</sV>";
+	XML += "<sT>" + String(setTemp,1) + "</sT>";
 	XML += "<V>" + String(measuredVoltage,1) + "V</V>";
 	XML += "<C>" + String(measuredCurrent,1) + "A</C>";
 	XML += "<F>" + Fan + "</F>";

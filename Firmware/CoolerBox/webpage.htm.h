@@ -28,7 +28,7 @@ const char HTTP_MAIN_DATA[] PROGMEM = R"V0G0N(
 <BR>
 <TABLE class="values_table">
 <TR class="values_header"><TD>Temperature (&deg;C)</TD></TR>
-<TR><TD><div style="font-size:100px" id="ColdTemp">{ColdTemp}</div>Set to: {setTemp}</TD></TR>
+<TR><TD><div style="font-size:100px" id="ColdTemp">{ColdTemp}</div>Set to: <div id="setTemp" style="display:inline">{setTemp}</div></TD></TR>
 </TABLE>
 <BR>
 <TABLE class="values_table">

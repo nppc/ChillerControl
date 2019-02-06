@@ -31,6 +31,10 @@ xmldoc = xmlResponse.getElementsByTagName('sV');
 message = xmldoc[0].firstChild.nodeValue;
 document.getElementById('setVoltage').innerHTML=message;
 
+xmldoc = xmlResponse.getElementsByTagName('sT');
+message = xmldoc[0].firstChild.nodeValue;
+document.getElementById('setTemp').innerHTML=message;
+
 xmldoc = xmlResponse.getElementsByTagName('V');
 message = xmldoc[0].firstChild.nodeValue;
 document.getElementById('Voltage').innerHTML=message;
