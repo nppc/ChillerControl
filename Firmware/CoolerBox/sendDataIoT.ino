@@ -8,8 +8,7 @@ void receiveUbidotsData(){
     
     String send = F("GET /api/v1.6/devices/");
     send += ubiDevice;
-    send += "/box_settemp/values?page_size=1";
-    send += "&token=";
+    send += F("/box_settemp/values?page_size=1&token=");
     send += ubiToken;
     send += F(" HTTP/1.1\r\nHost: things.ubidots.com\r\nUser-Agent: ESP8266\r\nConnection: close\r\nContent-Type: text/html\r\n");
     
@@ -18,25 +17,29 @@ void receiveUbidotsData(){
     clientSend.println(send);
 
     int timeout = 0;
-    while (!clientSend.available() && timeout < 2000)
+    while (!clientSend.available() && timeout < 5000)
     {
         timeout++;
         delay(1);
     }
-  	ubiDebugData = ""; // clear previous data
-  	while (clientSend.available())
+  	//ubiDebugData = ""; // clear previous data
+  	String strReceive = "";
+	while (clientSend.available())
     {
   		String dadaLine = clientSend.readStringUntil('\r');
-  		ubiDebugData += dadaLine;
+  		strReceive += dadaLine;
     }
 	
   	clientSend.stop();
   
-    int bodyPosinit = 9 + ubiDebugData.indexOf("\"value\":");
-    int bodyPosend = ubiDebugData.indexOf("}], ");
-    double tmp_setTemp = ubiDebugData.substring(bodyPosinit,bodyPosend).toFloat();
-    // store setTemp if changed
-    if(setTemp != tmp_setTemp){
+    int bodyPosinit = 9 + strReceive.indexOf("\"value\":");
+    int bodyPosend = strReceive.indexOf("}], ");
+    // for debugging
+	ubiDebugData += strReceive.substring(bodyPosinit,bodyPosend);
+	ubiDebugData += " ";
+	double tmp_setTemp = strReceive.substring(bodyPosinit,bodyPosend).toFloat();
+    // store setTemp if changed and in range
+    if(setTemp!=tmp_setTemp && tmp_setTemp>=5.0 && tmp_setTemp<=25.0){
       setTemp = tmp_setTemp;
       saveSettings();
     }
@@ -61,7 +64,7 @@ void send2Ubidots(bool send_setTemp){
 	
 	String send = F("POST /api/v1.6/devices/");
 	send += ubiDevice;
-	send += "?token=";
+	send += F("?token=");
 	send += ubiToken;
 	send += F(" HTTP/1.1\r\nHost: things.ubidots.com\r\nUser-Agent: ESP8266\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: ");
 	send += jobj.measureLength();
@@ -71,7 +74,7 @@ void send2Ubidots(bool send_setTemp){
 	clientSend.println();
 
     int timeout = 0;
-    while (!clientSend.available() && timeout < 2000)
+    while (!clientSend.available() && timeout < 5000)
     {
         timeout++;
         delay(1);
@@ -93,11 +96,11 @@ void send2Thingspeak(){
 	int cn=clientSend.connect(thingServer, 80);
 	if (cn) {
 		// Construct API request body
-		String body = "field1=";
+		String body = F("field1=");
 			   body += String(ColdTemp);
-			   body += "&field2=";
+			   body += F("&field2=");
 			   body += String(setTemp);
-			   body += "&field3=";
+			   body += F("&field3=");
 			   body += String(setVoltage);
 
 		clientSend.println(F("POST /update HTTP/1.1"));
@@ -112,7 +115,7 @@ void send2Thingspeak(){
 	}
 
     int timeout = 0;
-    while (!clientSend.available() && timeout < 2000)
+    while (!clientSend.available() && timeout < 5000)
     {
         timeout++;
         delay(1);

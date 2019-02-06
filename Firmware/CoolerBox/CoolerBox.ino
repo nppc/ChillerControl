@@ -49,6 +49,7 @@ DallasTemperature DS18B20(&oneWire);
 DeviceAddress  DS18B20_adr[2];
 unsigned long millisPIDinterval;
 unsigned long millisSendDataInterval;
+unsigned long millisReceiveDataInterval;
 unsigned long millisReadI2CDataInterval;
 unsigned long millisWIFIcheckInterval;
 
@@ -69,7 +70,8 @@ char IntPASS[20];
 String thingWriteAPIKey;
 String ubiToken;
 String ubiDevice;
-int sendInterval=600;  // Interval in seconds for sending data to IoT server
+int sendInterval;  // Interval in seconds for sending data to IoT server
+int receiveInterval;  // Interval in seconds for reading data from IoT server
 int sendUbi_checked=0;
 int sendThing_checked=0;
 String ubiDebugData="No data.";	// debug data for output on debug screen (this is not for DEBUG compilation switch)
@@ -153,6 +155,7 @@ void restoreSettings(){
 	ubiToken = jobj["ubiToken"].as<String>();
 	ubiDevice = jobj["ubiDevice"].as<String>();
 	sendInterval = jobj["sendInterval"];
+	receiveInterval = sendInterval+60; // Receive interval will be 1 minute longer
 	sendThing_checked = jobj["sendThing_checked"];
 	sendUbi_checked = jobj["sendUbi_checked"];
 	setTemp = jobj["setTemp"];
@@ -390,6 +393,7 @@ void setup() {
 	Serial.println("HTTP server started");
 
     millisSendDataInterval=millis();
+	millisReceiveDataInterval=millis();
 
     millisPIDinterval=millis();
 	
@@ -447,9 +451,12 @@ void loop() {
 			millisSendDataInterval = millis();
 			if(sendUbi_checked==1){send2Ubidots(LOW);}
 			if(sendThing_checked==1){send2Thingspeak();}
-      if(sendUbi_checked==1){receiveUbidotsData();}
 
 		}
+		if(millis()-millisReceiveDataInterval>(receiveInterval * 1000)){
+			millisReceiveDataInterval = millis();
+			if(sendUbi_checked==1){receiveUbidotsData();} // TODO separate setting for receiving data
+		}		
 		// control Fan
 		if(HotSensorId==ColdSensorId){
 			digitalWrite(HOT_FAN, HIGH);	// Fan always ON if only one temperature sensor detected
