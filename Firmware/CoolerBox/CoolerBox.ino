@@ -75,6 +75,7 @@ int receiveInterval;  // Interval in seconds for reading data from IoT server
 int sendUbi_checked=0;
 int sendThing_checked=0;
 int fanDynamic_checked = 0;
+int boxMode = 0; // 1-Cooling/Heating, 2-Cooling, 3-Heating
 String ubiDebugData="No data.";	// debug data for output on debug screen (this is not for DEBUG compilation switch)
 String thingDebugData="No data.";	// debug data for output on debug screen (this is not for DEBUG compilation switch)
 
@@ -165,11 +166,12 @@ void restoreSettings(){
 	pid_kD = jobj["pid_kD"];
 	ColdSensorId = jobj["ColdSensorId"];
 	HotSensorId = jobj["HotSensorId"];
+	fanDynamic_checked = jobj["fanDynamic_checked"];
+	boxMode = jobj["boxMode"];
 	// read settings for i2c DC/DC converter
 	minVoltage = jobj["i2cDCDC_minVoltage"];
 	maxVoltage = jobj["i2cDCDC_maxVoltage"];
 	changeVoltageSpeed = jobj["i2cDCDC_changeVoltage"];
-	fanDynamic_checked = jobj["fanDynamic_checked"];
 
 //	if(EEdata.pid_kP<=300.0 && EEdata.pid_kP>=0.0){pid_kP = EEdata.pid_kP;}
 //	if(EEdata.pid_kI<=300.0 && EEdata.pid_kI>=0.0){pid_kI = EEdata.pid_kI;}
@@ -202,11 +204,12 @@ void saveSettings(){
 	jobj["pid_kD"] = pid_kD;
 	jobj["ColdSensorId"] = ColdSensorId;
 	jobj["HotSensorId"] = HotSensorId;
+	jobj["fanDynamic_checked"] = fanDynamic_checked;
+	jobj["boxMode"] = boxMode;
 	// store settings for i2c DC/DC converter
 	jobj["i2cDCDC_minVoltage"] = minVoltage;
 	jobj["i2cDCDC_maxVoltage"] = maxVoltage;
 	jobj["i2cDCDC_changeVoltage"] = changeVoltageSpeed;
-	jobj["fanDynamic_checked"] = fanDynamic_checked;
 	
 	jobj.printTo(f);
 	f.close(); 
@@ -287,6 +290,8 @@ void setup() {
 	digitalWrite (HOT_FAN, HIGH);
 	pinMode (LED_WARN, OUTPUT);
 	digitalWrite (LED_WARN, LOW);
+	
+	boxMode=1;	// set some mode in case this setting not yet present
 	
 	millisWIFIcheckInterval = millis();
   

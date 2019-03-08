@@ -60,6 +60,10 @@ void handleSettings() {
 	html.replace("{ColdDSlist}", ColdDSlist);
 	html.replace("{HotDSlist}", HotDSlist);
 	html.replace("{fanDynamic_checked}", String(fanDynamic_checked==0 ? "":"checked"));
+	// set correct box mode on the page
+	html.replace("{boxMode_1}", String(boxMode==1 ? "checked":""));
+	html.replace("{boxMode_2}", String(boxMode==2 ? "checked":""));
+	html.replace("{boxMode_3}", String(boxMode==3 ? "checked":""));
 	#ifdef DEBUG
 	html += "<pre>" + debugOut + "</pre>";
 	#endif
@@ -103,6 +107,9 @@ void handleSettingsStore(){
       }
       if (httpServer.argName(i) == "fanDynamic") {
 		fanDynamic_checked = 1;
+      }
+      if (httpServer.argName(i) == "boxMode") {
+		boxMode = httpServer.arg(i).toInt();
       }
    }
   }

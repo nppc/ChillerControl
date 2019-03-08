@@ -63,9 +63,20 @@ const char HTTP_SETTINGS_DATA[] PROGMEM = R"V0G0N(
 <TR><TD>Cold Sensor </TD><TD><select name="SelColdSensor">{ColdDSlist}</select></TD></TR>
 <TR><TD>Hot Sensor </TD><TD><select name="SelHotSensor">{HotDSlist}</select></TD></TR>
 </TABLE>
+<BR>
+<TABLE class="values_table">
+<tr class="values_header"><td colspan=2>Cooling/Heating</td></tr>
+<tr><TD width=240px, style="line-height: 2;text-align: left">
+    <input name="boxMode" type="radio" value="1" {boxMode_1}> Cooling/Heating<BR>
+    <input name="boxMode" type="radio" value="2" {boxMode_2}> Cooling<BR>
+    <input name="boxMode" type="radio" value="3" {boxMode_3}> Heating<BR>
+</TD>
+<TD rowspan=2>To adjust temperature inside, device can cool or heat air, just cool, or just heat. </TD></tr>
+<TR><TD>&nbsp;</TD><TR>
+</TABLE>
+<BR>
 <script>function NumberChange(n,i){document.getElementById(i).stepUp(n);}</script>
 <TABLE class="values_table">
-<BR>
 <tr class="values_header"><td colspan=4>Voltage change (V/S)</td></tr>
 <tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'VoltChange')">&#171;</button></td>
 <td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
@@ -87,13 +98,17 @@ const char HTTP_SETTINGS_DATA[] PROGMEM = R"V0G0N(
 <td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'VoltMax')">&#187;</button></td>
 <TD rowspan=2>Maximum voltage that is allowed for the DC/DC to be during temperature regulation.</TD></tr>
 <TR><TD colspan=3>&nbsp;</TD><TR>
-<tr class="values_header"><td colspan=4>Dynamic Fan Control</td></tr>
-<tr><td colspan=3 style="line-height: 2;text-align: left">
-<input type="checkbox" name="fanDynamic" id="fanDynamic" {fanDynamic_checked}><label for="sendThing"> Enable Dynamic control</label>
-</td>
-<TD rowspan=2>Cooling fan on the top of the fridge can be turned off automatically if radiator is not hot.</TD></tr>
-<TR><TD colspan=3>&nbsp;</TD><TR>
 </TABLE>
+<BR>
+<TABLE class="values_table">
+<tr class="values_header"><td colspan=2>Dynamic Fan Control</td></tr>
+<tr><TD width=240px, style="line-height: 2;text-align: left">
+<input type="checkbox" name="fanDynamic" id="fanDynamic" {fanDynamic_checked}><label for="sendThing"> Enable Dynamic control</label>
+</TD>
+<TD rowspan=2>Cooling fan on the top of the fridge can be turned off automatically if radiator is not hot.</TD></tr>
+<TR><TD>&nbsp;</TD><TR>
+</TABLE>
+<BR>
 <TABLE width="100%">
 <TR><TD><button type="submit" class="btn btn_round">Save Settings</button></form></TD>
 <TD><form action="/update" method="get"><button type="submit" class="btn btn_round">Upload Firmware</button></form></TD>
