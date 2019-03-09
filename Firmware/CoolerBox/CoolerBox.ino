@@ -20,6 +20,7 @@
 #define LED_WARN D0   // LED indicates that peltie is under voltage and can't be just powered off
 #define ONE_WIRE_BUS D6  // DS18B20 pin
 #define HOT_FAN D5		// Cooling fan for hot radiator
+#define HEAT_WIRE D7    // Cooling fan for hot radiator
 
 #ifdef DEBUG
 String debugOut ="";
@@ -287,6 +288,11 @@ void readI2Cdata(){
 
 void setup() {
 	pinMode (HOT_FAN, OUTPUT);
+  pinMode (HEAT_WIRE, OUTPUT);
+
+  analogWriteFreq(100); // 100hz for heating
+  analogWrite(HEAT_WIRE, 0);
+  
 	digitalWrite (HOT_FAN, HIGH);
 	pinMode (LED_WARN, OUTPUT);
 	digitalWrite (LED_WARN, LOW);
@@ -425,35 +431,49 @@ void loop() {
 	httpServer.handleClient();
 	delay(1);
 	
-	// request temperature every minute
 	if(millis()-millisPIDinterval>(PIDCOMPUTE_INTERVAL * 1000)){
 		millisPIDinterval=millis();
+		// before computing PID we want latest temperatures
 		DS18B20.requestTemperatures(); 
 		delay(1000);
 		int tmpT = (int)round(DS18B20.getTempCByIndex(ColdSensorId)*100.0);
 		ColdTemp = (float)digitalSmooth(tmpT, ColdTemp_SmoothArray) / 100.0;
 		tmpT = (int)round(DS18B20.getTempCByIndex(HotSensorId)*100.0);
 		HotTemp = (float)digitalSmooth(tmpT, HotTemp_SmoothArray) / 100.0;
-		// If radiator is very hot, reduce power (decrease max voltage allowed).
-		if(HotTemp>=RADIATOR_EXTREME_TEMP && !flagExtremeTemp) {flagExtremeTemp = HIGH;}
-		if(flagExtremeTemp){
-			maxVoltage = maxVoltage + (HotTemp>=RADIATOR_EXTREME_TEMP ? -0.1 : 0.1); // change voltage slowly to avoid spikes
-			if(maxVoltage>maxVoltage_backup){maxVoltage=maxVoltage_backup;}
-			if(maxVoltage<minVoltage){maxVoltage=minVoltage;}
-			myPID.SetOutputLimits(minVoltage, maxVoltage);  // set new max limit to the PID
-			if(HotTemp<RADIATOR_EXTREME_TEMP && maxVoltage==maxVoltage_backup){flagExtremeTemp = LOW;}
-		}
-		// if we in stopping process then just reduce the voltage every PID loop for 1v
-		// also calculate PID if not stopping
-		if(stopCooler){
-			setVoltage-=1; // reduce current voltage
-			if(setVoltage<0.0){setVoltage=0.0;}
+    if(boxMode!=3){
+      // Cooler routines
+  		// If radiator is very hot, reduce power (decrease max voltage allowed).
+  		if(HotTemp>=RADIATOR_EXTREME_TEMP && !flagExtremeTemp) {flagExtremeTemp = HIGH;}
+  		if(flagExtremeTemp){
+  			maxVoltage = maxVoltage + (HotTemp>=RADIATOR_EXTREME_TEMP ? -0.1 : 0.1); // change voltage slowly to avoid spikes
+  			if(maxVoltage>maxVoltage_backup){maxVoltage=maxVoltage_backup;}
+  			if(maxVoltage<minVoltage){maxVoltage=minVoltage;}
+  			myPID.SetOutputLimits(minVoltage, maxVoltage);  // set new max limit to the PID
+  			if(HotTemp<RADIATOR_EXTREME_TEMP && maxVoltage==maxVoltage_backup){flagExtremeTemp = LOW;}
+  		}
+  		// if we in stopping process then just reduce the voltage every PID loop for 1v
+      // also calculate PID if not stopping
+      if(stopCooler){
+        setVoltage-=1; // reduce current voltage
+        if(setVoltage<0.0){setVoltage=0.0;}
+      }else{
+        myPID.Compute();
+      }
+      // we need to send new values to Buck Converter
+      sendI2Cdata();
 		}else{
-			myPID.Compute();
+      //make sure cooler is off
+      setVoltage=0;
+      sendI2Cdata();
 		}
-
-		// we need to send new values to Buck Converter
-		sendI2Cdata();
+    if(boxMode!=2){
+      //test heating
+      analogWrite(HEAT_WIRE, 700);
+    }else{
+      //make sure heater is off
+      analogWrite(HEAT_WIRE, 0);
+    }      
+   
 		// Send data to IoT
 		if(millis()-millisSendDataInterval>(sendInterval * 1000)){
 			millisSendDataInterval = millis();
