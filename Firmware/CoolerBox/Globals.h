@@ -11,3 +11,4 @@
 
 // other constants
 #define RADIATOR_EXTREME_TEMP 45.0	// If radiator temperature is greater that this constant, then reduce power
+#define MAXIMUM_PWM_HOT_WIRE 700 // Maximum PWM for hot wire. full range will give too much current, so limit it.

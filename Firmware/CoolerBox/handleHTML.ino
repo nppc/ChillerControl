@@ -18,7 +18,7 @@ void handleRoot() {
 	html.replace("{Caption}", "Main Info");
 	html += FPSTR(HTTP_MAIN_DATA);
 	html.replace("{FW}", FIRMWAREVERSION);
-	html.replace("{ColdTemp}", String(ColdTemp,1));
+	html.replace("{boxTemp}", String(boxTemp,1));
 	html.replace("{setTemp}", (stopCooler ? "<div style='color:RED;display:inline-block'>Stopping...</div>":String(setTemp,1)));
 	//html.replace("{CurTime}", CurTime);
 	html.replace("{setVoltage}", String(setVoltage,1) + "V");
@@ -113,7 +113,8 @@ void handleSettingsStore(){
       }
    }
   }
-  myPID.SetOutputLimits(minVoltage, maxVoltage);  // same limits as for Buck converter
+  coldPID.SetOutputLimits(minVoltage, maxVoltage);  // same limits as for Buck converter
+  hotPID.SetOutputLimits(0, maxHotPWM);  // same limits as for Buck converter
   delay(50);	// make sure, data is not sent too often
   sendI2Cdata();
   delay(50);	// make sure, data is not sent too often
@@ -127,9 +128,9 @@ void handlePIDs() {
 	String html = FPSTR(HTTP_HEAD);
 	html.replace("{Caption}", "PID Settings");
 	html += FPSTR(HTTP_PIDS_DATA);
-	html.replace("{pid_kP}", String(pid_kP,2));
-	html.replace("{pid_kI}", String(pid_kI,4));
-	html.replace("{pid_kD}", String(pid_kD,2));
+	html.replace("{coldPID_kP}", String(coldPID_kP,2));
+	html.replace("{coldPID_kI}", String(coldPID_kI,4));
+	html.replace("{coldPID_kD}", String(coldPID_kD,2));
 	html += FPSTR(HTTP_END);
 
 	httpServer.send ( 200, "text/html", html );
@@ -138,18 +139,18 @@ void handlePIDs() {
 void handlePIDsStore(){
 	if (httpServer.args() > 0 ) {
 		for(uint8_t i=0;i<httpServer.args();i++) {
-			if (httpServer.argName(i) == "pid_kP") {
-				pid_kP=httpServer.arg(i).toFloat();
+			if (httpServer.argName(i) == "coldPID_kP") {
+				coldPID_kP=httpServer.arg(i).toFloat();
 			}
-			if (httpServer.argName(i) == "pid_kI") {
-				pid_kI=httpServer.arg(i).toFloat();
+			if (httpServer.argName(i) == "coldPID_kI") {
+				coldPID_kI=httpServer.arg(i).toFloat();
 			}
-			if (httpServer.argName(i) == "pid_kD") {
-				pid_kD=httpServer.arg(i).toFloat();
+			if (httpServer.argName(i) == "coldPID_kD") {
+				coldPID_kD=httpServer.arg(i).toFloat();
 			}
 		}
 	}
-	myPID.SetTunings(pid_kP, pid_kI, pid_kD);	// Set new values 
+	coldPID.SetTunings(coldPID_kP, coldPID_kI, coldPID_kD);	// Set new values 
 	saveSettings();	// Store new PID values
 
 	httpServer.sendHeader("Location", String("/"), true);

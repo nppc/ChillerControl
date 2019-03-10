@@ -57,7 +57,7 @@ void send2Ubidots(bool send_setTemp){
 	if(send_setTemp){
 	  jobj["box_settemp"] = String(setTemp);
 	}else{
-  	jobj["box_temperature"] = String(ColdTemp);
+  	jobj["box_temperature"] = String(boxTemp);
   	jobj["box_voltage"] = String(setVoltage);
   	jobj["box_radiator"] = String(HotTemp);
 	}
@@ -97,7 +97,7 @@ void send2Thingspeak(){
 	if (cn) {
 		// Construct API request body
 		String body = F("field1=");
-			   body += String(ColdTemp);
+			   body += String(boxTemp);
 			   body += F("&field2=");
 			   body += String(setTemp);
 			   body += F("&field3=");

@@ -33,17 +33,19 @@ uint8_t i2c_data[I2C_DATALEN-1]; //11 bytes
 bool flagExtremeTemp = LOW;
 float maxVoltage_backup; // backup original value
 
-double ColdTemp;	// current measured temperature inside the box
+double boxTemp;	// current measured temperature inside the box
 double HotTemp;	// current measured temperature of hot radiator
 double setTemp=18;	// preset temperature
 double setVoltage;
 float changeVoltageSpeed; 
 float minVoltage; 
 float maxVoltage; 
-byte PWM_value;
+byte i2c_PWM_value;
 float measuredVoltage; 
 float measuredCurrent; 
 bool stopCooler = LOW;
+double setHotPWM;
+int maxHotPWM = MAXIMUM_PWM_HOT_WIRE; 
 
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature DS18B20(&oneWire);
@@ -58,7 +60,7 @@ int ColdSensorId = 0;
 int HotSensorId = 0;
 
 #define filterSamples 5
-int ColdTemp_SmoothArray[filterSamples];   // array for holding raw sensor values for PT1000 sensor 
+int boxTemp_SmoothArray[filterSamples];   // array for holding raw sensor values for PT1000 sensor 
 int HotTemp_SmoothArray[filterSamples];   // array for holding raw sensor values for PT1000 sensor 
 
 
@@ -85,11 +87,17 @@ String thingDebugData="No data.";	// debug data for output on debug screen (this
 ESP8266WebServer httpServer(80);
 ESP8266HTTPUpdateServer httpUpdater;
 
-float pid_kP=DEFAULT_PID_KP;
-float pid_kI=DEFAULT_PID_KI;
-float pid_kD=DEFAULT_PID_KD;
-// Create PID with default values
-PID myPID(&(ColdTemp), &(setVoltage), &(setTemp), DEFAULT_PID_KP, DEFAULT_PID_KI, DEFAULT_PID_KD, REVERSE);
+float coldPID_kP=DEFAULT_PID_KP;
+float coldPID_kI=DEFAULT_PID_KI;
+float coldPID_kD=DEFAULT_PID_KD;
+float hotPID_kP=DEFAULT_PID_KP;
+float hotPID_kI=DEFAULT_PID_KI;
+float hotPID_kD=DEFAULT_PID_KD;
+
+// Create cold PID with default values
+PID coldPID(&(boxTemp), &(setVoltage), &(setTemp), coldPID_kP, coldPID_kI, coldPID_kD, REVERSE);
+// Create hot PID with default values
+PID hotPID(&(boxTemp), &(setHotPWM), &(setTemp), hotPID_kP, hotPID_kI, hotPID_kD, REVERSE);
 
 
 // smooth algorytm for ADC reading
@@ -162,9 +170,12 @@ void restoreSettings(){
 	sendThing_checked = jobj["sendThing_checked"];
 	sendUbi_checked = jobj["sendUbi_checked"];
 	setTemp = jobj["setTemp"];
-	pid_kP = jobj["pid_kP"];
-	pid_kI = jobj["pid_kI"];
-	pid_kD = jobj["pid_kD"];
+	coldPID_kP = jobj["coldPID_kP"];
+	coldPID_kI = jobj["coldPID_kI"];
+	coldPID_kD = jobj["coldPID_kD"];
+  hotPID_kP = jobj["hotPID_kP"];
+  hotPID_kI = jobj["hotPID_kI"];
+  hotPID_kD = jobj["hotPID_kD"];
 	ColdSensorId = jobj["ColdSensorId"];
 	HotSensorId = jobj["HotSensorId"];
 	fanDynamic_checked = jobj["fanDynamic_checked"];
@@ -173,13 +184,7 @@ void restoreSettings(){
 	minVoltage = jobj["i2cDCDC_minVoltage"];
 	maxVoltage = jobj["i2cDCDC_maxVoltage"];
 	changeVoltageSpeed = jobj["i2cDCDC_changeVoltage"];
-
-//	if(EEdata.pid_kP<=300.0 && EEdata.pid_kP>=0.0){pid_kP = EEdata.pid_kP;}
-//	if(EEdata.pid_kI<=300.0 && EEdata.pid_kI>=0.0){pid_kI = EEdata.pid_kI;}
-//	if(EEdata.pid_kD<=300.0 && EEdata.pid_kD>=0.0){pid_kD = EEdata.pid_kD;}
-//	if(EEdata.setTemp<=30.0 && EEdata.setTemp>=0.0){setTemp = EEdata.setTemp;}
-	
-	
+		
 }
 
 void saveSettings(){
@@ -200,9 +205,12 @@ void saveSettings(){
 	jobj["sendThing_checked"] = sendThing_checked;
 	jobj["sendUbi_checked"] = sendUbi_checked;
 	jobj["setTemp"] = setTemp;
-	jobj["pid_kP"] = pid_kP;
-	jobj["pid_kI"] = pid_kI;
-	jobj["pid_kD"] = pid_kD;
+	jobj["coldPID_kP"] = coldPID_kP;
+	jobj["coldPID_kI"] = coldPID_kI;
+	jobj["coldPID_kD"] = coldPID_kD;
+  jobj["hotPID_kP"] = hotPID_kP;
+  jobj["hotPID_kI"] = hotPID_kI;
+  jobj["hotPID_kD"] = hotPID_kD;
 	jobj["ColdSensorId"] = ColdSensorId;
 	jobj["HotSensorId"] = HotSensorId;
 	jobj["fanDynamic_checked"] = fanDynamic_checked;
@@ -224,7 +232,7 @@ void sendI2Cdata(){
 		Wire.write((uint8_t)(changeVoltageSpeed * 10.0)); // Speed of voltage change (means 0.4v/s)
 		Wire.write((uint8_t)(minVoltage * 10.0)); //Min Voltage
 		Wire.write((uint8_t)(maxVoltage * 10.0)); //Max Voltage
-		Wire.write(PWM_value); //No affect on Buck Converter
+		Wire.write(i2c_PWM_value); //No affect on Buck Converter
 		Wire.write((uint8_t)(measuredVoltage * 10.0)); //No affect on Buck Converter
 		Wire.write((uint8_t)(measuredCurrent * 10.0)); //No affect on Buck Converter
 		Wire.write(0); //Only filled in Read
@@ -280,7 +288,7 @@ void readI2Cdata(){
   //changeVoltageSpeed = (float)i2c_data[1]/10.0;
   //minVoltage = (float)i2c_data[2]/10.0; 
   //maxVoltage = (float)i2c_data[3]/10.0; 
-  PWM_value = i2c_data[4];
+  i2c_PWM_value = i2c_data[4];
   measuredVoltage = (float)i2c_data[5]/10.0; 
   measuredCurrent = (float)i2c_data[6]/10.0; 
 }
@@ -357,7 +365,7 @@ void setup() {
       DS18B20.requestTemperatures(); 
       delay(1000);
       int tmpT = (int)round(DS18B20.getTempCByIndex(ColdSensorId)*100.0);
-      ColdTemp = (float)digitalSmooth(tmpT, ColdTemp_SmoothArray) / 100.0;
+      boxTemp = (float)digitalSmooth(tmpT, boxTemp_SmoothArray) / 100.0;
       tmpT = (int)round(DS18B20.getTempCByIndex(HotSensorId)*100.0);
       HotTemp = (float)digitalSmooth(tmpT, HotTemp_SmoothArray) / 100.0;
     }
@@ -411,9 +419,12 @@ void setup() {
 
     millisPIDinterval=millis();
 	
-	myPID.SetOutputLimits(minVoltage, maxVoltage);	// same limits as for Buck converter
-	myPID.SetMode(AUTOMATIC);
-	myPID.SetTunings(pid_kP, pid_kI, pid_kD);	// Set values restored from EEPROM
+	coldPID.SetOutputLimits(minVoltage, maxVoltage);	// same limits as for Buck converter
+	coldPID.SetMode(AUTOMATIC);
+	coldPID.SetTunings(coldPID_kP, coldPID_kI, coldPID_kD);
+  hotPID.SetOutputLimits(0, maxHotPWM);  // same limits for hot wire PWM
+  hotPID.SetMode(AUTOMATIC);
+  hotPID.SetTunings(hotPID_kP, hotPID_kI, hotPID_kD);
   if(sendUbi_checked==1){send2Ubidots(HIGH);} // send only setTemp
 }
 
@@ -437,7 +448,7 @@ void loop() {
 		DS18B20.requestTemperatures(); 
 		delay(1000);
 		int tmpT = (int)round(DS18B20.getTempCByIndex(ColdSensorId)*100.0);
-		ColdTemp = (float)digitalSmooth(tmpT, ColdTemp_SmoothArray) / 100.0;
+		boxTemp = (float)digitalSmooth(tmpT, boxTemp_SmoothArray) / 100.0;
 		tmpT = (int)round(DS18B20.getTempCByIndex(HotSensorId)*100.0);
 		HotTemp = (float)digitalSmooth(tmpT, HotTemp_SmoothArray) / 100.0;
     if(boxMode!=3){
@@ -448,7 +459,7 @@ void loop() {
   			maxVoltage = maxVoltage + (HotTemp>=RADIATOR_EXTREME_TEMP ? -0.1 : 0.1); // change voltage slowly to avoid spikes
   			if(maxVoltage>maxVoltage_backup){maxVoltage=maxVoltage_backup;}
   			if(maxVoltage<minVoltage){maxVoltage=minVoltage;}
-  			myPID.SetOutputLimits(minVoltage, maxVoltage);  // set new max limit to the PID
+  			coldPID.SetOutputLimits(minVoltage, maxVoltage);  // set new max limit to the PID
   			if(HotTemp<RADIATOR_EXTREME_TEMP && maxVoltage==maxVoltage_backup){flagExtremeTemp = LOW;}
   		}
   		// if we in stopping process then just reduce the voltage every PID loop for 1v
@@ -457,7 +468,7 @@ void loop() {
         setVoltage-=1; // reduce current voltage
         if(setVoltage<0.0){setVoltage=0.0;}
       }else{
-        myPID.Compute();
+        coldPID.Compute();
       }
       // we need to send new values to Buck Converter
       sendI2Cdata();
