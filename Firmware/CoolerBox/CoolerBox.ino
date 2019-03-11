@@ -44,7 +44,7 @@ byte i2c_PWM_value;
 float measuredVoltage; 
 float measuredCurrent; 
 bool stopCooler = LOW;
-double setHotPWM;
+double setHotPWM=0; // initially off
 int maxHotPWM = MAXIMUM_PWM_HOT_WIRE; 
 
 OneWire oneWire(ONE_WIRE_BUS);
@@ -291,6 +291,7 @@ void readI2Cdata(){
   i2c_PWM_value = i2c_data[4];
   measuredVoltage = (float)i2c_data[5]/10.0; 
   measuredCurrent = (float)i2c_data[6]/10.0; 
+  measuredCurrent = (measuredCurrent>13.0 ? 0 : measuredCurrent); // hack. To lazy to fix buck converter code. :)
 }
 
 
@@ -426,6 +427,7 @@ void setup() {
   hotPID.SetMode(AUTOMATIC);
   hotPID.SetTunings(hotPID_kP, hotPID_kI, hotPID_kD);
   if(sendUbi_checked==1){send2Ubidots(HIGH);} // send only setTemp
+  
 }
 
 
@@ -437,7 +439,7 @@ void loop() {
 			WiFi.reconnect();
 			delay(1000);
 		}
-  }
+	}
 
 	httpServer.handleClient();
 	delay(1);
@@ -451,39 +453,40 @@ void loop() {
 		boxTemp = (float)digitalSmooth(tmpT, boxTemp_SmoothArray) / 100.0;
 		tmpT = (int)round(DS18B20.getTempCByIndex(HotSensorId)*100.0);
 		HotTemp = (float)digitalSmooth(tmpT, HotTemp_SmoothArray) / 100.0;
-    if(boxMode!=3){
-      // Cooler routines
-  		// If radiator is very hot, reduce power (decrease max voltage allowed).
-  		if(HotTemp>=RADIATOR_EXTREME_TEMP && !flagExtremeTemp) {flagExtremeTemp = HIGH;}
-  		if(flagExtremeTemp){
-  			maxVoltage = maxVoltage + (HotTemp>=RADIATOR_EXTREME_TEMP ? -0.1 : 0.1); // change voltage slowly to avoid spikes
-  			if(maxVoltage>maxVoltage_backup){maxVoltage=maxVoltage_backup;}
-  			if(maxVoltage<minVoltage){maxVoltage=minVoltage;}
-  			coldPID.SetOutputLimits(minVoltage, maxVoltage);  // set new max limit to the PID
-  			if(HotTemp<RADIATOR_EXTREME_TEMP && maxVoltage==maxVoltage_backup){flagExtremeTemp = LOW;}
-  		}
-  		// if we in stopping process then just reduce the voltage every PID loop for 1v
-      // also calculate PID if not stopping
-      if(stopCooler){
-        setVoltage-=1; // reduce current voltage
-        if(setVoltage<0.0){setVoltage=0.0;}
-      }else{
-        coldPID.Compute();
-      }
-      // we need to send new values to Buck Converter
-      sendI2Cdata();
+		if(boxMode!=3){
+			// Cooler routines
+			// If radiator is very hot, reduce power (decrease max voltage allowed).
+			if(HotTemp>=RADIATOR_EXTREME_TEMP && !flagExtremeTemp) {flagExtremeTemp = HIGH;}
+			if(flagExtremeTemp){
+				maxVoltage = maxVoltage + (HotTemp>=RADIATOR_EXTREME_TEMP ? -0.1 : 0.1); // change voltage slowly to avoid spikes
+				if(maxVoltage>maxVoltage_backup){maxVoltage=maxVoltage_backup;}
+				if(maxVoltage<minVoltage){maxVoltage=minVoltage;}
+				coldPID.SetOutputLimits(minVoltage, maxVoltage);  // set new max limit to the PID
+				if(HotTemp<RADIATOR_EXTREME_TEMP && maxVoltage==maxVoltage_backup){flagExtremeTemp = LOW;}
+			}
+			// if we in stopping process then just reduce the voltage every PID loop for 1v
+			// also calculate PID if not stopping
+			if(stopCooler){
+				setVoltage-=1; // reduce current voltage
+				if(setVoltage<0.0){setVoltage=0.0;}
+			}else{
+				coldPID.Compute();
+			}
+			// we need to send new values to Buck Converter
+			sendI2Cdata();
 		}else{
-      //make sure cooler is off
-      setVoltage=0;
-      sendI2Cdata();
+		  //make sure cooler is off
+		  setVoltage=0;
+		  sendI2Cdata();
 		}
-    if(boxMode!=2){
-      //test heating
-      analogWrite(HEAT_WIRE, 700);
-    }else{
-      //make sure heater is off
-      analogWrite(HEAT_WIRE, 0);
-    }      
+		if(boxMode!=2 && measuredVoltage<3.0){ // make sure that peltie is not taking much current
+		  //test heating
+		  setHotPWM = maxHotPWM;	//at max
+		}else{
+		  //make sure heater is off
+		  setHotPWM = 0.0;
+		}      
+		analogWrite(HEAT_WIRE, setHotPWM);
    
 		// Send data to IoT
 		if(millis()-millisSendDataInterval>(sendInterval * 1000)){
@@ -498,7 +501,9 @@ void loop() {
 		}		
 		// control Fan
 		if(HotSensorId==ColdSensorId || fanDynamic_checked==0){
-			digitalWrite(HOT_FAN, HIGH);	// Fan always ON if only one temperature sensor detected or Dynamic control is disabled
+			// Fan always ON if only one temperature sensor detected or Dynamic control is disabled
+			// Also check if heating is on, then Fan should be off
+			digitalWrite(HOT_FAN, (setHotPWM > 0 ? LOW : HIGH));	// Fan is OFF when heating.
 		}else{
 			if(HotTemp>=32.0 && digitalRead(HOT_FAN)==LOW){
 				digitalWrite(HOT_FAN, HIGH);

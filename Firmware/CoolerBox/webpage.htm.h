@@ -32,8 +32,8 @@ const char HTTP_MAIN_DATA[] PROGMEM = R"V0G0N(
 </TABLE>
 <BR>
 <TABLE class="values_table">
-<TR class="values_header"><TD>Set Voltage</TD><TD>Voltage</TD><TD>Current</TD><TD>Hot side</TD></TR>
-<TR><TD id="setVoltage">{setVoltage}</TD><TD id="Voltage">{Voltage}</TD><TD id="Current">{Current}</TD><TD id="Fan"><div style="display:inline" id="HotTemp">{HotTemp}</div>&deg;&nbsp;C</TD></TR>
+<TR class="values_header"><TD>Hot PWM</TD><TD>Cold Volt</TD><TD>Cold Curr</TD><TD>Hot side</TD></TR>
+<TR><TD id="setHotPWM">{setHotPWM}</TD><TD id="Voltage">{Voltage}</TD><TD id="Current">{Current}</TD><TD id="Fan"><div style="display:inline" id="HotTemp">{HotTemp}</div>&deg;&nbsp;C</TD></TR>
 </TABLE>
 <div style="line-height:3">{I2CText} (<div style="display:inline" id="I2CError">-</div>).</div>
 <TABLE width="100%"><TR>

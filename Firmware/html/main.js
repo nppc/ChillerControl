@@ -25,11 +25,11 @@ document.getElementById('HotTemp').innerHTML=message;
 
 xmldoc = xmlResponse.getElementsByTagName('CT');
 message = xmldoc[0].firstChild.nodeValue;
-document.getElementById('ColdTemp').innerHTML=message;
+document.getElementById('boxTemp').innerHTML=message;
 
 xmldoc = xmlResponse.getElementsByTagName('sV');
 message = xmldoc[0].firstChild.nodeValue;
-document.getElementById('setVoltage').innerHTML=message;
+document.getElementById('setHotPWM').innerHTML=message;
 
 xmldoc = xmlResponse.getElementsByTagName('sT');
 message = xmldoc[0].firstChild.nodeValue;

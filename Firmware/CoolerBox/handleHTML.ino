@@ -20,8 +20,8 @@ void handleRoot() {
 	html.replace("{FW}", FIRMWAREVERSION);
 	html.replace("{boxTemp}", String(boxTemp,1));
 	html.replace("{setTemp}", (stopCooler ? "<div style='color:RED;display:inline-block'>Stopping...</div>":String(setTemp,1)));
-	//html.replace("{CurTime}", CurTime);
-	html.replace("{setVoltage}", String(setVoltage,1) + "V");
+	//html.replace("{setVoltage}", String(setVoltage,1) + "V");
+	html.replace("{setHotPWM}", String((int)round(setHotPWM*100.0/(float)maxHotPWM)) + "%");
 	html.replace("{HotTemp}", String(HotTemp,1));
 	html.replace("{Voltage}", String(measuredVoltage,1) + "V");
 	html.replace("{Current}", String(measuredCurrent,1) + "A");
