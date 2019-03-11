@@ -59,7 +59,7 @@ void send2Ubidots(bool send_setTemp){
 	}else{
   	jobj["box_temperature"] = String(boxTemp);
   	jobj["box_voltage"] = String(setVoltage);
-  	jobj["box_radiator"] = String(HotTemp);
+  	jobj["box_hotpwm"] = String(setHotPWM);
 	}
 	
 	String send = F("POST /api/v1.6/devices/");
@@ -102,6 +102,8 @@ void send2Thingspeak(){
 			   body += String(setTemp);
 			   body += F("&field3=");
 			   body += String(setVoltage);
+			   body += F("&field4=");
+			   body += String(setHotPWM);
 
 		clientSend.println(F("POST /update HTTP/1.1"));
 		clientSend.println(F("Host: api.thingspeak.com"));
