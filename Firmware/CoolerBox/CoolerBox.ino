@@ -97,7 +97,7 @@ float hotPID_kD=DEFAULT_PID_KD;
 // Create cold PID with default values
 PID coldPID(&(boxTemp), &(setVoltage), &(setTemp), coldPID_kP, coldPID_kI, coldPID_kD, REVERSE); // reverse as it works for cooling
 // Create hot PID with default values
-PID hotPID(&(boxTemp), &(setHotPWM), &(setTemp), hotPID_kP, hotPID_kI, hotPID_kD); // no reverse as it works for heating
+PID hotPID(&(boxTemp), &(setHotPWM), &(setTemp), hotPID_kP, hotPID_kI, hotPID_kD, DIRECT); // no reverse as it works for heating
 
 
 // smooth algorytm for ADC reading
@@ -420,7 +420,7 @@ void setup() {
 
     millisPIDinterval=millis();
 	
-	coldPID.SetOutputLimits(minVoltage, maxVoltage);	// same limits as for Buck converter
+	coldPID.SetOutputLimits(minVoltage, maxVoltage);
 	coldPID.SetMode(AUTOMATIC);
 	coldPID.SetTunings(coldPID_kP, coldPID_kI, coldPID_kD);
   hotPID.SetOutputLimits(0, maxHotPWM);  // same limits for hot wire PWM
@@ -480,7 +480,7 @@ void loop() {
 		  sendI2Cdata();
 		}
 		if(boxMode!=2 && measuredVoltage<3.0){ // make sure that peltie is not taking much current
-		  HotPID.Compute();
+		  hotPID.Compute();
 		  //setHotPWM = maxHotPWM;	//at max
 		}else{
 		  //make sure heater is off

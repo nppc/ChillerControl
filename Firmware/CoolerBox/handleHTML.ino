@@ -113,7 +113,7 @@ void handleSettingsStore(){
       }
    }
   }
-  coldPID.SetOutputLimits(minVoltage, maxVoltage);  // same limits as for Buck converter
+  coldPID.SetOutputLimits(minVoltage, maxVoltage);  // reverse
   hotPID.SetOutputLimits(0, maxHotPWM);  // same limits as for Buck converter
   delay(50);	// make sure, data is not sent too often
   sendI2Cdata();
@@ -176,7 +176,7 @@ void handleSetTemp(){
 			if (httpServer.argName(i) == "Temp") {
 				//convert temperature to valid range
 				float tmpTemp=httpServer.arg(i).toFloat();
-				if(tmpTemp>25.0){tmpTemp=setTemp;}	// don't change just in case.
+				if(tmpTemp>45.0){tmpTemp=setTemp;}	// don't change just in case.
 				if(tmpTemp<0){tmpTemp=0.0;}
 				setTemp = tmpTemp;
 				saveSettings();	// Store new PID value
