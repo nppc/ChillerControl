@@ -125,28 +125,43 @@ const char HTTP_PIDS_DATA[] PROGMEM = R"V0G0N(
 <form action="/pids_store" method="get">
 <TABLE class="values_table">
 <BR>
-<tr class="values_header"><td colspan=4>P</td></tr>
+<tr class="values_header"><td colspan=4>Cold PIDs</td></tr>
 <tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'coldPID_kP')">&#171;</button></td>
 <td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
 <input type="number" name="coldPID_kP" id="coldPID_kP" class="input" min="0.0" max="300.0" step="0.1" value="{coldPID_kP}"/></td>
 <td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'coldPID_kP')">&#187;</button></td>
-<TD rowspan=2>Current value is {coldPID_kP}</TD></tr>
-<TR><TD colspan=3>&nbsp;</TD><TR>
-<tr class="values_header"><td colspan=4>I</td></tr>
+<TD>P</TD></tr>
 <tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-1,'coldPID_kI')">&#171;</button></td>
 <td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
 <input type="number" name="coldPID_kI" id="coldPID_kI" class="input" min="0.0" max="100.0" step="0.001" value="{coldPID_kI}"/></td>
 <td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(1,'coldPID_kI')">&#187;</button></td>
-<TD rowspan=2>Current value is {coldPID_kI}</TD></tr>
-<TR><TD colspan=3>&nbsp;</TD><TR>
-<tr class="values_header"><td colspan=4>D</td></tr>
+<TD>I</TD></tr>
 <tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'coldPID_kD')">&#171;</button></td>
 <td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
 <input type="number" name="coldPID_kD" id="coldPID_kD" class="input" min="0.0" max="300.0" step="0.1" value="{coldPID_kD}"/></td>
 <td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'coldPID_kD')">&#187;</button></td>
-<TD rowspan=2>Current value is {coldPID_kD}</TD></tr>
-<TR><TD colspan=3>&nbsp;</TD><TR>
+<TD>D</TD></tr>
 </TABLE>
+<BR>
+<TABLE class="values_table">
+<tr class="values_header"><td colspan=4>Hot PIDs</td></tr>
+<tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'hotPID_kP')">&#171;</button></td>
+<td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
+<input type="number" name="hotPID_kP" id="hotPID_kP" class="input" min="0.0" max="300.0" step="0.1" value="{hotPID_kP}"/></td>
+<td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'hotPID_kP')">&#187;</button></td>
+<TD>P</TD></tr>
+<tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-1,'hotPID_kI')">&#171;</button></td>
+<td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
+<input type="number" name="hotPID_kI" id="hotPID_kI" class="input" min="0.0" max="100.0" step="0.001" value="{hotPID_kI}"/></td>
+<td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(1,'hotPID_kI')">&#187;</button></td>
+<TD>I</TD></tr>
+<tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'hotPID_kD')">&#171;</button></td>
+<td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
+<input type="number" name="hotPID_kD" id="hotPID_kD" class="input" min="0.0" max="300.0" step="0.1" value="{hotPID_kD}"/></td>
+<td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'hotPID_kD')">&#187;</button></td>
+<TD>D</TD></tr>
+</TABLE>
+<BR>
 <TABLE width="100%">
 <TR><TD><button type="submit" class="btn btn_round">Save PIDs</button></TD></TR>
 </TABLE>

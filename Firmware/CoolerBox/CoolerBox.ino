@@ -95,9 +95,9 @@ float hotPID_kI=DEFAULT_PID_KI;
 float hotPID_kD=DEFAULT_PID_KD;
 
 // Create cold PID with default values
-PID coldPID(&(boxTemp), &(setVoltage), &(setTemp), coldPID_kP, coldPID_kI, coldPID_kD, REVERSE);
+PID coldPID(&(boxTemp), &(setVoltage), &(setTemp), coldPID_kP, coldPID_kI, coldPID_kD, REVERSE); // reverse as it works for cooling
 // Create hot PID with default values
-PID hotPID(&(boxTemp), &(setHotPWM), &(setTemp), hotPID_kP, hotPID_kI, hotPID_kD, REVERSE);
+PID hotPID(&(boxTemp), &(setHotPWM), &(setTemp), hotPID_kP, hotPID_kI, hotPID_kD); // no reverse as it works for heating
 
 
 // smooth algorytm for ADC reading
@@ -480,8 +480,8 @@ void loop() {
 		  sendI2Cdata();
 		}
 		if(boxMode!=2 && measuredVoltage<3.0){ // make sure that peltie is not taking much current
-		  //test heating
-		  setHotPWM = maxHotPWM;	//at max
+		  HotPID.Compute();
+		  //setHotPWM = maxHotPWM;	//at max
 		}else{
 		  //make sure heater is off
 		  setHotPWM = 0.0;

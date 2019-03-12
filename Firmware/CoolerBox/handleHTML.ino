@@ -131,6 +131,9 @@ void handlePIDs() {
 	html.replace("{coldPID_kP}", String(coldPID_kP,2));
 	html.replace("{coldPID_kI}", String(coldPID_kI,4));
 	html.replace("{coldPID_kD}", String(coldPID_kD,2));
+	html.replace("{hotPID_kP}", String(hotPID_kP,2));
+	html.replace("{hotPID_kI}", String(hotPID_kI,4));
+	html.replace("{hotPID_kD}", String(hotPID_kD,2));
 	html += FPSTR(HTTP_END);
 
 	httpServer.send ( 200, "text/html", html );
@@ -148,9 +151,19 @@ void handlePIDsStore(){
 			if (httpServer.argName(i) == "coldPID_kD") {
 				coldPID_kD=httpServer.arg(i).toFloat();
 			}
+			if (httpServer.argName(i) == "hotPID_kP") {
+				hotPID_kP=httpServer.arg(i).toFloat();
+			}
+			if (httpServer.argName(i) == "hotPID_kI") {
+				hotPID_kI=httpServer.arg(i).toFloat();
+			}
+			if (httpServer.argName(i) == "hotPID_kD") {
+				hotPID_kD=httpServer.arg(i).toFloat();
+			}
 		}
 	}
 	coldPID.SetTunings(coldPID_kP, coldPID_kI, coldPID_kD);	// Set new values 
+	hotPID.SetTunings(hotPID_kP, hotPID_kI, hotPID_kD);	// Set new values 
 	saveSettings();	// Store new PID values
 
 	httpServer.sendHeader("Location", String("/"), true);
