@@ -285,9 +285,10 @@ void handleDebug() {
 	httpServer.send ( 200, "text/html", html );
 }
 
-
+/*
 void handleCSS() {
 	File file = SPIFFS.open("/webpage.css", "r");
 	httpServer.streamFile(file, "text/css");
 	file.close();
 }
+*/

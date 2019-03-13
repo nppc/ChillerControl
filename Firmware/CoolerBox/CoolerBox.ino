@@ -391,7 +391,8 @@ void setup() {
 
 
 	httpServer.on ( "/", handleRoot );
-	httpServer.on("main.js", handleCSS);
+	//httpServer.on("main.js", handleCSS);
+  httpServer.serveStatic("main.js", SPIFFS, "/main.js");
 	httpServer.on("/setTemp", handleSetTemp);
 	httpServer.on("/settings", handleSettings);
 	httpServer.on("/settings_store", handleSettingsStore);
@@ -400,7 +401,8 @@ void setup() {
 	httpServer.on("/stop", handleStop);
 	httpServer.on("/network", handleNetwork);
 	httpServer.on("/debug", handleDebug);
-	httpServer.on("webpage.css", handleCSS);
+	//httpServer.on("webpage.css", handleCSS);
+	httpServer.serveStatic("webpage.css", SPIFFS, "/webpage.css");
 	httpServer.on("/network_store", handleNetworkStore);
 	httpServer.on("/ajax", handleAJAXrequest);
   

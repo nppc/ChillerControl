@@ -1,4 +1,4 @@
-#define FIRMWAREVERSION "2.3.1"
+#define FIRMWAREVERSION "3.0.0"
 
 // Default values
 #define DEFAULT_HYSTERESIS 0.1  // 0.2 °C wide
