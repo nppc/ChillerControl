@@ -79,6 +79,7 @@ int sendUbi_checked=0;
 int sendThing_checked=0;
 int fanDynamic_checked = 0;
 int boxMode = 0; // 1-Cooling/Heating, 2-Cooling, 3-Heating
+int boxSubMode = 2; // 2-Cooling, 3-Heating
 String ubiDebugData="No data.";	// debug data for output on debug screen (this is not for DEBUG compilation switch)
 String thingDebugData="No data.";	// debug data for output on debug screen (this is not for DEBUG compilation switch)
 
@@ -173,9 +174,9 @@ void restoreSettings(){
 	coldPID_kP = jobj["coldPID_kP"];
 	coldPID_kI = jobj["coldPID_kI"];
 	coldPID_kD = jobj["coldPID_kD"];
-  hotPID_kP = jobj["hotPID_kP"];
-  hotPID_kI = jobj["hotPID_kI"];
-  hotPID_kD = jobj["hotPID_kD"];
+	hotPID_kP = jobj["hotPID_kP"];
+	hotPID_kI = jobj["hotPID_kI"];
+	hotPID_kD = jobj["hotPID_kD"];
 	ColdSensorId = jobj["ColdSensorId"];
 	HotSensorId = jobj["HotSensorId"];
 	fanDynamic_checked = jobj["fanDynamic_checked"];
@@ -208,9 +209,9 @@ void saveSettings(){
 	jobj["coldPID_kP"] = coldPID_kP;
 	jobj["coldPID_kI"] = coldPID_kI;
 	jobj["coldPID_kD"] = coldPID_kD;
-  jobj["hotPID_kP"] = hotPID_kP;
-  jobj["hotPID_kI"] = hotPID_kI;
-  jobj["hotPID_kD"] = hotPID_kD;
+	jobj["hotPID_kP"] = hotPID_kP;
+	jobj["hotPID_kI"] = hotPID_kI;
+	jobj["hotPID_kD"] = hotPID_kD;
 	jobj["ColdSensorId"] = ColdSensorId;
 	jobj["HotSensorId"] = HotSensorId;
 	jobj["fanDynamic_checked"] = fanDynamic_checked;
@@ -455,6 +456,19 @@ void loop() {
 		boxTemp = (float)digitalSmooth(tmpT, boxTemp_SmoothArray) / 100.0;
 		tmpT = (int)round(DS18B20.getTempCByIndex(HotSensorId)*100.0);
 		HotTemp = (float)digitalSmooth(tmpT, HotTemp_SmoothArray) / 100.0;
+		// should we swithc boxSubMode?
+		if(boxMode==1){
+			if(boxSubMode==2){ //Cooling
+				if(boxTemp<(setTemp-1.0)){
+					boxSubMode=3;	// Switch to heating mode
+				}
+			}else{
+				if(boxTemp>(setTemp+1.0)){
+					boxSubMode=2;	// Switch to cooling mode
+				}
+			}
+		}
+		
 		if(boxMode!=3){
 			// Cooler routines
 			// If radiator is very hot, reduce power (decrease max voltage allowed).
@@ -468,11 +482,11 @@ void loop() {
 			}
 			// if we in stopping process then just reduce the voltage every PID loop for 1v
 			// also calculate PID if not stopping
-			if(stopCooler){
+			if(!stopCooler || (!stopCooler && boxMode==1 && boxSubMode==2) ){
+				coldPID.Compute();
+			}else{
 				setVoltage-=1; // reduce current voltage
 				if(setVoltage<0.0){setVoltage=0.0;}
-			}else{
-				coldPID.Compute();
 			}
 			// we need to send new values to Buck Converter
 			sendI2Cdata();
@@ -481,7 +495,7 @@ void loop() {
 		  setVoltage=0;
 		  sendI2Cdata();
 		}
-		if(boxMode!=2 && measuredVoltage<3.0){ // make sure that peltie is not taking much current
+		if((boxMode!=2 && measuredVoltage<3.0) || (boxMode==1 && boxSubMode==3)){ // make sure that peltie is not taking much current
 		  hotPID.Compute();
 		  //setHotPWM = maxHotPWM;	//at max
 		}else{
