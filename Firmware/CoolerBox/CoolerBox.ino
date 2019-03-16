@@ -465,6 +465,7 @@ void loop() {
 			}else{
 				if(boxTemp>(setTemp+1.0)){
 					boxSubMode=2;	// Switch to cooling mode
+          setHotPWM = 0.0;
 				}
 			}
 		}
@@ -482,7 +483,7 @@ void loop() {
 			}
 			// if we in stopping process then just reduce the voltage every PID loop for 1v
 			// also calculate PID if not stopping
-			if(!stopCooler || (!stopCooler && boxMode==1 && boxSubMode==2) ){
+			if((!stopCooler && boxMode!=1) || (!stopCooler && boxMode==1 && boxSubMode==2) ){
 				coldPID.Compute();
 			}else{
 				setVoltage-=1; // reduce current voltage
@@ -495,7 +496,7 @@ void loop() {
 		  setVoltage=0;
 		  sendI2Cdata();
 		}
-		if((boxMode!=2 && measuredVoltage<3.0) || (boxMode==1 && boxSubMode==3)){ // make sure that peltie is not taking much current
+		if((boxMode==3 && measuredVoltage<3.0) || (boxMode==1 && boxSubMode==3)){ // make sure that peltie is not taking much current
 		  hotPID.Compute();
 		  //setHotPWM = maxHotPWM;	//at max
 		}else{
