@@ -79,7 +79,7 @@ int sendUbi_checked=0;
 int sendThing_checked=0;
 int fanDynamic_checked = 0;
 int boxMode = 0; // 1-Cooling/Heating, 2-Cooling, 3-Heating
-int boxSubMode = 2; // 2-Cooling, 3-Heating
+int boxSubMode = 3; // 2-Cooling, 3-Heating
 String ubiDebugData="No data.";	// debug data for output on debug screen (this is not for DEBUG compilation switch)
 String thingDebugData="No data.";	// debug data for output on debug screen (this is not for DEBUG compilation switch)
 
@@ -459,11 +459,11 @@ void loop() {
 		// should we swithc boxSubMode?
 		if(boxMode==1){
 			if(boxSubMode==2){ //Cooling
-				if(boxTemp<(setTemp-1.0)){
+				if(boxTemp<(setTemp-0.5)){
 					boxSubMode=3;	// Switch to heating mode
 				}
 			}else{
-				if(boxTemp>(setTemp+1.0)){
+				if(boxTemp>(setTemp+0.5)){
 					boxSubMode=2;	// Switch to cooling mode
           setHotPWM = 0.0;
 				}

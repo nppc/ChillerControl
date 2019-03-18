@@ -35,8 +35,8 @@ void receiveUbidotsData(){
     int bodyPosinit = 9 + strReceive.indexOf("\"value\":");
     int bodyPosend = strReceive.indexOf("}], ");
     // for debugging
-	ubiDebugData += strReceive.substring(bodyPosinit,bodyPosend);
-	ubiDebugData += " ";
+	//ubiDebugData += strReceive.substring(bodyPosinit,bodyPosend);
+	//ubiDebugData += " ";
 	double tmp_setTemp = strReceive.substring(bodyPosinit,bodyPosend).toFloat();
     // store setTemp if changed and in range
     if(setTemp!=tmp_setTemp && tmp_setTemp>=5.0 && tmp_setTemp<=25.0){
