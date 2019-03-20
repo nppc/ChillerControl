@@ -526,10 +526,12 @@ void loop() {
 				}
 				// receive iSpindel temperature if available
 				if(isDynamicTemp==1){
+					delay(500);
 					double iSpindel_Temp = receiveUbidotsData("temperature");
-					ubiDebugData += iSpindel_Temp.ToString() + " ";
+					ubiDebugData += String(iSpindel_Temp) + "/";
 					// Adjust setTemp dynamically
-					DynamicTemp = setTemp + (setTemp - iSpindel_Temp);
+         if(iSpindel_Temp > 0){dynamicTemp = setTemp + (setTemp - iSpindel_Temp);}
+         ubiDebugData += String(dynamicTemp) + " ";
 				}
 			} 
 			millisReceiveDataInterval = millis();
