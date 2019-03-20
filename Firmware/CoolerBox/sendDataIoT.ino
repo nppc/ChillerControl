@@ -1,14 +1,14 @@
 const char* ubiServer = "things.ubidots.com";
 const char* thingServer = "api.thingspeak.com";
 
-void receiveUbidotsData(){
+double receiveUbidotsData(String uVar){
   WiFiClient clientSend;
   int cn=clientSend.connect(ubiServer, 80);
   if (cn) {
     
     String send = F("GET /api/v1.6/devices/");
     send += ubiDevice;
-    send += F("/box_settemp/values?page_size=1&token=");
+    send += "/" + uVar + F("/values?page_size=1&token=");
     send += ubiToken;
     send += F(" HTTP/1.1\r\nHost: things.ubidots.com\r\nUser-Agent: ESP8266\r\nConnection: close\r\nContent-Type: text/html\r\n");
     
@@ -37,12 +37,7 @@ void receiveUbidotsData(){
     // for debugging
 	//ubiDebugData += strReceive.substring(bodyPosinit,bodyPosend);
 	//ubiDebugData += " ";
-	double tmp_setTemp = strReceive.substring(bodyPosinit,bodyPosend).toFloat();
-    // store setTemp if changed and in range
-    if(setTemp!=tmp_setTemp && tmp_setTemp>=5.0 && tmp_setTemp<=25.0){
-      setTemp = tmp_setTemp;
-      saveSettings();
-    }
+	return strReceive.substring(bodyPosinit,bodyPosend).toFloat();
   }
 }
 

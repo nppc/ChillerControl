@@ -35,7 +35,9 @@ float maxVoltage_backup; // backup original value
 
 double boxTemp;	// current measured temperature inside the box
 double HotTemp;	// current measured temperature of hot radiator
-double setTemp=18;	// preset temperature
+double setTemp;	// preset temperature
+double dynamicTemp; // The option to adjust setTemp dynamically
+int isDynamicTemp = 1; // flag indicates that we want adjust setTemp dynamically
 double setVoltage;
 float changeVoltageSpeed; 
 float minVoltage; 
@@ -96,9 +98,9 @@ float hotPID_kI=DEFAULT_PID_KI;
 float hotPID_kD=DEFAULT_PID_KD;
 
 // Create cold PID with default values
-PID coldPID(&(boxTemp), &(setVoltage), &(setTemp), coldPID_kP, coldPID_kI, coldPID_kD, REVERSE); // reverse as it works for cooling
+PID coldPID(&(boxTemp), &(setVoltage), &(dynamicTemp), coldPID_kP, coldPID_kI, coldPID_kD, REVERSE); // reverse as it works for cooling
 // Create hot PID with default values
-PID hotPID(&(boxTemp), &(setHotPWM), &(setTemp), hotPID_kP, hotPID_kI, hotPID_kD, DIRECT); // no reverse as it works for heating
+PID hotPID(&(boxTemp), &(setHotPWM), &(dynamicTemp), hotPID_kP, hotPID_kI, hotPID_kD, DIRECT); // no reverse as it works for heating
 
 
 // smooth algorytm for ADC reading
@@ -171,6 +173,7 @@ void restoreSettings(){
 	sendThing_checked = jobj["sendThing_checked"];
 	sendUbi_checked = jobj["sendUbi_checked"];
 	setTemp = jobj["setTemp"];
+	dynamicTemp = setTemp;
 	coldPID_kP = jobj["coldPID_kP"];
 	coldPID_kI = jobj["coldPID_kI"];
 	coldPID_kD = jobj["coldPID_kD"];
@@ -206,6 +209,7 @@ void saveSettings(){
 	jobj["sendThing_checked"] = sendThing_checked;
 	jobj["sendUbi_checked"] = sendUbi_checked;
 	jobj["setTemp"] = setTemp;
+	dynamicTemp = setTemp;
 	jobj["coldPID_kP"] = coldPID_kP;
 	jobj["coldPID_kI"] = coldPID_kI;
 	jobj["coldPID_kD"] = coldPID_kD;
@@ -459,11 +463,11 @@ void loop() {
 		// should we swithc boxSubMode?
 		if(boxMode==1){
 			if(boxSubMode==2){ //Cooling
-				if(boxTemp<(setTemp-0.5)){
+				if(boxTemp<(dynamicTemp-0.5)){
 					boxSubMode=3;	// Switch to heating mode
 				}
 			}else{
-				if(boxTemp>(setTemp+0.5)){
+				if(boxTemp>(dynamicTemp+0.5)){
 					boxSubMode=2;	// Switch to cooling mode
           setHotPWM = 0.0;
 				}
@@ -513,8 +517,22 @@ void loop() {
 
 		}
 		if(millis()-millisReceiveDataInterval>(receiveInterval * 1000)){
+			if(sendUbi_checked==1){
+				double tmp_setTemp = receiveUbidotsData("box_settemp");
+				// store setTemp if changed and in range
+				if(setTemp!=tmp_setTemp && tmp_setTemp>=5.0 && tmp_setTemp<=25.0){
+				  setTemp = tmp_setTemp;
+				  saveSettings();
+				}
+				// receive iSpindel temperature if available
+				if(isDynamicTemp==1){
+					double iSpindel_Temp = receiveUbidotsData("temperature");
+					ubiDebugData += iSpindel_Temp.ToString() + " ";
+					// Adjust setTemp dynamically
+					DynamicTemp = setTemp + (setTemp - iSpindel_Temp);
+				}
+			} 
 			millisReceiveDataInterval = millis();
-			if(sendUbi_checked==1){receiveUbidotsData();} // TODO separate setting for receiving data
 		}		
 		// control Fan
 		if(HotSensorId==ColdSensorId || fanDynamic_checked==0){
