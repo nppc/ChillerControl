@@ -10,8 +10,7 @@
 
 #include "globals.h"
 #include "webpage.htm.h"
-
-//#define DEBUG
+#include "debug.h"
 
 #define I2C_ADDRESS 0x5E  // Buck converter address
 #define I2C_DATALEN 11  // 11 bytes
@@ -22,9 +21,7 @@
 #define HOT_FAN D5		// Cooling fan for hot radiator
 #define HEAT_WIRE D7    // Cooling fan for hot radiator
 
-#ifdef DEBUG
-String debugOut ="";
-#endif
+DebugHTML Debug;
 
 unsigned long I2C_error;
 bool I2C_PRESENT;
@@ -82,9 +79,6 @@ int sendThing_checked=0;
 int fanDynamic_checked = 0;
 int boxMode = 0; // 1-Cooling/Heating, 2-Cooling, 3-Heating
 int boxSubMode = 3; // 2-Cooling, 3-Heating
-String ubiDebugData="No data.";	// debug data for output on debug screen (this is not for DEBUG compilation switch)
-String thingDebugData="No data.";	// debug data for output on debug screen (this is not for DEBUG compilation switch)
-
 
 // Define a web server at port 80 for HTTP
 ESP8266WebServer httpServer(80);
@@ -312,7 +306,9 @@ void setup() {
 	digitalWrite (HOT_FAN, HIGH);
 	pinMode (LED_WARN, OUTPUT);
 	digitalWrite (LED_WARN, LOW);
-	
+
+  Debug.init();
+  
 	boxMode=1;	// set some mode in case this setting not yet present
 	
 	millisWIFIcheckInterval = millis();
@@ -531,10 +527,8 @@ void loop() {
 				if(isDynamicTemp==1){
 					delay(500);
 					double iSpindel_Temp = receiveUbidotsData("temperature");
-					ubiDebugData += String(iSpindel_Temp) + "/";
 					// Adjust setTemp dynamically
          if(iSpindel_Temp > 0){dynamicTemp = setTemp + (setTemp - iSpindel_Temp);}
-         ubiDebugData += String(dynamicTemp) + " ";
 				}
 			} 
 			millisReceiveDataInterval = millis();

@@ -228,16 +228,9 @@ const char HTTP_NETWORK_DATA[] PROGMEM = R"V0G0N(
 const char HTTP_DEBUG_DATA[] PROGMEM = R"V0G0N(
 <BR>
 <TABLE class="values_table">
-<TR class="values_header"><TD>Ubidots reply output</TD></TR>
-<TR><TD>{ubiDebug}</TD></TR>
+<TR class="values_header"><TD>Debug Data</TD></TR>
+<TR><TD><pre style="font-family:monospace;text-align:left;">{Debug}</pre></TD></TR>
 </TABLE>
-
-<BR>
-<TABLE class="values_table">
-<TR class="values_header"><TD>ThingSpeak reply output</TD></TR>
-<TR><TD>{thingDebug}</TD></TR>
-</TABLE>
-
 <BR>
 <TABLE width="100%">
 <TR><TD><form action="/debug" method="get"><button type="submit" class="btn btn_round">Refresh</button></form></TD></TR>

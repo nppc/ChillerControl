@@ -283,8 +283,7 @@ void handleDebug() {
 	String html = FPSTR(HTTP_HEAD);
 	html.replace("{Caption}", "Debug");
 	html += FPSTR(HTTP_DEBUG_DATA);
-	html.replace("{ubiDebug}", ubiDebugData);
-	html.replace("{thingDebug}", thingDebugData);
+	html.replace("{Debug}", Debug.getHTML());
 	html += FPSTR(HTTP_END);
 	
 	httpServer.send ( 200, "text/html", html );

@@ -9,9 +9,7 @@ double receiveUbidotsData(String uVar){
     send += "/" + uVar + F("/values?page_size=1&token=");
     send += ubiToken;
     send += F(" HTTP/1.1\r\nHost: things.ubidots.com\r\nUser-Agent: ESP8266\r\nConnection: close\r\nContent-Type: text/html\r\n");
-    
-    //thingDebugData= send ;
-    
+        
     clientSend.println(send);
 
     int timeout = 0;
@@ -20,7 +18,6 @@ double receiveUbidotsData(String uVar){
         timeout++;
         delay(1);
     }
-  	//ubiDebugData = ""; // clear previous data
   	String strReceive = "";
   	while (clientSend.available()){
   		String dadaLine = clientSend.readStringUntil('\r');
@@ -32,12 +29,11 @@ double receiveUbidotsData(String uVar){
   
     int bodyPosinit = 9 + strReceive.indexOf("\"value\":");
     int bodyPosend = strReceive.indexOf("}], ");
-    // for debugging
-	  //ubiDebugData += strReceive.substring(bodyPosinit,bodyPosend);
-	  //ubiDebugData += " ";
+    Debug.addLine(F("RCVUBIOK"));
 	  return strReceive.substring(bodyPosinit,bodyPosend).toFloat();
   }else{
-    ubiDebugData += F("RCVCNFAIL ");    
+    Debug.addLine(F("RCVUBIFAIL"));
+    return 0.0;
   }
 }
 
@@ -81,9 +77,10 @@ void send2Ubidots(bool send_setTemp){
   	
   	clientSend.stop();
     delay(100);
+    Debug.addLine(F("SNDUBIOK"));
   }else{
     //connection failed
-    ubiDebugData += F("SNDCNFAIL ");
+    Debug.addLine(F("SNDUBIFAIL"));
   }
 }
 
@@ -118,17 +115,16 @@ void send2Thingspeak(){
         delay(1);
     }
 
-  	thingDebugData = ""; // clear previous data
   	while (clientSend.available()) {
   		String dadaLine = clientSend.readStringUntil('\r');
-  		thingDebugData += dadaLine + " ";
     }
   
   	clientSend.stop();
     delay(100);
+    Debug.addLine(F("SNDTHNGOK"));
   }else{
     //connection failed
-    thingDebugData += F("SNDCNFAIL ");
+    Debug.addLine(F("SNDTHNGFAIL"));
   }
 
 }
