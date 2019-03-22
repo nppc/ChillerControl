@@ -4,7 +4,7 @@ const char HTTP_HEAD[] PROGMEM = R"V0G0N(
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
 <title>Cooler Box Controller</title>
-<LINK href="webpage.css" rel="stylesheet" type="text/css">
+<LINK href="/webpage.css" rel="stylesheet" type="text/css">
 </head>
 <body>
 <div class="container">
@@ -23,7 +23,7 @@ const char HTTP_END[] PROGMEM = R"V0G0N(
 )V0G0N";
 
 const char HTTP_MAIN_DATA[] PROGMEM = R"V0G0N(
-<script src="main.js"></script>
+<script src="/main.js"></script>
 <TABLE width=100%><TR><TD><div align="left">Version: {FW}</div></TD><TD><div align="right">Uptime: <div id="CurTime" style="display:inline">loading...</div></div></TD></TR></TABLE>
 <BR>
 <TABLE class="values_table">
