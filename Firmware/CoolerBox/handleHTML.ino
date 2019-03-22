@@ -60,6 +60,7 @@ void handleSettings() {
 	html.replace("{ColdDSlist}", ColdDSlist);
 	html.replace("{HotDSlist}", HotDSlist);
 	html.replace("{fanDynamic_checked}", String(fanDynamic_checked==0 ? "":"checked"));
+  html.replace("{isDynamicTemp_checked}", String(isDynamicTemp==0 ? "":"checked"));
 	// set correct box mode on the page
 	html.replace("{boxMode_1}", String(boxMode==1 ? "checked":""));
 	html.replace("{boxMode_2}", String(boxMode==2 ? "checked":""));
@@ -75,6 +76,7 @@ void handleSettings() {
 void handleSettingsStore(){
   if (httpServer.args() > 0 ) {
 	fanDynamic_checked = 0;
+  isDynamicTemp = 0;
 	for ( uint8_t i = 0; i < httpServer.args(); i++ ) {
       if (httpServer.argName(i) == "VoltChange") {
          //convert voltage to valid range
@@ -107,6 +109,9 @@ void handleSettingsStore(){
       }
       if (httpServer.argName(i) == "fanDynamic") {
 		fanDynamic_checked = 1;
+      }
+      if (httpServer.argName(i) == "isDynamicTemp") {
+    isDynamicTemp = 1;
       }
       if (httpServer.argName(i) == "boxMode") {
 		boxMode = httpServer.arg(i).toInt();

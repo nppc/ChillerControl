@@ -37,7 +37,7 @@ double boxTemp;	// current measured temperature inside the box
 double HotTemp;	// current measured temperature of hot radiator
 double setTemp;	// preset temperature
 double dynamicTemp; // The option to adjust setTemp dynamically
-int isDynamicTemp = 1; // flag indicates that we want adjust setTemp dynamically
+int isDynamicTemp; // 1/0 flag indicates that we want adjust setTemp dynamically
 double setVoltage;
 float changeVoltageSpeed; 
 float minVoltage; 
@@ -183,6 +183,8 @@ void restoreSettings(){
 	ColdSensorId = jobj["ColdSensorId"];
 	HotSensorId = jobj["HotSensorId"];
 	fanDynamic_checked = jobj["fanDynamic_checked"];
+  isDynamicTemp = jobj["isDynamicTemp"];
+  if(isDynamicTemp == 0){dynamicTemp = setTemp;}
 	boxMode = jobj["boxMode"];
 	// read settings for i2c DC/DC converter
 	minVoltage = jobj["i2cDCDC_minVoltage"];
@@ -209,7 +211,6 @@ void saveSettings(){
 	jobj["sendThing_checked"] = sendThing_checked;
 	jobj["sendUbi_checked"] = sendUbi_checked;
 	jobj["setTemp"] = setTemp;
-	dynamicTemp = setTemp;
 	jobj["coldPID_kP"] = coldPID_kP;
 	jobj["coldPID_kI"] = coldPID_kI;
 	jobj["coldPID_kD"] = coldPID_kD;
@@ -219,6 +220,7 @@ void saveSettings(){
 	jobj["ColdSensorId"] = ColdSensorId;
 	jobj["HotSensorId"] = HotSensorId;
 	jobj["fanDynamic_checked"] = fanDynamic_checked;
+  jobj["isDynamicTemp"] = isDynamicTemp;
 	jobj["boxMode"] = boxMode;
 	// store settings for i2c DC/DC converter
 	jobj["i2cDCDC_minVoltage"] = minVoltage;
@@ -345,6 +347,7 @@ void setup() {
 	millisReadI2CDataInterval = millis();
 	
 	restoreSettings();	// restore PID and internet settings
+
 	maxVoltage_backup = maxVoltage; // update backup
   	
 	Serial.println();

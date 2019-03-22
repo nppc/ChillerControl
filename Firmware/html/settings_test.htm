@@ -63,9 +63,18 @@
 <TABLE class="values_table">
 <tr class="values_header"><td colspan=2>Dynamic Fan Control</td></tr>
 <tr><TD width=240px, style="line-height: 2;text-align: left">
-<input type="checkbox" name="fanDynamic" id="fanDynamic" {fanDynamic_checked}><label for="sendThing"> Enable Dynamic control</label>
+<input type="checkbox" name="fanDynamic" id="fanDynamic" {fanDynamic_checked}><label for="fanDynamic"> Enable Dynamic control</label>
 </TD>
 <TD rowspan=2>Cooling fan on the top of the fridge can be turned off automatically if radiator is not hot.</TD></tr>
+<TR><TD>&nbsp;</TD><TR>
+</TABLE>
+<BR>
+<TABLE class="values_table">
+<tr class="values_header"><td colspan=2>Set Temperature Dynamic Adjust</td></tr>
+<tr><TD width=240px, style="line-height: 2;text-align: left">
+<input type="checkbox" name="isDynamicTemp" id="isDynamicTemp" {isDynamicTemp_checked}><label for="isDynamicTemp"> Enable Dynamic Adjust</label>
+</TD>
+<TD rowspan=2>Preset temperature sometimes need to be changed on they fly to prevent object temperature overrun. This can be done dynamically. It reads temperature from iSpindel and adjust preset temperature accordingly.</TD></tr>
 <TR><TD>&nbsp;</TD><TR>
 </TABLE>
 <BR>
