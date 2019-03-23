@@ -537,7 +537,7 @@ void loop() {
 		if(HotSensorId==ColdSensorId || fanDynamic_checked==0){
 			// Fan always ON if only one temperature sensor detected or Dynamic control is disabled
 			// Also check if heating is on, then Fan should be off
-			digitalWrite(HOT_FAN, (setHotPWM > 0 ? LOW : HIGH));	// Fan is OFF when heating.
+			digitalWrite(HOT_FAN, (boxMode==3 || (boxMode==1 && boxSubMode==3) ? LOW : HIGH));	// Fan is OFF when heating.
 		}else{
 			if(HotTemp>=32.0 && digitalRead(HOT_FAN)==LOW){
 				digitalWrite(HOT_FAN, HIGH);
