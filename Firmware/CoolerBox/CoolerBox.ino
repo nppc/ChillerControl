@@ -35,6 +35,7 @@ double HotTemp;	// current measured temperature of hot radiator
 double setTemp;	// preset temperature
 double dynamicTemp; // The option to adjust setTemp dynamically
 int isDynamicTemp; // 1/0 flag indicates that we want adjust setTemp dynamically
+float dynamicTempDiffCoeff = 2.0; // Coefficient for scaling the difference between temperatures in box and from iSpindel
 double setVoltage;
 float changeVoltageSpeed; 
 float minVoltage; 
@@ -528,7 +529,7 @@ void loop() {
 					delay(500);
 					double iSpindel_Temp = receiveUbidotsData("temperature");
 					// Adjust setTemp dynamically
-         if(iSpindel_Temp > 0){dynamicTemp = setTemp + (setTemp - iSpindel_Temp);}
+         if(iSpindel_Temp > 0){dynamicTemp = setTemp + ((setTemp - iSpindel_Temp) * dynamicTempDiffCoeff);}
 				}
 			} 
 			millisReceiveDataInterval = millis();
