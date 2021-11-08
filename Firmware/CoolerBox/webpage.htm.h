@@ -1,4 +1,4 @@
-const char HTTP_HEAD[] PROGMEM = R"V0G0N(
+const char HTTP_HEADweb[] PROGMEM = R"V0G0N(
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -327,4 +327,3 @@ message = xmldoc[0].firstChild.nodeValue;
 document.getElementById('I2CError').innerHTML = message;
 }
 )V0G0N";
-

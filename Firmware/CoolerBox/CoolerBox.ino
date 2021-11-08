@@ -1,3 +1,5 @@
+//#define ADJUSTBOXTEMPFROMUBIDOTS // adjust box temperature remotly via ubidots
+
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266HTTPUpdateServer.h>
@@ -44,7 +46,7 @@ byte i2c_PWM_value;
 float measuredVoltage; 
 float measuredCurrent; 
 bool stopCooler = LOW;
-double setHotPWM=0; // initially off
+double setHotPWM=0.0; // initially off
 int maxHotPWM = MAXIMUM_PWM_HOT_WIRE; 
 
 OneWire oneWire(ONE_WIRE_BUS);
@@ -501,8 +503,16 @@ void loop() {
 		  sendI2Cdata();
 		}
 		if((boxMode==3 && measuredVoltage<3.0) || (boxMode==1 && boxSubMode==3)){ // make sure that peltie is not taking much current
+/*
+		  // Prevent I windup at edge values
+		  if((setHotPWM==maxHotPWM || setHotPWM==0.0) && hotPID.GetKi()!=0.0){
+        hotPID.SetTunings(hotPID_kP, 0.0, hotPID_kD);
+		  }else if((setHotPWM!=maxHotPWM && setHotPWM!=0.0) && hotPID.GetKi()==0.0){
+        hotPID.SetTunings(hotPID_kP, hotPID_kI, hotPID_kD);
+		  }
+*/
+      // now compute PID
 		  hotPID.Compute();
-		  //setHotPWM = maxHotPWM;	//at max
 		}else{
 		  //make sure heater is off
 		  setHotPWM = 0.0;
@@ -518,12 +528,14 @@ void loop() {
 		}
 		if(millis()-millisReceiveDataInterval>(receiveInterval * 1000)){
 			if(sendUbi_checked==1){
+#ifdef ADJUSTBOXTEMPFROMUBIDOTS
 				double tmp_setTemp = receiveUbidotsData("box_settemp");
 				// store setTemp if changed and in range
 				if(setTemp!=tmp_setTemp && tmp_setTemp>=5.0 && tmp_setTemp<=25.0){
 				  setTemp = tmp_setTemp;
 				  saveSettings();
 				}
+#endif
 				// receive iSpindel temperature if available
 				if(isDynamicTemp==1){
 					delay(500);
@@ -560,4 +572,3 @@ void loop() {
 	}
 
 }
-

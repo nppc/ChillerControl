@@ -14,7 +14,7 @@ void handleRoot() {
 	//readI2Cdata();
 
 // Build an HTML page to display on the web-server root address
-	String html = FPSTR(HTTP_HEAD);
+	String html = FPSTR(HTTP_HEADweb);
 	html.replace("{Caption}", "Main Info");
 	html += FPSTR(HTTP_MAIN_DATA);
 	html.replace("{FW}", FIRMWAREVERSION);
@@ -51,7 +51,7 @@ void handleSettings() {
 	String ColdDSlist = ConstructDS18B20list(ColdSensorId);
 	String HotDSlist = ConstructDS18B20list(HotSensorId);
 	// Build an HTML page to display on the web-server 
-	String html = FPSTR(HTTP_HEAD);
+	String html = FPSTR(HTTP_HEADweb);
 	html.replace("{Caption}", "Settings");
 	html += FPSTR(HTTP_SETTINGS_DATA);
 	html.replace("{changeVoltageSpeed}", String(changeVoltageSpeed,1));
@@ -130,7 +130,7 @@ void handleSettingsStore(){
 
 void handlePIDs() {
 	// Build an HTML page to display on the web-server 
-	String html = FPSTR(HTTP_HEAD);
+	String html = FPSTR(HTTP_HEADweb);
 	html.replace("{Caption}", "PID Settings");
 	html += FPSTR(HTTP_PIDS_DATA);
 	html.replace("{coldPID_kP}", String(coldPID_kP,2));
@@ -184,6 +184,7 @@ void handleSetTemp(){
 				if(tmpTemp>45.0){tmpTemp=setTemp;}	// don't change just in case.
 				if(tmpTemp<0){tmpTemp=0.0;}
 				setTemp = tmpTemp;
+        dynamicTemp = tmpTemp;
 				saveSettings();	// Store new PID value
 			}
 		}
@@ -224,7 +225,7 @@ void handleNotFound() {
 
 void handleNetwork() {
 	// Build an HTML page to display on the web-server 
-	String html = FPSTR(HTTP_HEAD);
+	String html = FPSTR(HTTP_HEADweb);
 	html.replace("{Caption}", "Network");
 	html += FPSTR(HTTP_NETWORK_DATA);
 	html.replace("{IntSSID}", String(IntSSID));
@@ -280,7 +281,7 @@ void handleNetworkStore(){
 
 void handleDebug() {
 	// Build an HTML page to display on the web-server 
-	String html = FPSTR(HTTP_HEAD);
+	String html = FPSTR(HTTP_HEADweb);
 	html.replace("{Caption}", "Debug");
 	html += FPSTR(HTTP_DEBUG_DATA);
 	html.replace("{Debug}", Debug.getHTML());
@@ -299,4 +300,3 @@ void handleScript() {
   String html = FPSTR(MAIN_JS);
   httpServer.send ( 200, "text/javascript", html );
 }
-

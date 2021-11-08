@@ -48,7 +48,7 @@ void send2Ubidots(bool send_setTemp){
   	}else{
     	jobj["box_temperature"] = String(boxTemp);
     	jobj["box_voltage"] = String(setVoltage);
-    	jobj["box_hotpwm"] = String(setHotPWM*100.0/700.0);
+    	jobj["box_hotpwm"] = String(setHotPWM*100.0/MAXIMUM_PWM_HOT_WIRE); // in %
   	}
   	
   	String send = F("POST /api/v1.6/devices/");
