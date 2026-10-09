@@ -62,7 +62,6 @@ void handleSettings() {
 	html.replace("{ColdDSlist}", ColdDSlist);
 	html.replace("{HotDSlist}", HotDSlist);
 	html.replace("{fanDynamic_checked}", String(fanDynamic_checked==0 ? "":"checked"));
-  html.replace("{isDynamicTemp_checked}", String(isDynamicTemp==0 ? "":"checked"));
 	// set correct box mode on the page
 	html.replace("{boxMode_1}", String(boxMode==1 ? "checked":""));
 	html.replace("{boxMode_2}", String(boxMode==2 ? "checked":""));
@@ -78,7 +77,6 @@ void handleSettings() {
 void handleSettingsStore(){
   if (httpServer.args() > 0 ) {
 	fanDynamic_checked = 0;
-  isDynamicTemp = 0;
 	for ( uint8_t i = 0; i < httpServer.args(); i++ ) {
       if (httpServer.argName(i) == "VoltChange") {
          //convert voltage to valid range
@@ -111,9 +109,6 @@ void handleSettingsStore(){
       }
       if (httpServer.argName(i) == "fanDynamic") {
 		fanDynamic_checked = 1;
-      }
-      if (httpServer.argName(i) == "isDynamicTemp") {
-    isDynamicTemp = 1;
       }
       if (httpServer.argName(i) == "boxMode") {
 		boxMode = httpServer.arg(i).toInt();
@@ -196,7 +191,7 @@ void handleSetTemp(){
 	delay(50);	// make sure, data is not sent too often
 	httpServer.sendHeader("Location", String("/"), true);
 	httpServer.send ( 302, "text/plain", "");
-  if(sendUbi_checked==1){send2Ubidots(HIGH);} // send only setTemp
+  sendTelemetry();
   stopCooler = LOW; // resume Cooler if temperature changed
 }
 
@@ -232,12 +227,10 @@ void handleNetwork() {
 	html += FPSTR(HTTP_NETWORK_DATA);
 	html.replace("{IntSSID}", String(IntSSID));
 	html.replace("{IntPASS}", String(IntPASS));
-	html.replace("{thingWriteAPIKey}",thingWriteAPIKey);
-	html.replace("{ubiToken}", String(ubiToken));
-	html.replace("{ubiDevice}", String(ubiDevice));
+	html.replace("{endpointAddress}", endpointAddress);
+	html.replace("{endpointAccessToken}", endpointAccessToken);
+	html.replace("{endpointPath}", endpointPath);
 	html.replace("{sendInterval}", String(sendInterval));
-	html.replace("{sendThing_checked}", String(sendThing_checked==0 ? "":"checked"));
-	html.replace("{sendUbi_checked}", String(sendUbi_checked==0 ? "":"checked"));
 	html += FPSTR(HTTP_END);
 	
 	httpServer.send ( 200, "text/html", html );
@@ -245,8 +238,6 @@ void handleNetwork() {
 
 void handleNetworkStore(){
 	if (httpServer.args() > 0 ) {
-		sendThing_checked = 0;
-		sendUbi_checked = 0;
 		for(uint8_t i=0;i<httpServer.args();i++) {
 			String s = httpServer.arg(i);
 			if (httpServer.argName(i) == "IntSSID") {
@@ -255,23 +246,22 @@ void handleNetworkStore(){
 			if (httpServer.argName(i) == "IntPASS") {
 				s.toCharArray(IntPASS,20);
 			}
-			if (httpServer.argName(i) == "thingWriteAPIKey") {
-				thingWriteAPIKey=s;
+			if (httpServer.argName(i) == "endpointAddress") {
+				endpointAddress=s;
 			}
-			if (httpServer.argName(i) == "ubiToken") {
-				ubiToken=s;
+			if (httpServer.argName(i) == "endpointAccessToken") {
+				endpointAccessToken=s;
 			}
-			if (httpServer.argName(i) == "ubiDevice") {
-				ubiDevice=s;
+			if (httpServer.argName(i) == "endpointPath") {
+				endpointPath=s;
 			}
 			if (httpServer.argName(i) == "sendInterval") {
-				sendInterval = s.toInt();
-			}
-			if (httpServer.argName(i) == "sendThing") {
-				sendThing_checked = 1;
-			}
-			if (httpServer.argName(i) == "sendUbi") {
-				sendUbi_checked = 1;
+				int requestedInterval = s.toInt();
+				if (requestedInterval >= 10 && requestedInterval <= 86400) {
+					sendInterval = requestedInterval;
+				} else {
+					Debug.addLine(F("Invalid telemetry interval"));
+				}
 			}
 		}
 	}

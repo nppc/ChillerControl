@@ -13,8 +13,10 @@ double boxTemp;	// current measured temperature inside the box
 double HotTemp;	// current measured temperature of hot radiator
 double setTemp;	// preset temperature
 double dynamicTemp; // The option to adjust setTemp dynamically
-int isDynamicTemp; // 1/0 flag indicates that we want adjust setTemp dynamically
-float dynamicTempDiffCoeff = 2.0; // Coefficient for scaling the difference between temperatures in box and from iSpindel
+#if ENABLE_ISPINDEL_DYNAMIC_TEMP
+double iSpindelTemperature;
+float dynamicTempDiffCoeff = 2.0;
+#endif
 double setVoltage;
 float changeVoltageSpeed; 
 float minVoltage; 
@@ -31,7 +33,6 @@ DallasTemperature DS18B20(&oneWire);
 DeviceAddress  DS18B20_adr[2];
 unsigned long millisPIDinterval;
 unsigned long millisSendDataInterval;
-unsigned long millisReceiveDataInterval;
 unsigned long millisReadI2CDataInterval;
 unsigned long millisWIFIcheckInterval;
 
@@ -48,13 +49,10 @@ const char *password = "1234Test";
 
 char IntSSID[20];
 char IntPASS[20];
-String thingWriteAPIKey;
-String ubiToken;
-String ubiDevice;
-int sendInterval;  // Interval in seconds for sending data to IoT server
-int receiveInterval;  // Interval in seconds for reading data from IoT server
-int sendUbi_checked=0;
-int sendThing_checked=0;
+String endpointAddress;
+String endpointAccessToken;
+String endpointPath;
+int sendInterval = 60;  // Interval in seconds for sending data to the endpoint
 int fanDynamic_checked = 0;
 int boxMode = 0; // 1-Cooling/Heating, 2-Cooling, 3-Heating
 int boxSubMode = 3; // 2-Cooling, 3-Heating
@@ -145,13 +143,13 @@ void restoreSettings(){
 	}
 	String s = doc["IntSSID"].as<String>();s.toCharArray(IntSSID,20);
 	s = doc["IntPASS"].as<String>();s.toCharArray(IntPASS,20);
-	thingWriteAPIKey = doc["thingWriteAPIKey"].as<String>();
-	ubiToken = doc["ubiToken"].as<String>();
-	ubiDevice = doc["ubiDevice"].as<String>();
-	sendInterval = doc["sendInterval"];
-	receiveInterval = sendInterval+60; // Receive interval will be 1 minute longer
-	sendThing_checked = doc["sendThing_checked"];
-	sendUbi_checked = doc["sendUbi_checked"];
+	endpointAddress = doc["endpointAddress"].as<String>();
+	endpointAccessToken = doc["endpointAccessToken"].as<String>();
+	endpointPath = doc["endpointPath"].as<String>();
+	sendInterval = doc["sendInterval"] | 60;
+	if (sendInterval < 10 || sendInterval > 86400) {
+		sendInterval = 60;
+	}
 	setTemp = doc["setTemp"];
 	dynamicTemp = setTemp;
 	coldPID_kP = doc["coldPID_kP"];
@@ -163,8 +161,6 @@ void restoreSettings(){
 	ColdSensorId = doc["ColdSensorId"];
 	HotSensorId = doc["HotSensorId"];
 	fanDynamic_checked = doc["fanDynamic_checked"];
-  isDynamicTemp = doc["isDynamicTemp"];
-  if(isDynamicTemp == 0){dynamicTemp = setTemp;}
 	boxMode = doc["boxMode"];
 	// read settings for i2c DC/DC converter
 	minVoltage = doc["i2cDCDC_minVoltage"];
@@ -183,12 +179,10 @@ void saveSettings(){
 	JsonDocument doc;
 	doc["IntSSID"] = String(IntSSID);
 	doc["IntPASS"] = String(IntPASS);
-	doc["thingWriteAPIKey"] = thingWriteAPIKey;
-	doc["ubiToken"] = ubiToken;
-	doc["ubiDevice"] = ubiDevice;
+	doc["endpointAddress"] = endpointAddress;
+	doc["endpointAccessToken"] = endpointAccessToken;
+	doc["endpointPath"] = endpointPath;
 	doc["sendInterval"] = sendInterval;
-	doc["sendThing_checked"] = sendThing_checked;
-	doc["sendUbi_checked"] = sendUbi_checked;
 	doc["setTemp"] = setTemp;
 	doc["coldPID_kP"] = coldPID_kP;
 	doc["coldPID_kI"] = coldPID_kI;
@@ -199,7 +193,6 @@ void saveSettings(){
 	doc["ColdSensorId"] = ColdSensorId;
 	doc["HotSensorId"] = HotSensorId;
 	doc["fanDynamic_checked"] = fanDynamic_checked;
-  doc["isDynamicTemp"] = isDynamicTemp;
 	doc["boxMode"] = boxMode;
 	// store settings for i2c DC/DC converter
 	doc["i2cDCDC_minVoltage"] = minVoltage;
@@ -407,7 +400,6 @@ void setup() {
 	Serial.println("HTTP server started");
 
     millisSendDataInterval=millis();
-	millisReceiveDataInterval=millis();
 
     millisPIDinterval=millis();
 	
@@ -417,8 +409,6 @@ void setup() {
   hotPID.SetOutputLimits(0, maxHotPWM);  // same limits for hot wire PWM
   hotPID.SetMode(AUTOMATIC);
   hotPID.SetTunings(hotPID_kP, hotPID_kI, hotPID_kD);
-  if(sendUbi_checked==1){send2Ubidots(HIGH);} // send only setTemp
-  
 }
 
 
@@ -444,6 +434,11 @@ void loop() {
 		boxTemp = (float)digitalSmooth(tmpT, boxTemp_SmoothArray) / 100.0;
 		tmpT = (int)round(DS18B20.getTempCByIndex(HotSensorId)*100.0);
 		HotTemp = (float)digitalSmooth(tmpT, HotTemp_SmoothArray) / 100.0;
+#if ENABLE_ISPINDEL_DYNAMIC_TEMP
+		if (iSpindelTemperature > 0) {
+			dynamicTemp = setTemp + ((setTemp - iSpindelTemperature) * dynamicTempDiffCoeff);
+		}
+#endif
 		// should we swithc boxSubMode?
 		if(boxMode==1){
 			if(boxSubMode==2){ //Cooling
@@ -502,31 +497,9 @@ void loop() {
 		analogWrite(HEAT_WIRE, setHotPWM);
    
 		// Send data to IoT
-		if(millis()-millisSendDataInterval>(sendInterval * 1000)){
+		if(millis()-millisSendDataInterval>static_cast<unsigned long>(sendInterval) * 1000UL){
 			millisSendDataInterval = millis();
-			if(sendUbi_checked==1){send2Ubidots(LOW);}
-			if(sendThing_checked==1){send2Thingspeak();}
-
-		}
-		if(millis()-millisReceiveDataInterval>(receiveInterval * 1000)){
-			if(sendUbi_checked==1){
-#ifdef ADJUSTBOXTEMPFROMUBIDOTS
-				double tmp_setTemp = receiveUbidotsData("box_settemp");
-				// store setTemp if changed and in range
-				if(setTemp!=tmp_setTemp && tmp_setTemp>=5.0 && tmp_setTemp<=25.0){
-				  setTemp = tmp_setTemp;
-				  saveSettings();
-				}
-#endif
-				// receive iSpindel temperature if available
-				if(isDynamicTemp==1){
-					delay(500);
-					double iSpindel_Temp = receiveUbidotsData("temperature");
-					// Adjust setTemp dynamically
-         if(iSpindel_Temp > 0){dynamicTemp = setTemp + ((setTemp - iSpindel_Temp) * dynamicTempDiffCoeff);}
-				}
-			} 
-			millisReceiveDataInterval = millis();
+			sendTelemetry();
 		}		
 		// control Fan
 		if(HotSensorId==ColdSensorId || fanDynamic_checked==0){
