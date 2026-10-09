@@ -1,3 +1,5 @@
+#include "CoolerBox.h"
+
 const char* ubiServer = "things.ubidots.com";
 const char* thingServer = "api.thingspeak.com";
 
@@ -40,15 +42,14 @@ double receiveUbidotsData(String uVar){
 void send2Ubidots(bool send_setTemp){
   WiFiClient clientSend;
   if(clientSend.connect(ubiServer, 80)){
-  	DynamicJsonBuffer jsonBuffer;
-  	JsonObject &jobj = jsonBuffer.createObject();
+  	JsonDocument doc;
     // send setTemp to Ubidots only when requested
   	if(send_setTemp){
-  	  jobj["box_settemp"] = String(setTemp);
+  	  doc["box_settemp"] = String(setTemp);
   	}else{
-    	jobj["box_temperature"] = String(boxTemp);
-    	jobj["box_voltage"] = String(setVoltage);
-    	jobj["box_hotpwm"] = String(setHotPWM*100.0/MAXIMUM_PWM_HOT_WIRE); // in %
+    	doc["box_temperature"] = String(boxTemp);
+    	doc["box_voltage"] = String(setVoltage);
+    	doc["box_hotpwm"] = String(setHotPWM*100.0/MAXIMUM_PWM_HOT_WIRE); // in %
   	}
   	
   	String send = F("POST /api/v1.6/devices/");
@@ -56,10 +57,10 @@ void send2Ubidots(bool send_setTemp){
   	send += F("?token=");
   	send += ubiToken;
   	send += F(" HTTP/1.1\r\nHost: things.ubidots.com\r\nUser-Agent: ESP8266\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: ");
-  	send += jobj.measureLength();
+  	send += measureJson(doc);
   	send += "\r\n";
   	clientSend.println(send);
-  	jobj.printTo(clientSend);
+  	serializeJson(doc, clientSend);
   	clientSend.println();
   
       int timeout = 0;

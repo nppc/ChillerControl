@@ -1,3 +1,5 @@
+#include "CoolerBox.h"
+
 void handleAJAXrequest() {
 	unsigned long val = millis();
 	int tdays = val / 86400000;
@@ -6,7 +8,7 @@ void handleAJAXrequest() {
 	int hr = min / 60;
 
 	char buf[20];
-	sprintf(buf,"%d days, %02d:%02d:%02d",tdays,hr % 24,min % 60,sec % 60);
+	sprintf(buf,"%d days, %02d:%02lu:%02lu",tdays,hr % 24,min % 60,sec % 60);
 	String CurTime=String(buf);
 
 	String Fan= (digitalRead(HOT_FAN)? "#ffd699" : "Transparent");

@@ -1,33 +1,10 @@
-//#define ADJUSTBOXTEMPFROMUBIDOTS // adjust box temperature remotly via ubidots
-
-#include <ESP8266WiFi.h>
-#include <ESP8266WebServer.h>
-#include <ESP8266HTTPUpdateServer.h>
-#include <OneWire.h>
-#include <Wire.h>
-#include <DallasTemperature.h>
-#include <PID_v1.h>
-#include <ArduinoJson.h>
-#include "FS.h"
-
-#include "globals.h"
-#include "webpage.htm.h"
-#include "debug.h"
-
-#define I2C_ADDRESS 0x5E  // Buck converter address
-#define I2C_DATALEN 11  // 11 bytes
-
-// pins definition
-#define LED_WARN D0   // LED indicates that peltie is under voltage and can't be just powered off
-#define ONE_WIRE_BUS D6  // DS18B20 pin
-#define HOT_FAN D5		// Cooling fan for hot radiator
-#define HEAT_WIRE D7    // Cooling fan for hot radiator
+#include "CoolerBox.h"
 
 DebugHTML Debug;
 
 unsigned long I2C_error;
 bool I2C_PRESENT;
-uint8_t i2c_data[I2C_DATALEN-1]; //11 bytes
+uint8_t i2c_data[I2C_DATALEN];
 
 bool flagExtremeTemp = LOW;
 float maxVoltage_backup; // backup original value
@@ -61,7 +38,6 @@ unsigned long millisWIFIcheckInterval;
 int ColdSensorId = 0;
 int HotSensorId = 0;
 
-#define filterSamples 5
 int boxTemp_SmoothArray[filterSamples];   // array for holding raw sensor values for PT1000 sensor 
 int HotTemp_SmoothArray[filterSamples];   // array for holding raw sensor values for PT1000 sensor 
 
@@ -155,38 +131,45 @@ void INIT_DS18B20(){
 }
 
 void restoreSettings(){
-	//StaticJsonBuffer<1024> jsonBuffer;
-	DynamicJsonBuffer jsonBuffer;
+	JsonDocument doc;
 	File f = SPIFFS.open("/settings.json", "r");
-	JsonObject &jobj = jsonBuffer.parseObject(f);
+	if (!f) {
+		Debug.addLine(F("SETTINGS OPEN FAIL"));
+		return;
+	}
+	DeserializationError error = deserializeJson(doc, f);
 	f.close();
-	String s = jobj["IntSSID"].as<String>();s.toCharArray(IntSSID,20);
-	s = jobj["IntPASS"].as<String>();s.toCharArray(IntPASS,20);
-	thingWriteAPIKey = jobj["thingWriteAPIKey"].as<String>();
-	ubiToken = jobj["ubiToken"].as<String>();
-	ubiDevice = jobj["ubiDevice"].as<String>();
-	sendInterval = jobj["sendInterval"];
+	if (error) {
+		Debug.addLine(String(F("SETTINGS JSON FAIL: ")) + error.c_str());
+		return;
+	}
+	String s = doc["IntSSID"].as<String>();s.toCharArray(IntSSID,20);
+	s = doc["IntPASS"].as<String>();s.toCharArray(IntPASS,20);
+	thingWriteAPIKey = doc["thingWriteAPIKey"].as<String>();
+	ubiToken = doc["ubiToken"].as<String>();
+	ubiDevice = doc["ubiDevice"].as<String>();
+	sendInterval = doc["sendInterval"];
 	receiveInterval = sendInterval+60; // Receive interval will be 1 minute longer
-	sendThing_checked = jobj["sendThing_checked"];
-	sendUbi_checked = jobj["sendUbi_checked"];
-	setTemp = jobj["setTemp"];
+	sendThing_checked = doc["sendThing_checked"];
+	sendUbi_checked = doc["sendUbi_checked"];
+	setTemp = doc["setTemp"];
 	dynamicTemp = setTemp;
-	coldPID_kP = jobj["coldPID_kP"];
-	coldPID_kI = jobj["coldPID_kI"];
-	coldPID_kD = jobj["coldPID_kD"];
-	hotPID_kP = jobj["hotPID_kP"];
-	hotPID_kI = jobj["hotPID_kI"];
-	hotPID_kD = jobj["hotPID_kD"];
-	ColdSensorId = jobj["ColdSensorId"];
-	HotSensorId = jobj["HotSensorId"];
-	fanDynamic_checked = jobj["fanDynamic_checked"];
-  isDynamicTemp = jobj["isDynamicTemp"];
+	coldPID_kP = doc["coldPID_kP"];
+	coldPID_kI = doc["coldPID_kI"];
+	coldPID_kD = doc["coldPID_kD"];
+	hotPID_kP = doc["hotPID_kP"];
+	hotPID_kI = doc["hotPID_kI"];
+	hotPID_kD = doc["hotPID_kD"];
+	ColdSensorId = doc["ColdSensorId"];
+	HotSensorId = doc["HotSensorId"];
+	fanDynamic_checked = doc["fanDynamic_checked"];
+  isDynamicTemp = doc["isDynamicTemp"];
   if(isDynamicTemp == 0){dynamicTemp = setTemp;}
-	boxMode = jobj["boxMode"];
+	boxMode = doc["boxMode"];
 	// read settings for i2c DC/DC converter
-	minVoltage = jobj["i2cDCDC_minVoltage"];
-	maxVoltage = jobj["i2cDCDC_maxVoltage"];
-	changeVoltageSpeed = jobj["i2cDCDC_changeVoltage"];
+	minVoltage = doc["i2cDCDC_minVoltage"];
+	maxVoltage = doc["i2cDCDC_maxVoltage"];
+	changeVoltageSpeed = doc["i2cDCDC_changeVoltage"];
 		
 }
 
@@ -197,34 +180,33 @@ void saveSettings(){
 
 	File f = SPIFFS.open(filename, "w");
 
-	DynamicJsonBuffer jsonBuffer;
-	JsonObject &jobj = jsonBuffer.createObject();
-	jobj["IntSSID"] = String(IntSSID);
-	jobj["IntPASS"] = String(IntPASS);
-	jobj["thingWriteAPIKey"] = thingWriteAPIKey;
-	jobj["ubiToken"] = ubiToken;
-	jobj["ubiDevice"] = ubiDevice;
-	jobj["sendInterval"] = sendInterval;
-	jobj["sendThing_checked"] = sendThing_checked;
-	jobj["sendUbi_checked"] = sendUbi_checked;
-	jobj["setTemp"] = setTemp;
-	jobj["coldPID_kP"] = coldPID_kP;
-	jobj["coldPID_kI"] = coldPID_kI;
-	jobj["coldPID_kD"] = coldPID_kD;
-	jobj["hotPID_kP"] = hotPID_kP;
-	jobj["hotPID_kI"] = hotPID_kI;
-	jobj["hotPID_kD"] = hotPID_kD;
-	jobj["ColdSensorId"] = ColdSensorId;
-	jobj["HotSensorId"] = HotSensorId;
-	jobj["fanDynamic_checked"] = fanDynamic_checked;
-  jobj["isDynamicTemp"] = isDynamicTemp;
-	jobj["boxMode"] = boxMode;
+	JsonDocument doc;
+	doc["IntSSID"] = String(IntSSID);
+	doc["IntPASS"] = String(IntPASS);
+	doc["thingWriteAPIKey"] = thingWriteAPIKey;
+	doc["ubiToken"] = ubiToken;
+	doc["ubiDevice"] = ubiDevice;
+	doc["sendInterval"] = sendInterval;
+	doc["sendThing_checked"] = sendThing_checked;
+	doc["sendUbi_checked"] = sendUbi_checked;
+	doc["setTemp"] = setTemp;
+	doc["coldPID_kP"] = coldPID_kP;
+	doc["coldPID_kI"] = coldPID_kI;
+	doc["coldPID_kD"] = coldPID_kD;
+	doc["hotPID_kP"] = hotPID_kP;
+	doc["hotPID_kI"] = hotPID_kI;
+	doc["hotPID_kD"] = hotPID_kD;
+	doc["ColdSensorId"] = ColdSensorId;
+	doc["HotSensorId"] = HotSensorId;
+	doc["fanDynamic_checked"] = fanDynamic_checked;
+  doc["isDynamicTemp"] = isDynamicTemp;
+	doc["boxMode"] = boxMode;
 	// store settings for i2c DC/DC converter
-	jobj["i2cDCDC_minVoltage"] = minVoltage;
-	jobj["i2cDCDC_maxVoltage"] = maxVoltage;
-	jobj["i2cDCDC_changeVoltage"] = changeVoltageSpeed;
+	doc["i2cDCDC_minVoltage"] = minVoltage;
+	doc["i2cDCDC_maxVoltage"] = maxVoltage;
+	doc["i2cDCDC_changeVoltage"] = changeVoltageSpeed;
 	
-	jobj.printTo(f);
+	serializeJson(doc, f);
 	f.close(); 
 }
 

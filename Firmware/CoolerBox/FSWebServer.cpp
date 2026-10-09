@@ -1,3 +1,5 @@
+#include "CoolerBox.h"
+
 File fsUploadFile;
 
 //format bytes

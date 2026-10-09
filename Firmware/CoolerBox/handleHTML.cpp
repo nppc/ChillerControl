@@ -1,4 +1,6 @@
-  //char I2CText[80];
+  #include "CoolerBox.h"
+
+  //  char I2CText[80];
 
 void handleRoot() {
   
