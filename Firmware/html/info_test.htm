@@ -27,7 +27,7 @@
 <TR class="values_header"><TD>Hot PWM</TD><TD>Cold Volt</TD><TD>Cold Curr</TD><TD>Hot side</TD></TR>
 <TR><TD id="setHotPWM">{setHotPWM}</TD><TD id="Voltage">{Voltage}</TD><TD id="Current">{Current}</TD><TD id="Fan"><div style="display:inline" id="HotTemp">{HotTemp}</div>&deg;&nbsp;C</TD></TR>
 </TABLE>
-<div style="line-height:3">{I2CText} (<div style="display:inline" id="I2CError">-</div>).</div>
+<div style="line-height:3" id="I2CStatus">{I2CText}</div>
 <TABLE width="100%"><TR>
 <TD><button class="btn btn_round" onclick="showhide()">Temperature</button><TD/>
 <TD><form action="/settings" method="get"><button class="btn btn_round">Settings</button></form><TD/>

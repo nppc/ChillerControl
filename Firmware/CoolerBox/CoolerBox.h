@@ -9,7 +9,8 @@
 #include <DallasTemperature.h>
 #include <PID_v1.h>
 #include <ArduinoJson.h>
-#include "FS.h"
+#include <EEPROM.h>
+#include <LittleFS.h>
 
 #include "Globals.h"
 #include "webpage.htm.h"
@@ -25,7 +26,6 @@
 
 extern DebugHTML Debug;
 
-extern unsigned long I2C_error;
 extern bool I2C_PRESENT;
 extern uint8_t i2c_data[I2C_DATALEN];
 extern bool flagExtremeTemp;
@@ -72,19 +72,16 @@ extern int boxMode;
 extern int boxSubMode;
 extern ESP8266WebServer httpServer;
 extern ESP8266HTTPUpdateServer httpUpdater;
-extern float coldPID_kP;
-extern float coldPID_kI;
-extern float coldPID_kD;
 extern float hotPID_kP;
 extern float hotPID_kI;
 extern float hotPID_kD;
-extern PID coldPID;
 extern PID hotPID;
 
 int digitalSmooth(int rawIn, int *sensSmoothArray);
 void INIT_DS18B20();
 void restoreSettings();
 void saveSettings();
+void setCoolerStopped(bool stopped);
 void sendI2Cdata();
 void readI2Cdata();
 String formatBytes(size_t bytes);

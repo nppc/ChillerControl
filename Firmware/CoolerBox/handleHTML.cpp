@@ -1,19 +1,6 @@
   #include "CoolerBox.h"
 
-  //  char I2CText[80];
-
 void handleRoot() {
-  
-	String I2CText;
-	if (I2C_PRESENT) {
-		I2CText = "I2C connected";
-	} else {
-		I2CText = "I2C is not connected";
-	}
-
-
-	//delay(50);	// make sure, data is not sent too often
-	//readI2Cdata();
 
 // Build an HTML page to display on the web-server root address
 	String html = FPSTR(HTTP_HEADweb);
@@ -22,12 +9,11 @@ void handleRoot() {
 	html.replace("{FW}", FIRMWAREVERSION);
 	html.replace("{boxTemp}", String(boxTemp,1));
 	html.replace("{setTemp}", (stopCooler ? "<div style='color:RED;display:inline-block'>Stopping...</div>":String(setTemp,1)));
-	//html.replace("{setVoltage}", String(setVoltage,1) + "V");
 	html.replace("{setHotPWM}", String((int)round(setHotPWM*100.0/(float)maxHotPWM)) + "%");
 	html.replace("{HotTemp}", String(HotTemp,1));
 	html.replace("{Voltage}", String(measuredVoltage,1) + "V");
 	html.replace("{Current}", String(measuredCurrent,1) + "A");
-	html.replace("{I2CText}", I2CText);
+	html.replace("{I2CText}", I2C_PRESENT ? "I2C connected" : "I2C connection failed");
 	html += FPSTR(HTTP_END);
 	httpServer.send ( 200, "text/html", html );
 }
@@ -115,7 +101,6 @@ void handleSettingsStore(){
       }
    }
   }
-  coldPID.SetOutputLimits(minVoltage, maxVoltage);  // reverse
   hotPID.SetOutputLimits(0, maxHotPWM);  // same limits as for Buck converter
   delay(50);	// make sure, data is not sent too often
   sendI2Cdata();
@@ -130,9 +115,6 @@ void handlePIDs() {
 	String html = FPSTR(HTTP_HEADweb);
 	html.replace("{Caption}", "PID Settings");
 	html += FPSTR(HTTP_PIDS_DATA);
-	html.replace("{coldPID_kP}", String(coldPID_kP,2));
-	html.replace("{coldPID_kI}", String(coldPID_kI,4));
-	html.replace("{coldPID_kD}", String(coldPID_kD,2));
 	html.replace("{hotPID_kP}", String(hotPID_kP,2));
 	html.replace("{hotPID_kI}", String(hotPID_kI,4));
 	html.replace("{hotPID_kD}", String(hotPID_kD,2));
@@ -144,15 +126,6 @@ void handlePIDs() {
 void handlePIDsStore(){
 	if (httpServer.args() > 0 ) {
 		for(uint8_t i=0;i<httpServer.args();i++) {
-			if (httpServer.argName(i) == "coldPID_kP") {
-				coldPID_kP=httpServer.arg(i).toFloat();
-			}
-			if (httpServer.argName(i) == "coldPID_kI") {
-				coldPID_kI=httpServer.arg(i).toFloat();
-			}
-			if (httpServer.argName(i) == "coldPID_kD") {
-				coldPID_kD=httpServer.arg(i).toFloat();
-			}
 			if (httpServer.argName(i) == "hotPID_kP") {
 				hotPID_kP=httpServer.arg(i).toFloat();
 			}
@@ -164,7 +137,6 @@ void handlePIDsStore(){
 			}
 		}
 	}
-	coldPID.SetTunings(coldPID_kP, coldPID_kI, coldPID_kD);	// Set new values 
 	hotPID.SetTunings(hotPID_kP, hotPID_kI, hotPID_kD);	// Set new values 
 	saveSettings();	// Store new PID values
 
@@ -192,11 +164,11 @@ void handleSetTemp(){
 	httpServer.sendHeader("Location", String("/"), true);
 	httpServer.send ( 302, "text/plain", "");
   sendTelemetry();
-  stopCooler = LOW; // resume Cooler if temperature changed
+  setCoolerStopped(LOW); // resume Cooler if temperature changed
 }
 
 void handleStop(){
-  stopCooler=HIGH;
+  setCoolerStopped(HIGH);
   httpServer.sendHeader("Location", String("/"), true);
   httpServer.send ( 302, "text/plain", "");
 }

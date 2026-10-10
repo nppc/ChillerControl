@@ -15,6 +15,10 @@ xhttp.send();
 }
 function updateData(){
 xmlResponse=this.responseXML;
+xmldoc = xmlResponse.getElementsByTagName('I');
+message = xmldoc[0].firstChild.nodeValue;
+document.getElementById('I2CStatus').innerHTML=message;
+
 xmldoc = xmlResponse.getElementsByTagName('Tm');
 message = xmldoc[0].firstChild.nodeValue;
 document.getElementById('CurTime').innerHTML=message;
@@ -47,7 +51,4 @@ xmldoc = xmlResponse.getElementsByTagName('F');
 message = xmldoc[0].firstChild.nodeValue;
 document.getElementById('Fan').style.backgroundColor = message;
 
-xmldoc = xmlResponse.getElementsByTagName('E');
-message = xmldoc[0].firstChild.nodeValue;
-document.getElementById('I2CError').innerHTML = message;
 }

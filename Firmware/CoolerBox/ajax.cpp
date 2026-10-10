@@ -14,6 +14,7 @@ void handleAJAXrequest() {
 	String Fan= (digitalRead(HOT_FAN)? "#ffd699" : "Transparent");
 	String XML=F("<?xml version='1.0'?><xml>");
 	XML += "<Tm>" + CurTime + "</Tm>";
+	XML += "<I>" + String(I2C_PRESENT ? "I2C connected" : "I2C connection failed") + "</I>";
 	XML += "<HT>" + String(HotTemp,1) + "</HT>";
 	XML += "<CT>" + String(boxTemp,1) + "</CT>";
 	XML += "<sV>" + String(String((int)round(setHotPWM*100.0/(float)maxHotPWM))) + "%</sV>";
@@ -21,7 +22,6 @@ void handleAJAXrequest() {
 	XML += "<V>" + String(measuredVoltage,1) + "V</V>";
 	XML += "<C>" + String(measuredCurrent,1) + "A</C>";
 	XML += "<F>" + Fan + "</F>";
-	XML += "<E>" + String(I2C_error) + "</E>";
 	XML += "</xml>";
 	httpServer.send(200,"text/xml",XML);
 }

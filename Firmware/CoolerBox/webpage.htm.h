@@ -35,7 +35,7 @@ const char HTTP_MAIN_DATA[] PROGMEM = R"V0G0N(
 <TR class="values_header"><TD>Hot PWM</TD><TD>Cold Volt</TD><TD>Cold Curr</TD><TD>Hot side</TD></TR>
 <TR><TD id="setHotPWM">{setHotPWM}</TD><TD id="Voltage">{Voltage}</TD><TD id="Current">{Current}</TD><TD id="Fan"><div style="display:inline" id="HotTemp">{HotTemp}</div>&deg;&nbsp;C</TD></TR>
 </TABLE>
-<div style="line-height:3">{I2CText} (<div style="display:inline" id="I2CError">-</div>).</div>
+<div style="line-height:3" id="I2CStatus">{I2CText}</div>
 <TABLE width="100%"><TR>
 <TD><button class="btn btn_round" onclick="showhide()">Temperature</button><TD/>
 <TD><form action="/settings" method="get"><button class="btn btn_round">Settings</button></form><TD/>
@@ -125,25 +125,6 @@ const char HTTP_PIDS_DATA[] PROGMEM = R"V0G0N(
 <form action="/pids_store" method="get">
 <TABLE class="values_table">
 <BR>
-<tr class="values_header"><td colspan=4>Cold PIDs</td></tr>
-<tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'coldPID_kP')">&#171;</button></td>
-<td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
-<input type="number" name="coldPID_kP" id="coldPID_kP" class="input" min="0.0" max="300.0" step="0.1" value="{coldPID_kP}"/></td>
-<td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'coldPID_kP')">&#187;</button></td>
-<TD>P</TD></tr>
-<tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-1,'coldPID_kI')">&#171;</button></td>
-<td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
-<input type="number" name="coldPID_kI" id="coldPID_kI" class="input" min="0.0" max="100.0" step="0.001" value="{coldPID_kI}"/></td>
-<td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(1,'coldPID_kI')">&#187;</button></td>
-<TD>I</TD></tr>
-<tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'coldPID_kD')">&#171;</button></td>
-<td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
-<input type="number" name="coldPID_kD" id="coldPID_kD" class="input" min="0.0" max="300.0" step="0.1" value="{coldPID_kD}"/></td>
-<td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'coldPID_kD')">&#187;</button></td>
-<TD>D</TD></tr>
-</TABLE>
-<BR>
-<TABLE class="values_table">
 <tr class="values_header"><td colspan=4>Hot PIDs</td></tr>
 <tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'hotPID_kP')">&#171;</button></td>
 <td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
@@ -273,6 +254,10 @@ xhttp.send();
 }
 function updateData(){
 xmlResponse=this.responseXML;
+xmldoc = xmlResponse.getElementsByTagName('I');
+message = xmldoc[0].firstChild.nodeValue;
+document.getElementById('I2CStatus').innerHTML=message;
+
 xmldoc = xmlResponse.getElementsByTagName('Tm');
 message = xmldoc[0].firstChild.nodeValue;
 document.getElementById('CurTime').innerHTML=message;
@@ -305,8 +290,5 @@ xmldoc = xmlResponse.getElementsByTagName('F');
 message = xmldoc[0].firstChild.nodeValue;
 document.getElementById('Fan').style.backgroundColor = message;
 
-xmldoc = xmlResponse.getElementsByTagName('E');
-message = xmldoc[0].firstChild.nodeValue;
-document.getElementById('I2CError').innerHTML = message;
 }
 )V0G0N";

@@ -2,7 +2,6 @@
 
 DebugHTML Debug;
 
-unsigned long I2C_error;
 bool I2C_PRESENT;
 uint8_t i2c_data[I2C_DATALEN];
 
@@ -61,15 +60,41 @@ int boxSubMode = 3; // 2-Cooling, 3-Heating
 ESP8266WebServer httpServer(80);
 ESP8266HTTPUpdateServer httpUpdater;
 
-float coldPID_kP=DEFAULT_PID_KP;
-float coldPID_kI=DEFAULT_PID_KI;
-float coldPID_kD=DEFAULT_PID_KD;
+namespace {
+const size_t SETTINGS_EEPROM_SIZE = 1024;
+const int SETTINGS_EEPROM_HEADER_SIZE = sizeof(uint32_t) + sizeof(uint16_t);
+const uint32_t SETTINGS_EEPROM_MAGIC = 0x434F4F4C;
+bool settingsEepromReady = false;
+
+void applySettings(JsonDocument &doc) {
+	String s = doc["IntSSID"].as<String>();s.toCharArray(IntSSID,20);
+	s = doc["IntPASS"].as<String>();s.toCharArray(IntPASS,20);
+	endpointAddress = doc["endpointAddress"].as<String>();
+	endpointAccessToken = doc["endpointAccessToken"].as<String>();
+	endpointPath = doc["endpointPath"].as<String>();
+	sendInterval = doc["sendInterval"] | 60;
+	if (sendInterval < 10 || sendInterval > 86400) {
+		sendInterval = 60;
+	}
+	setTemp = doc["setTemp"];
+	dynamicTemp = setTemp;
+	hotPID_kP = doc["hotPID_kP"];
+	hotPID_kI = doc["hotPID_kI"];
+	hotPID_kD = doc["hotPID_kD"];
+	ColdSensorId = doc["ColdSensorId"];
+	HotSensorId = doc["HotSensorId"];
+	fanDynamic_checked = doc["fanDynamic_checked"];
+	boxMode = doc["boxMode"];
+	minVoltage = doc["i2cDCDC_minVoltage"];
+	maxVoltage = doc["i2cDCDC_maxVoltage"];
+	changeVoltageSpeed = doc["i2cDCDC_changeVoltage"];
+}
+}
+
 float hotPID_kP=DEFAULT_PID_KP;
 float hotPID_kI=DEFAULT_PID_KI;
 float hotPID_kD=DEFAULT_PID_KD;
 
-// Create cold PID with default values
-PID coldPID(&(boxTemp), &(setVoltage), &(dynamicTemp), coldPID_kP, coldPID_kI, coldPID_kD, REVERSE); // reverse as it works for cooling
 // Create hot PID with default values
 PID hotPID(&(boxTemp), &(setHotPWM), &(dynamicTemp), hotPID_kP, hotPID_kI, hotPID_kD, DIRECT); // no reverse as it works for heating
 
@@ -130,9 +155,32 @@ void INIT_DS18B20(){
 
 void restoreSettings(){
 	JsonDocument doc;
-	File f = SPIFFS.open("/settings.json", "r");
+	if (settingsEepromReady) {
+		uint32_t magic;
+		uint16_t length;
+		EEPROM.get(0, magic);
+		EEPROM.get(sizeof(magic), length);
+		if (magic == SETTINGS_EEPROM_MAGIC &&
+			length > 0 &&
+			length <= SETTINGS_EEPROM_SIZE - SETTINGS_EEPROM_HEADER_SIZE) {
+			String serialized;
+			serialized.reserve(length);
+			for (uint16_t i = 0; i < length; ++i) {
+				serialized += static_cast<char>(EEPROM.read(SETTINGS_EEPROM_HEADER_SIZE + i));
+			}
+			DeserializationError error = deserializeJson(doc, serialized);
+			if (!error) {
+				applySettings(doc);
+				Debug.addLine(F("Settings restored from EEPROM"));
+				return;
+			}
+			Debug.addLine(String(F("EEPROM settings JSON FAIL: ")) + error.c_str());
+		}
+	}
+
+	File f = LittleFS.open("/settings.json", "r");
 	if (!f) {
-		Debug.addLine(F("SETTINGS OPEN FAIL"));
+		Debug.addLine(F("SETTINGS OPEN FAIL; using defaults"));
 		return;
 	}
 	DeserializationError error = deserializeJson(doc, f);
@@ -141,41 +189,16 @@ void restoreSettings(){
 		Debug.addLine(String(F("SETTINGS JSON FAIL: ")) + error.c_str());
 		return;
 	}
-	String s = doc["IntSSID"].as<String>();s.toCharArray(IntSSID,20);
-	s = doc["IntPASS"].as<String>();s.toCharArray(IntPASS,20);
-	endpointAddress = doc["endpointAddress"].as<String>();
-	endpointAccessToken = doc["endpointAccessToken"].as<String>();
-	endpointPath = doc["endpointPath"].as<String>();
-	sendInterval = doc["sendInterval"] | 60;
-	if (sendInterval < 10 || sendInterval > 86400) {
-		sendInterval = 60;
-	}
-	setTemp = doc["setTemp"];
-	dynamicTemp = setTemp;
-	coldPID_kP = doc["coldPID_kP"];
-	coldPID_kI = doc["coldPID_kI"];
-	coldPID_kD = doc["coldPID_kD"];
-	hotPID_kP = doc["hotPID_kP"];
-	hotPID_kI = doc["hotPID_kI"];
-	hotPID_kD = doc["hotPID_kD"];
-	ColdSensorId = doc["ColdSensorId"];
-	HotSensorId = doc["HotSensorId"];
-	fanDynamic_checked = doc["fanDynamic_checked"];
-	boxMode = doc["boxMode"];
-	// read settings for i2c DC/DC converter
-	minVoltage = doc["i2cDCDC_minVoltage"];
-	maxVoltage = doc["i2cDCDC_maxVoltage"];
-	changeVoltageSpeed = doc["i2cDCDC_changeVoltage"];
-		
+	applySettings(doc);
+	Debug.addLine(F("Migrating settings from LittleFS to EEPROM"));
+	saveSettings();
 }
 
 void saveSettings(){
-	const char *filename = "/settings.json";
-	
-	//if(SPIFFS.exists(filename)) SPIFFS.remove(filename);
-
-	File f = SPIFFS.open(filename, "w");
-
+	if (!settingsEepromReady) {
+		Debug.addLine(F("EEPROM not initialized; settings not saved"));
+		return;
+	}
 	JsonDocument doc;
 	doc["IntSSID"] = String(IntSSID);
 	doc["IntPASS"] = String(IntPASS);
@@ -184,9 +207,6 @@ void saveSettings(){
 	doc["endpointPath"] = endpointPath;
 	doc["sendInterval"] = sendInterval;
 	doc["setTemp"] = setTemp;
-	doc["coldPID_kP"] = coldPID_kP;
-	doc["coldPID_kI"] = coldPID_kI;
-	doc["coldPID_kD"] = coldPID_kD;
 	doc["hotPID_kP"] = hotPID_kP;
 	doc["hotPID_kI"] = hotPID_kI;
 	doc["hotPID_kD"] = hotPID_kD;
@@ -199,10 +219,34 @@ void saveSettings(){
 	doc["i2cDCDC_maxVoltage"] = maxVoltage;
 	doc["i2cDCDC_changeVoltage"] = changeVoltageSpeed;
 	
-	serializeJson(doc, f);
-	f.close(); 
+	String serialized;
+	serializeJson(doc, serialized);
+	if (serialized.isEmpty() ||
+		serialized.length() > SETTINGS_EEPROM_SIZE - SETTINGS_EEPROM_HEADER_SIZE) {
+		Debug.addLine(F("Settings exceed EEPROM capacity"));
+		return;
+	}
+
+	uint16_t length = serialized.length();
+	for (uint16_t i = 0; i < length; ++i) {
+		EEPROM.write(SETTINGS_EEPROM_HEADER_SIZE + i, serialized[i]);
+	}
+	EEPROM.put(0, SETTINGS_EEPROM_MAGIC);
+	EEPROM.put(sizeof(SETTINGS_EEPROM_MAGIC), length);
+	if (!EEPROM.commit()) {
+		Debug.addLine(F("EEPROM settings commit failed"));
+		return;
+	}
+	Debug.addLine(F("Settings saved to EEPROM"));
 }
 
+void setCoolerStopped(bool stopped) {
+	if (stopCooler == stopped) {
+		return;
+	}
+	stopCooler = stopped;
+	Debug.addLine(stopped ? F("Cooler stopped") : F("Cooler resumed"));
+}
 
 void sendI2Cdata(){
 	if(I2C_PRESENT){
@@ -224,8 +268,7 @@ void sendI2Cdata(){
 			Serial.println(F("I2C Buck converter fund at address 0x5E"));
 		}else{
 			I2C_PRESENT=LOW;
-			Serial.println(F("I2C Buck converter is not connected."));
-			I2C_error++;
+			Debug.addLine(F("I2C write failed"));
 		}
 	} else {
 		// check i2c again
@@ -236,31 +279,32 @@ void sendI2Cdata(){
 			Serial.println(F("I2C Buck converter fund at address 0x5E"));
 		}else{
 			I2C_PRESENT=LOW;
-			Serial.println(F("I2C Buck converter is not connected."));
+			Debug.addLine(F("I2C connection check failed"));
 		}
 	}
 }
 
 void readI2Cdata(){
-    // Read data from I2CBuck
+  bool readSucceeded = false;
   if(I2C_PRESENT){
-    Serial.print(F("I2C bytes Available "));
     Wire.requestFrom(I2C_ADDRESS, I2C_DATALEN);
     uint8_t b_avail = Wire.available();
-	Serial.print(b_avail);
-    Serial.print(": ");
-    uint8_t i=0;
-    while(Wire.available()!=0) {
-      if(b_avail==I2C_DATALEN) i2c_data[i] = Wire.read();
-      Serial.print(i2c_data[i]);
-      Serial.print(" ");
-      i++;
+    if (b_avail == I2C_DATALEN) {
+      for(uint8_t i=0; i<I2C_DATALEN; i++){
+        i2c_data[i] = Wire.read();
+      }
+      I2C_PRESENT = HIGH;
+      readSucceeded = true;
+    } else {
+      while (Wire.available()) {
+        Wire.read();
+      }
+      I2C_PRESENT = LOW;
+      Debug.addLine(String(F("I2C read failed; received ")) + b_avail + F(" bytes"));
     }
-	if(b_avail!=I2C_DATALEN) I2C_error++;
-    Serial.println();
-  }else{
-    // clear array
-    for(uint8_t i=0;i<I2C_DATALEN;i++){i2c_data[i]=0;}
+  }
+  if(!readSucceeded){
+    for(uint8_t i=0; i<I2C_DATALEN; i++){i2c_data[i]=0;}
   }
   // assign to variables
   setVoltage = (float)i2c_data[0]/10.0;
@@ -290,8 +334,14 @@ void setup() {
 	boxMode=1;	// set some mode in case this setting not yet present
 	
 	millisWIFIcheckInterval = millis();
+
+	EEPROM.begin(SETTINGS_EEPROM_SIZE);
+	settingsEepromReady = true;
   
-	SPIFFS.begin();
+	if (!LittleFS.begin()) {
+		Debug.addLine(F("LittleFS mount failed"));
+		Serial.println(F("LittleFS mount failed; filesystem settings and files are unavailable."));
+	}
 
 	INIT_DS18B20();
 
@@ -303,7 +353,6 @@ void setup() {
 	Serial.begin(115200);
 
 	 // Detect I2C device
-	I2C_error=0;
 	Wire.beginTransmission(I2C_ADDRESS);
 	byte error = Wire.endTransmission();
 	if (error==0){
@@ -312,6 +361,7 @@ void setup() {
 	}else{
 		I2C_PRESENT=LOW;
 		Serial.println(F("I2C Buck converter is not connected."));
+		Debug.addLine(F("I2C device not detected"));
 	}
    
 	delay(500);
@@ -374,7 +424,7 @@ void setup() {
 
 	httpServer.on ( "/", handleRoot );
 	httpServer.on("/main.js", handleScript);
-  //httpServer.serveStatic("main.js", SPIFFS, "/main.js");
+  //httpServer.serveStatic("main.js", LittleFS, "/main.js");
 	httpServer.on("/setTemp", handleSetTemp);
 	httpServer.on("/settings", handleSettings);
 	httpServer.on("/settings_store", handleSettingsStore);
@@ -384,7 +434,7 @@ void setup() {
 	httpServer.on("/network", handleNetwork);
 	httpServer.on("/debug", handleDebug);
 	httpServer.on("/webpage.css", handleCSS);
-	//httpServer.serveStatic("webpage.css", SPIFFS, "/webpage.css");
+	//httpServer.serveStatic("webpage.css", LittleFS, "/webpage.css");
 	httpServer.on("/network_store", handleNetworkStore);
 	httpServer.on("/ajax", handleAJAXrequest);
   
@@ -403,9 +453,6 @@ void setup() {
 
     millisPIDinterval=millis();
 	
-	coldPID.SetOutputLimits(minVoltage, maxVoltage);
-	coldPID.SetMode(AUTOMATIC);
-	coldPID.SetTunings(coldPID_kP, coldPID_kI, coldPID_kD);
   hotPID.SetOutputLimits(0, maxHotPWM);  // same limits for hot wire PWM
   hotPID.SetMode(AUTOMATIC);
   hotPID.SetTunings(hotPID_kP, hotPID_kI, hotPID_kD);
@@ -461,17 +508,12 @@ void loop() {
 				maxVoltage = maxVoltage + (HotTemp>=RADIATOR_EXTREME_TEMP ? -0.1 : 0.1); // change voltage slowly to avoid spikes
 				if(maxVoltage>maxVoltage_backup){maxVoltage=maxVoltage_backup;}
 				if(maxVoltage<minVoltage){maxVoltage=minVoltage;}
-				coldPID.SetOutputLimits(minVoltage, maxVoltage);  // set new max limit to the PID
 				if(HotTemp<RADIATOR_EXTREME_TEMP && maxVoltage==maxVoltage_backup){flagExtremeTemp = LOW;}
 			}
-			// if we in stopping process then just reduce the voltage every PID loop for 1v
-			// also calculate PID if not stopping
-			if((!stopCooler && boxMode!=1) || (!stopCooler && boxMode==1 && boxSubMode==2) ){
-				coldPID.Compute();
-			}else{
-				setVoltage-=1; // reduce current voltage
-				if(setVoltage<0.0){setVoltage=0.0;}
-			}
+			bool coolingEnabled = !stopCooler &&
+				(boxMode != 1 || boxSubMode == 2) &&
+				boxMode != 3;
+			setVoltage = coolingEnabled && boxTemp >= dynamicTemp ? maxVoltage : 0.0;
 			// we need to send new values to Buck Converter
 			sendI2Cdata();
 		}else{

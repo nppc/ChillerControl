@@ -26,6 +26,18 @@ device's current LAN IP address. Server certificate validation is disabled;
 configure this only on a network where accepting an unverified certificate is
 acceptable. iSpindel-based dynamic temperature adjustment is disabled with
 `ENABLE_ISPINDEL_DYNAMIC_TEMP` until an input source is implemented.
+Cooling is on/off: it requests the configured maximum voltage when the box
+temperature is at or above the target, and requests zero below target. The
+buck converter's configured voltage-change rate continues to smooth power
+transitions. Heating remains under PID control.
 
 The firmware serves its main pages from compiled-in HTML; no filesystem image
-is needed to build or upload the firmware.
+is needed to build or upload the firmware. Settings are stored in emulated
+EEPROM, separate from the LittleFS partition, so uploading a LittleFS image
+does not replace them. On first boot after this firmware update, existing
+`/settings.json` values in LittleFS are migrated to EEPROM automatically.
+Subsequent settings changes are saved only to EEPROM. The ESP8266 LittleFS
+mount may format the filesystem if it cannot mount it, erasing files managed
+through the File Browser; back those files up before migrating from SPIFFS or
+before uploading a filesystem image. PlatformIO is configured to build
+LittleFS images for `uploadfs`.
