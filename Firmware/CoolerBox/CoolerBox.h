@@ -13,7 +13,6 @@
 #include <LittleFS.h>
 
 #include "Globals.h"
-#include "webpage.htm.h"
 #include "DebugHTML.h"
 #include "DoubleResetDetector.h"
 

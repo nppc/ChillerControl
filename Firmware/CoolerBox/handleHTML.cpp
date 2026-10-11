@@ -1,21 +1,88 @@
   #include "CoolerBox.h"
+  #include <functional>
+
+static bool streamTemplate(const char *path, const std::function<bool(const String &key, String &val)> &resolver) {
+	File f = LittleFS.open(path, "r");
+	if (!f) {
+		Debug.addLine(String(F("Template missing: ")) + path);
+		httpServer.send(500, "text/plain", String("Template missing: ") + path);
+		return false;
+	}
+
+	if (!httpServer.chunkedResponseModeStart(200, "text/html")) {
+		httpServer.setContentLength(CONTENT_LENGTH_UNKNOWN);
+		httpServer.send(200, "text/html", "");
+	}
+
+	String chunk;
+	chunk.reserve(512);
+
+	while (f.available()) {
+		String line;
+		line.reserve(96);
+		while (f.available()) {
+			char c = (char)f.read();
+			if (c == '\r') continue;
+			if (c == '\n') break;
+			line += c;
+		}
+
+		int openIdx = line.indexOf('{');
+		while (openIdx >= 0) {
+			int closeIdx = line.indexOf('}', openIdx + 1);
+			if (closeIdx > openIdx) {
+				String key = line.substring(openIdx + 1, closeIdx);
+				String val;
+				if (resolver(key, val)) {
+					line = line.substring(0, openIdx) + val + line.substring(closeIdx + 1);
+					openIdx = line.indexOf('{', openIdx + val.length());
+				} else {
+					openIdx = line.indexOf('{', closeIdx + 1);
+				}
+			} else {
+				break;
+			}
+		}
+
+		chunk += line;
+		chunk += '\n';
+
+		if (chunk.length() >= 400) {
+			httpServer.sendContent(chunk);
+			chunk = "";
+		}
+	}
+	f.close();
+
+	if (chunk.length() > 0) {
+		httpServer.sendContent(chunk);
+	}
+	httpServer.chunkedResponseFinalize();
+	return true;
+}
 
 void handleRoot() {
-
-// Build an HTML page to display on the web-server root address
-	String html = FPSTR(HTTP_HEADweb);
-	html.replace("{Caption}", emergencyMode ? "Main Info (Emergency AP)" : "Main Info");
-	html += FPSTR(HTTP_MAIN_DATA);
-	html.replace("{FW}", FIRMWAREVERSION);
-	html.replace("{boxTemp}", String(boxTemp,1));
-	html.replace("{setTemp}", (stopCooler ? "<div style='color:RED;display:inline-block'>Stopping...</div>":String(setTemp,1)));
-	html.replace("{setHotPWM}", String((int)round(setHotPWM*100.0/(float)maxHotPWM)) + "%");
-	html.replace("{HotTemp}", String(HotTemp,1));
-	html.replace("{Voltage}", String(measuredVoltage,1) + "V");
-	html.replace("{Current}", String(measuredCurrent,1) + "A");
-	html.replace("{I2CText}", I2C_PRESENT ? "I2C connected" : "I2C connection failed");
-	html += FPSTR(HTTP_END);
-	httpServer.send ( 200, "text/html", html );
+	streamTemplate("/index.htm", [](const String &key, String &val) -> bool {
+		if (key == "Caption") { val = emergencyMode ? "Main Info (Emergency AP)" : "Main Info"; return true; }
+		if (key == "FW") { val = FIRMWAREVERSION; return true; }
+		if (key == "boxTemp") { val = String(boxTemp, 1); return true; }
+		if (key == "setTemp") {
+			val = stopCooler ? "<div style='color:RED;display:inline-block'>Stopping...</div>" : String(setTemp, 1);
+			return true;
+		}
+		if (key == "setHotPWM") {
+			val = String((int)round(setHotPWM * 100.0 / (float)maxHotPWM)) + "%";
+			return true;
+		}
+		if (key == "HotTemp") { val = String(HotTemp, 1); return true; }
+		if (key == "Voltage") { val = String(measuredVoltage, 1) + "V"; return true; }
+		if (key == "Current") { val = String(measuredCurrent, 1) + "A"; return true; }
+		if (key == "I2CText") {
+			val = I2C_PRESENT ? "I2C connected" : "I2C connection failed";
+			return true;
+		}
+		return false;
+	});
 }
 
 String ConstructDS18B20list(int idx){
@@ -43,26 +110,19 @@ void handleSettings() {
 	// Refresh addresses before rendering the sensor selectors.
 	String ColdDSlist = ConstructDS18B20list(ColdSensorId);
 	String HotDSlist = ConstructDS18B20list(HotSensorId);
-	// Build an HTML page to display on the web-server 
-	String html = FPSTR(HTTP_HEADweb);
-	html.replace("{Caption}", "Settings");
-	html += FPSTR(HTTP_SETTINGS_DATA);
-	html.replace("{changeVoltageSpeed}", String(changeVoltageSpeed,1));
-	html.replace("{minVoltage}", String(minVoltage,1));
-	html.replace("{maxVoltage}", String(maxVoltage,1));
-	html.replace("{ColdDSlist}", ColdDSlist);
-	html.replace("{HotDSlist}", HotDSlist);
-	html.replace("{fanDynamic_checked}", String(fanDynamic_checked==0 ? "":"checked"));
-	// set correct box mode on the page
-	html.replace("{boxMode_1}", String(boxMode==1 ? "checked":""));
-	html.replace("{boxMode_2}", String(boxMode==2 ? "checked":""));
-	html.replace("{boxMode_3}", String(boxMode==3 ? "checked":""));
-	#ifdef DEBUG
-	html += "<pre>" + debugOut + "</pre>";
-	#endif
-
-	html += FPSTR(HTTP_END);
-	httpServer.send ( 200, "text/html", html );
+	streamTemplate("/settings.htm", [&](const String &key, String &val) -> bool {
+		if (key == "Caption") { val = "Settings"; return true; }
+		if (key == "changeVoltageSpeed") { val = String(changeVoltageSpeed, 1); return true; }
+		if (key == "minVoltage") { val = String(minVoltage, 1); return true; }
+		if (key == "maxVoltage") { val = String(maxVoltage, 1); return true; }
+		if (key == "ColdDSlist") { val = ColdDSlist; return true; }
+		if (key == "HotDSlist") { val = HotDSlist; return true; }
+		if (key == "fanDynamic_checked") { val = (fanDynamic_checked == 0 ? "" : "checked"); return true; }
+		if (key == "boxMode_1") { val = (boxMode == 1 ? "checked" : ""); return true; }
+		if (key == "boxMode_2") { val = (boxMode == 2 ? "checked" : ""); return true; }
+		if (key == "boxMode_3") { val = (boxMode == 3 ? "checked" : ""); return true; }
+		return false;
+	});
 }
 
 void handleSettingsStore(){
@@ -116,16 +176,13 @@ void handleSettingsStore(){
 }
 
 void handlePIDs() {
-	// Build an HTML page to display on the web-server 
-	String html = FPSTR(HTTP_HEADweb);
-	html.replace("{Caption}", "PID Settings");
-	html += FPSTR(HTTP_PIDS_DATA);
-	html.replace("{hotPID_kP}", String(hotPID_kP,2));
-	html.replace("{hotPID_kI}", String(hotPID_kI,4));
-	html.replace("{hotPID_kD}", String(hotPID_kD,2));
-	html += FPSTR(HTTP_END);
-
-	httpServer.send ( 200, "text/html", html );
+	streamTemplate("/pids.htm", [](const String &key, String &val) -> bool {
+		if (key == "Caption") { val = "PID Settings"; return true; }
+		if (key == "hotPID_kP") { val = String(hotPID_kP, 2); return true; }
+		if (key == "hotPID_kI") { val = String(hotPID_kI, 4); return true; }
+		if (key == "hotPID_kD") { val = String(hotPID_kD, 2); return true; }
+		return false;
+	});
 }
 
 void handlePIDsStore(){
@@ -198,21 +255,18 @@ void handleNotFound() {
 }
 
 void handleNetwork() {
-	// Build an HTML page to display on the web-server 
-	String html = FPSTR(HTTP_HEADweb);
-	html.replace("{Caption}", emergencyMode ? "Network (Recovery Mode)" : "Network");
-	html += FPSTR(HTTP_NETWORK_DATA);
-	html.replace("{apSSID}", String(apSSID));
-	html.replace("{apPassword}", String(apPassword));
-	html.replace("{IntSSID}", String(IntSSID));
-	html.replace("{IntPASS}", String(IntPASS));
-	html.replace("{endpointAddress}", endpointAddress);
-	html.replace("{endpointAccessToken}", endpointAccessToken);
-	html.replace("{endpointPath}", endpointPath);
-	html.replace("{sendInterval}", String(sendInterval));
-	html += FPSTR(HTTP_END);
-	
-	httpServer.send ( 200, "text/html", html );
+	streamTemplate("/network.htm", [](const String &key, String &val) -> bool {
+		if (key == "Caption") { val = emergencyMode ? "Network (Recovery Mode)" : "Network"; return true; }
+		if (key == "apSSID") { val = apSSID; return true; }
+		if (key == "apPassword") { val = apPassword; return true; }
+		if (key == "IntSSID") { val = IntSSID; return true; }
+		if (key == "IntPASS") { val = IntPASS; return true; }
+		if (key == "endpointAddress") { val = endpointAddress; return true; }
+		if (key == "endpointAccessToken") { val = endpointAccessToken; return true; }
+		if (key == "endpointPath") { val = endpointPath; return true; }
+		if (key == "sendInterval") { val = String(sendInterval); return true; }
+		return false;
+	});
 }
 
 void handleNetworkStore(){
@@ -264,35 +318,30 @@ void handleNetworkStore(){
 	saveSettings();	// Store new settings
 	drd.stop();		// Ensure next boot is normal
 
-	String html = FPSTR(HTTP_HEADweb);
-	html.replace("{Caption}", "Rebooting");
-	html.replace("</head>", "<meta http-equiv=\"refresh\" content=\"6;url=/\"></head>");
-	html += F("<BR><TABLE class=\"values_table\"><TR class=\"values_header\"><TD>Network Settings</TD></TR>");
-	html += F("<TR><TD style=\"padding:20px;\">Settings saved successfully.<BR><BR>Rebooting device, please wait...</TD></TR></TABLE>");
-	html += FPSTR(HTTP_END);
-	httpServer.send(200, "text/html", html);
+	if (!handleFileRead("/reboot.htm")) {
+		httpServer.send(200, "text/plain", "Settings saved. Rebooting...");
+	}
 	delay(1000);
 	ESP.restart();
 }
 
 void handleDebug() {
-	// Build an HTML page to display on the web-server 
-	String html = FPSTR(HTTP_HEADweb);
-	html.replace("{Caption}", "Debug");
-	html += FPSTR(HTTP_DEBUG_DATA);
-	html.replace("{Debug}", Debug.getHTML());
-	html += FPSTR(HTTP_END);
-	
-	httpServer.send ( 200, "text/html", html );
+	streamTemplate("/debug.htm", [](const String &key, String &val) -> bool {
+		if (key == "Caption") { val = "Debug"; return true; }
+		if (key == "Debug") { val = Debug.getHTML(); return true; }
+		return false;
+	});
 }
 
 
 void handleCSS() {
-  String html = FPSTR(HTTP_CSS);
-  httpServer.send ( 200, "text/css", html );
+	if (!handleFileRead("/webpage.css")) {
+		httpServer.send(404, "text/plain", "webpage.css not found");
+	}
 }
 
 void handleScript() {
-  String html = FPSTR(MAIN_JS);
-  httpServer.send ( 200, "text/javascript", html );
+	if (!handleFileRead("/main.js")) {
+		httpServer.send(404, "text/plain", "main.js not found");
+	}
 }
