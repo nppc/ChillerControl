@@ -30,6 +30,7 @@ int maxHotPWM = MAXIMUM_PWM_HOT_WIRE;
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature DS18B20(&oneWire);
 DeviceAddress  DS18B20_adr[2];
+uint8_t DS18B20_count = 0;
 unsigned long millisPIDinterval;
 unsigned long millisSendDataInterval;
 unsigned long millisReadI2CDataInterval;
@@ -143,40 +144,69 @@ int digitalSmooth(int rawIn, int *sensSmoothArray){     // "int *sensSmoothArray
 
 void INIT_DS18B20(){
   DS18B20.begin();
-  int available = DS18B20.getDeviceCount();
-  for(byte x = 0; x!= available; x++)
-  {
-    if(DS18B20.getAddress(DS18B20_adr[x], x))
-    {
-      DS18B20.setResolution(DS18B20_adr[x], 12);
+  DS18B20_count = 0;
+  oneWire.reset_search();
+
+  DeviceAddress address;
+  while (DS18B20_count < 2 && oneWire.search(address)) {
+    if (OneWire::crc8(address, 7) != address[7] || address[0] != 0x28) {
+      continue;
     }
+
+    memcpy(DS18B20_adr[DS18B20_count], address, sizeof(DeviceAddress));
+    DS18B20_count++;
+  }
+
+  for (uint8_t x = 0; x < DS18B20_count; x++) {
+    DS18B20.setResolution(DS18B20_adr[x], 12);
+  }
+
+  if (DS18B20_count == 0) {
+    Debug.addLine(F("No DS18B20 found by direct OneWire scan"));
   }
 }
 
-void restoreSettings(){
-	JsonDocument doc;
-	if (settingsEepromReady) {
-		uint32_t magic;
-		uint16_t length;
-		EEPROM.get(0, magic);
-		EEPROM.get(sizeof(magic), length);
-		if (magic == SETTINGS_EEPROM_MAGIC &&
-			length > 0 &&
-			length <= SETTINGS_EEPROM_SIZE - SETTINGS_EEPROM_HEADER_SIZE) {
-			String serialized;
-			serialized.reserve(length);
-			for (uint16_t i = 0; i < length; ++i) {
-				serialized += static_cast<char>(EEPROM.read(SETTINGS_EEPROM_HEADER_SIZE + i));
-			}
-			DeserializationError error = deserializeJson(doc, serialized);
-			if (!error) {
-				applySettings(doc);
-				Debug.addLine(F("Settings restored from EEPROM"));
-				return;
-			}
-			Debug.addLine(String(F("EEPROM settings JSON FAIL: ")) + error.c_str());
-		}
+bool restoreSettingsFromEEPROM(){
+	if (!settingsEepromReady) {
+		Debug.addLine(F("EEPROM not initialized; settings not restored"));
+		return false;
 	}
+
+	uint32_t magic;
+	uint16_t length;
+	EEPROM.get(0, magic);
+	EEPROM.get(sizeof(magic), length);
+	if (magic != SETTINGS_EEPROM_MAGIC ||
+		length == 0 ||
+		length > SETTINGS_EEPROM_SIZE - SETTINGS_EEPROM_HEADER_SIZE) {
+		Debug.addLine(F("EEPROM settings header invalid"));
+		return false;
+	}
+
+	String serialized;
+	serialized.reserve(length);
+	for (uint16_t i = 0; i < length; ++i) {
+		serialized += static_cast<char>(EEPROM.read(SETTINGS_EEPROM_HEADER_SIZE + i));
+	}
+
+	JsonDocument doc;
+	DeserializationError error = deserializeJson(doc, serialized);
+	if (error) {
+		Debug.addLine(String(F("EEPROM settings JSON FAIL: ")) + error.c_str());
+		return false;
+	}
+
+	applySettings(doc);
+	Debug.addLine(F("Settings restored from EEPROM"));
+	return true;
+}
+
+void restoreSettings(){
+	if (restoreSettingsFromEEPROM()) {
+		return;
+	}
+
+	JsonDocument doc;
 
 	File f = LittleFS.open("/settings.json", "r");
 	if (!f) {
@@ -245,42 +275,73 @@ void setCoolerStopped(bool stopped) {
 		return;
 	}
 	stopCooler = stopped;
+	if (stopped) {
+		setVoltage = 0.0;
+		sendI2Cdata();
+	}
 	Debug.addLine(stopped ? F("Cooler stopped") : F("Cooler resumed"));
 }
 
-void sendI2Cdata(){
-	if(I2C_PRESENT){
-		Wire.beginTransmission(I2C_ADDRESS); //Start bit
-		Wire.write((uint8_t)(setVoltage * 10.0)); // Set Voltage
-		Wire.write((uint8_t)(changeVoltageSpeed * 10.0)); // Speed of voltage change (means 0.4v/s)
-		Wire.write((uint8_t)(minVoltage * 10.0)); //Min Voltage
-		Wire.write((uint8_t)(maxVoltage * 10.0)); //Max Voltage
-		Wire.write(i2c_PWM_value); //No affect on Buck Converter
-		Wire.write((uint8_t)(measuredVoltage * 10.0)); //No affect on Buck Converter
-		Wire.write((uint8_t)(measuredCurrent * 10.0)); //No affect on Buck Converter
-		Wire.write(0); //Only filled in Read
-		Wire.write(0); //Only filled in Read
-		Wire.write(0); //Only filled in Read
-		Wire.write(0); //Only filled in Read
-		byte error = Wire.endTransmission();
-		if (error==0){
-			I2C_PRESENT=HIGH;
-			Serial.println(F("I2C Buck converter fund at address 0x5E"));
-		}else{
-			I2C_PRESENT=LOW;
-			Debug.addLine(F("I2C write failed"));
-		}
-	} else {
-		// check i2c again
+void sendI2Cdata(bool force){
+	static uint8_t lastSentVoltageCommand = 0xFF;
+	static uint8_t lastSentSpeedCommand = 0xFF;
+	static uint8_t lastSentMinVoltCommand = 0xFF;
+	static uint8_t lastSentMaxVoltCommand = 0xFF;
+
+	const uint8_t voltageCommand = static_cast<uint8_t>(setVoltage * 10.0);
+	const uint8_t speedCommand = static_cast<uint8_t>(changeVoltageSpeed * 10.0);
+	const uint8_t minVoltCommand = static_cast<uint8_t>(minVoltage * 10.0);
+	const uint8_t maxVoltCommand = static_cast<uint8_t>(maxVoltage * 10.0);
+
+	bool valuesChanged = (voltageCommand != lastSentVoltageCommand ||
+	                      speedCommand != lastSentSpeedCommand ||
+	                      minVoltCommand != lastSentMinVoltCommand ||
+	                      maxVoltCommand != lastSentMaxVoltCommand);
+
+	if (!force && !valuesChanged) {
+		return;
+	}
+
+	if (!I2C_PRESENT) {
 		Wire.beginTransmission(I2C_ADDRESS);
 		byte error = Wire.endTransmission();
-		if (error==0){
-			I2C_PRESENT=HIGH;
-			Serial.println(F("I2C Buck converter fund at address 0x5E"));
-		}else{
-			I2C_PRESENT=LOW;
+		if (error != 0) {
 			Debug.addLine(F("I2C connection check failed"));
+			return;
 		}
+		I2C_PRESENT = HIGH;
+		Debug.addLine(F("I2C connection restored"));
+	}
+
+	Wire.beginTransmission(I2C_ADDRESS); //Start bit
+	Wire.write(voltageCommand); // Set Voltage
+	Wire.write(speedCommand); // Speed of voltage change (means 0.4v/s)
+	Wire.write(minVoltCommand); //Min Voltage
+	Wire.write(maxVoltCommand); //Max Voltage
+	Wire.write(0); //No affect on Buck Converter
+	Wire.write(0); //No affect on Buck Converter
+	Wire.write(0); //No affect on Buck Converter
+	Wire.write(0); //Only filled in Read
+	Wire.write(0); //Only filled in Read
+	Wire.write(0); //Only filled in Read
+	Wire.write(0); //Only filled in Read
+	byte error = Wire.endTransmission();
+	if (error==0){
+		I2C_PRESENT=HIGH;
+		Debug.addLine(String(F("I2C voltage command ACK: ")) +
+			String(voltageCommand / 10.0, 1) + F("V"));
+		lastSentVoltageCommand = voltageCommand;
+		lastSentSpeedCommand = speedCommand;
+		lastSentMinVoltCommand = minVoltCommand;
+		lastSentMaxVoltCommand = maxVoltCommand;
+	}else{
+		I2C_PRESENT=LOW;
+		lastSentVoltageCommand = 0xFF;
+		lastSentSpeedCommand = 0xFF;
+		lastSentMinVoltCommand = 0xFF;
+		lastSentMaxVoltCommand = 0xFF;
+		Debug.addLine(String(F("I2C write failed; voltage command was ")) +
+			String(voltageCommand / 10.0, 1) + F("V"));
 	}
 }
 
@@ -348,7 +409,7 @@ void setup() {
 	Wire.begin(D2,D1);  // D2-sda, D1-scl
 	delay(100); // this delay is very essential for proper working of I2C line
 	Wire.setClock(50000); // higher rate is unstable
-	Wire.setClockStretchLimit(600); // this should be checked
+	Wire.setClockStretchLimit(150000L); // 150ms timeout to allow slave time for clock stretching
 
 	Serial.begin(115200);
 
@@ -364,7 +425,7 @@ void setup() {
 		Debug.addLine(F("I2C device not detected"));
 	}
    
-	delay(500);
+	delay(200);
 
 	//readI2Cdata();
   
@@ -500,7 +561,9 @@ void loop() {
 			}
 		}
 		
+		static bool heatingOnlyLogged = false;
 		if(boxMode!=3){
+			heatingOnlyLogged = false;
 			// Cooler routines
 			// If radiator is very hot, reduce power (decrease max voltage allowed).
 			if(HotTemp>=RADIATOR_EXTREME_TEMP && !flagExtremeTemp) {flagExtremeTemp = HIGH;}
@@ -513,12 +576,35 @@ void loop() {
 			bool coolingEnabled = !stopCooler &&
 				(boxMode != 1 || boxSubMode == 2) &&
 				boxMode != 3;
-			setVoltage = coolingEnabled && boxTemp >= dynamicTemp ? maxVoltage : 0.0;
+			bool coolingDemand = coolingEnabled && boxTemp >= dynamicTemp;
+			setVoltage = coolingDemand ? maxVoltage : 0.0;
+			static int lastLoggedMode = -1;
+			static int lastLoggedSubMode = -1;
+			static bool lastLoggedStopState = false;
+			static bool lastLoggedDemand = false;
+			if (boxMode != lastLoggedMode || boxSubMode != lastLoggedSubMode ||
+				stopCooler != lastLoggedStopState || coolingDemand != lastLoggedDemand) {
+				Debug.addLine(String(F("Cooling decision: mode=")) + boxMode +
+					F(" submode=") + boxSubMode +
+					F(" stopped=") + (stopCooler ? F("yes") : F("no")) +
+					F(" temp=") + String(boxTemp, 1) +
+					F(" target=") + String(dynamicTemp, 1) +
+					F(" demand=") + (coolingDemand ? F("ON") : F("OFF")) +
+					F(" requested=") + String(setVoltage, 1) + F("V"));
+				lastLoggedMode = boxMode;
+				lastLoggedSubMode = boxSubMode;
+				lastLoggedStopState = stopCooler;
+				lastLoggedDemand = coolingDemand;
+			}
 			// we need to send new values to Buck Converter
 			sendI2Cdata();
 		}else{
 		  //make sure cooler is off
 		  setVoltage=0;
+		  if (!heatingOnlyLogged) {
+			Debug.addLine(F("Cooling disabled: heating-only mode"));
+			heatingOnlyLogged = true;
+		  }
 		  sendI2Cdata();
 		}
 		if((boxMode==3 && measuredVoltage<3.0) || (boxMode==1 && boxSubMode==3)){ // make sure that peltie is not taking much current

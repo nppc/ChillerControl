@@ -14,41 +14,35 @@ xhttp.open("GET", url, true);
 xhttp.send();
 }
 function updateData(){
-xmlResponse=this.responseXML;
-xmldoc = xmlResponse.getElementsByTagName('I');
-message = xmldoc[0].firstChild.nodeValue;
-document.getElementById('I2CStatus').innerHTML=message;
-
-xmldoc = xmlResponse.getElementsByTagName('Tm');
-message = xmldoc[0].firstChild.nodeValue;
-document.getElementById('CurTime').innerHTML=message;
-
-xmldoc = xmlResponse.getElementsByTagName('HT');
-message = xmldoc[0].firstChild.nodeValue;
-document.getElementById('HotTemp').innerHTML=message;
-
-xmldoc = xmlResponse.getElementsByTagName('CT');
-message = xmldoc[0].firstChild.nodeValue;
-document.getElementById('boxTemp').innerHTML=message;
-
-xmldoc = xmlResponse.getElementsByTagName('sV');
-message = xmldoc[0].firstChild.nodeValue;
-document.getElementById('setHotPWM').innerHTML=message;
-
-xmldoc = xmlResponse.getElementsByTagName('sT');
-message = xmldoc[0].firstChild.nodeValue;
-document.getElementById('setTemp').innerHTML=message;
-
-xmldoc = xmlResponse.getElementsByTagName('V');
-message = xmldoc[0].firstChild.nodeValue;
-document.getElementById('Voltage').innerHTML=message;
-
-xmldoc = xmlResponse.getElementsByTagName('C');
-message = xmldoc[0].firstChild.nodeValue;
-document.getElementById('Current').innerHTML=message;
-
-xmldoc = xmlResponse.getElementsByTagName('F');
-message = xmldoc[0].firstChild.nodeValue;
-document.getElementById('Fan').style.backgroundColor = message;
-
+var xmlResponse = this.responseXML;
+if(!xmlResponse) return;
+function getNodeVal(tag){
+var el = xmlResponse.getElementsByTagName(tag);
+return (el && el.length > 0 && el[0].firstChild) ? el[0].firstChild.nodeValue : null;
+}
+var val;
+val = getNodeVal('I');
+if(val !== null) document.getElementById('I2CStatus').innerHTML = val;
+val = getNodeVal('Tm');
+if(val !== null) document.getElementById('CurTime').innerHTML = val;
+val = getNodeVal('HT');
+if(val !== null) document.getElementById('HotTemp').innerHTML = val;
+val = getNodeVal('CT');
+if(val !== null) document.getElementById('boxTemp').innerHTML = val;
+val = getNodeVal('sV');
+if(val !== null) document.getElementById('setHotPWM').innerHTML = val;
+val = getNodeVal('sT');
+if(val !== null){
+if(val === "Stopping..."){
+document.getElementById('setTemp').innerHTML = "<div style='color:RED;display:inline-block'>Stopping...</div>";
+}else{
+document.getElementById('setTemp').innerHTML = val;
+}
+}
+val = getNodeVal('V');
+if(val !== null) document.getElementById('Voltage').innerHTML = val;
+val = getNodeVal('C');
+if(val !== null) document.getElementById('Current').innerHTML = val;
+val = getNodeVal('F');
+if(val !== null) document.getElementById('Fan').style.backgroundColor = val;
 }

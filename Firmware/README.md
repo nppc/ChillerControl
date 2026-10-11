@@ -41,3 +41,7 @@ mount may format the filesystem if it cannot mount it, erasing files managed
 through the File Browser; back those files up before migrating from SPIFFS or
 before uploading a filesystem image. PlatformIO is configured to build
 LittleFS images for `uploadfs`.
+The Settings page reloads its saved values from EEPROM and scans the OneWire
+bus directly, validating DS18B20 family codes and address CRCs before rendering
+the temperature sensor selectors. This avoids relying on DallasTemperature's
+cached device count for discovery.

@@ -19,23 +19,28 @@ void handleRoot() {
 }
 
 String ConstructDS18B20list(int idx){
-	int available = DS18B20.getDeviceCount();
+	uint8_t available = DS18B20_count;
 	String AdrTbl = "";
-	for(byte x=0; x!= available; x++){
+	if (available == 0) {
+		return F("<option value='' disabled selected>No sensors detected</option>");
+	}
+	for(uint8_t x=0; x < available; x++){
 		AdrTbl += F("<option value='");
 		AdrTbl += String(x) + "' " + (idx==x ? "selected" : "") + ">";
-		for( byte i=0; i<8; i++) {
+		for (uint8_t i = 0; i < 8; i++) {
 			if (DS18B20_adr[x][i] < 16) AdrTbl += "0";
 			AdrTbl += String(DS18B20_adr[x][i], HEX);
 		}
-		AdrTbl += " = " + String(DS18B20.getTempCByIndex(x),2);
+		AdrTbl += " = " + String(DS18B20.getTempC(DS18B20_adr[x]),2);
 		AdrTbl += F("&deg; C</option>");
 	}
 	return AdrTbl;
 }	
 
 void handleSettings() {
-	// get temperature sensors addresses
+	restoreSettingsFromEEPROM();
+	INIT_DS18B20();
+	// Refresh addresses before rendering the sensor selectors.
 	String ColdDSlist = ConstructDS18B20list(ColdSensorId);
 	String HotDSlist = ConstructDS18B20list(HotSensorId);
 	// Build an HTML page to display on the web-server 
