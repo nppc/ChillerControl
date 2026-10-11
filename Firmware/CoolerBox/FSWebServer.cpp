@@ -108,15 +108,20 @@ void handleFileList() {
   String output = F("<HTML><BODY><TABLE>");
   while (dir.next()) {
     File entry = dir.openFile("r");
+    String entryName = String(entry.name()).substring(1);
+    if (entryName.endsWith("settings.json")) {
+      entry.close();
+      continue;
+    }
     output += "<TR><TD>";
     bool isDir = false;
     output += (isDir) ? "D" : "F";
     output += "</TD><TD>";
-    output += (isDir) ? "" : "<a href=/file_download?filename="+String(entry.name()).substring(1)+">";
-    output += String(entry.name()).substring(1);
+    output += (isDir) ? "" : "<a href=/file_download?filename="+entryName+">";
+    output += entryName;
     output += (isDir) ? "" : "</a>";
     output += F("</TD><TD>[<a href='/file_delete?filename=/");
-    output += String(entry.name()).substring(1);
+    output += entryName;
 	output += F("' onclick=\"return confirm('Delete?')\">X</a>]</TD></TR>");
     entry.close();
   }
@@ -129,6 +134,10 @@ void handleFileList() {
 void file_download(){
 	if (httpServer.args() == 1 ) {
 		String filename= httpServer.arg(0);
+		if (filename.endsWith("settings.json")) {
+			httpServer.send(403, "text/plain", "Forbidden");
+			return;
+		}
 
 		File download = LittleFS.open("/"+filename, "r");
 		if (download) {

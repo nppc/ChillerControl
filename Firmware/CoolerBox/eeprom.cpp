@@ -96,26 +96,37 @@ bool restoreSettingsFromEEPROM(){
 	return true;
 }
 
+void initDefaultSettings() {
+	strncpy(apSSID, "Cooler", sizeof(apSSID));
+	apSSID[sizeof(apSSID) - 1] = '\0';
+	apPassword[0] = '\0';
+	IntSSID[0] = '\0';
+	IntPASS[0] = '\0';
+	endpointAddress = "";
+	endpointAccessToken = "";
+	endpointPath = "/telemetry";
+	sendInterval = 60;
+	setTemp = 19.0;
+	dynamicTemp = setTemp;
+	hotPID_kP = DEFAULT_PID_KP;
+	hotPID_kI = DEFAULT_PID_KI;
+	hotPID_kD = DEFAULT_PID_KD;
+	ColdSensorId = 0;
+	HotSensorId = 0;
+	fanDynamic_checked = 0;
+	boxMode = 2; // 2-Cooling
+	minVoltage = 2.0f;
+	maxVoltage = 12.0f;
+	changeVoltageSpeed = 0.4f;
+}
+
 void restoreSettings(){
 	if (restoreSettingsFromEEPROM()) {
 		return;
 	}
 
-	JsonDocument doc;
-
-	File f = LittleFS.open("/settings.json", "r");
-	if (!f) {
-		Debug.addLine(F("SETTINGS OPEN FAIL; using defaults"));
-		return;
-	}
-	DeserializationError error = deserializeJson(doc, f);
-	f.close();
-	if (error) {
-		Debug.addLine(String(F("SETTINGS JSON FAIL: ")) + error.c_str());
-		return;
-	}
-	applySettings(doc);
-	Debug.addLine(F("Migrating settings from LittleFS to EEPROM"));
+	Debug.addLine(F("No EEPROM settings found; initializing defaults"));
+	initDefaultSettings();
 	saveSettings();
 }
 

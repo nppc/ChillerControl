@@ -5,20 +5,20 @@ DebugHTML Debug;
 bool flagExtremeTemp = LOW;
 float maxVoltage_backup; // backup original value
 
-double boxTemp;	// current measured temperature inside the box
-double HotTemp;	// current measured temperature of hot radiator
-double setTemp;	// preset temperature
-double dynamicTemp; // The option to adjust setTemp dynamically
+double boxTemp = 0.0;	// current measured temperature inside the box
+double HotTemp = 0.0;	// current measured temperature of hot radiator
+double setTemp = 19.0;	// preset temperature
+double dynamicTemp = 19.0; // The option to adjust setTemp dynamically
 #if ENABLE_ISPINDEL_DYNAMIC_TEMP
-double iSpindelTemperature;
+double iSpindelTemperature = 0.0;
 float dynamicTempDiffCoeff = 2.0;
 #endif
-double setVoltage;
-float changeVoltageSpeed; 
-float minVoltage; 
-float maxVoltage; 
-float measuredVoltage; 
-float measuredCurrent; 
+double setVoltage = 0.0;
+float changeVoltageSpeed = 0.4f; 
+float minVoltage = 2.0f; 
+float maxVoltage = 12.0f; 
+float measuredVoltage = 0.0f; 
+float measuredCurrent = 0.0f; 
 bool stopCooler = LOW;
 double setHotPWM=0.0; // initially off
 int maxHotPWM = MAXIMUM_PWM_HOT_WIRE; 

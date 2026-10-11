@@ -91,6 +91,7 @@ void resetTempConversionState();
 void handleTemperatureControl();
 void processControl();
 void initEEPROM();
+void initDefaultSettings();
 void restoreSettings();
 bool restoreSettingsFromEEPROM();
 void saveSettings();

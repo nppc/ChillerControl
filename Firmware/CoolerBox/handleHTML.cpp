@@ -335,13 +335,13 @@ void handleDebug() {
 
 
 void handleCSS() {
-	if (!handleFileRead("/webpage.css")) {
+	if (!handleFileRead("webpage.css")) {
 		httpServer.send(404, "text/plain", "webpage.css not found");
 	}
 }
 
 void handleScript() {
-	if (!handleFileRead("/main.js")) {
+	if (!handleFileRead("main.js")) {
 		httpServer.send(404, "text/plain", "main.js not found");
 	}
 }

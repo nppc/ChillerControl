@@ -31,16 +31,13 @@ temperature is at or above the target, and requests zero below target. The
 buck converter's configured voltage-change rate continues to smooth power
 transitions. Heating remains under PID control.
 
-The firmware serves its main pages from compiled-in HTML; no filesystem image
-is needed to build or upload the firmware. Settings are stored in emulated
-EEPROM, separate from the LittleFS partition, so uploading a LittleFS image
-does not replace them. On first boot after this firmware update, existing
-`/settings.json` values in LittleFS are migrated to EEPROM automatically.
-Subsequent settings changes are saved only to EEPROM. The ESP8266 LittleFS
-mount may format the filesystem if it cannot mount it, erasing files managed
-through the File Browser; back those files up before migrating from SPIFFS or
-before uploading a filesystem image. PlatformIO is configured to build
-LittleFS images for `uploadfs`.
+The firmware serves its main pages from LittleFS templates. Settings are
+stored in emulated EEPROM, separate from the LittleFS partition, so uploading a
+LittleFS image does not replace them. The ESP8266 LittleFS mount may format the
+filesystem if it cannot mount it, erasing files managed through the File
+Browser; back those files up before migrating from SPIFFS or before uploading
+a filesystem image. PlatformIO is configured to build LittleFS images for
+`uploadfs`.
 The Settings page reloads its saved values from EEPROM and scans the OneWire
 bus directly, validating DS18B20 family codes and address CRCs before rendering
 the temperature sensor selectors. This avoids relying on DallasTemperature's
