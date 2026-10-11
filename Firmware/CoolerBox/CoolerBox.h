@@ -91,6 +91,7 @@ bool updateDS18B20();
 void resetTempConversionState();
 void handleTemperatureControl();
 void processControl();
+void initEEPROM();
 void restoreSettings();
 bool restoreSettingsFromEEPROM();
 void saveSettings();
