@@ -2,9 +2,6 @@
 
 DebugHTML Debug;
 
-bool I2C_PRESENT;
-uint8_t i2c_data[I2C_DATALEN];
-
 bool flagExtremeTemp = LOW;
 float maxVoltage_backup; // backup original value
 
@@ -20,7 +17,6 @@ double setVoltage;
 float changeVoltageSpeed; 
 float minVoltage; 
 float maxVoltage; 
-byte i2c_PWM_value;
 float measuredVoltage; 
 float measuredCurrent; 
 bool stopCooler = LOW;
@@ -282,103 +278,6 @@ void setCoolerStopped(bool stopped) {
 	Debug.addLine(stopped ? F("Cooler stopped") : F("Cooler resumed"));
 }
 
-void sendI2Cdata(bool force){
-	static uint8_t lastSentVoltageCommand = 0xFF;
-	static uint8_t lastSentSpeedCommand = 0xFF;
-	static uint8_t lastSentMinVoltCommand = 0xFF;
-	static uint8_t lastSentMaxVoltCommand = 0xFF;
-
-	const uint8_t voltageCommand = static_cast<uint8_t>(setVoltage * 10.0);
-	const uint8_t speedCommand = static_cast<uint8_t>(changeVoltageSpeed * 10.0);
-	const uint8_t minVoltCommand = static_cast<uint8_t>(minVoltage * 10.0);
-	const uint8_t maxVoltCommand = static_cast<uint8_t>(maxVoltage * 10.0);
-
-	bool valuesChanged = (voltageCommand != lastSentVoltageCommand ||
-	                      speedCommand != lastSentSpeedCommand ||
-	                      minVoltCommand != lastSentMinVoltCommand ||
-	                      maxVoltCommand != lastSentMaxVoltCommand);
-
-	if (!force && !valuesChanged) {
-		return;
-	}
-
-	if (!I2C_PRESENT) {
-		Wire.beginTransmission(I2C_ADDRESS);
-		byte error = Wire.endTransmission();
-		if (error != 0) {
-			Debug.addLine(F("I2C connection check failed"));
-			return;
-		}
-		I2C_PRESENT = HIGH;
-		Debug.addLine(F("I2C connection restored"));
-	}
-
-	Wire.beginTransmission(I2C_ADDRESS); //Start bit
-	Wire.write(voltageCommand); // Set Voltage
-	Wire.write(speedCommand); // Speed of voltage change (means 0.4v/s)
-	Wire.write(minVoltCommand); //Min Voltage
-	Wire.write(maxVoltCommand); //Max Voltage
-	Wire.write(0); //No affect on Buck Converter
-	Wire.write(0); //No affect on Buck Converter
-	Wire.write(0); //No affect on Buck Converter
-	Wire.write(0); //Only filled in Read
-	Wire.write(0); //Only filled in Read
-	Wire.write(0); //Only filled in Read
-	Wire.write(0); //Only filled in Read
-	byte error = Wire.endTransmission();
-	if (error==0){
-		I2C_PRESENT=HIGH;
-		Debug.addLine(String(F("I2C voltage command ACK: ")) +
-			String(voltageCommand / 10.0, 1) + F("V"));
-		lastSentVoltageCommand = voltageCommand;
-		lastSentSpeedCommand = speedCommand;
-		lastSentMinVoltCommand = minVoltCommand;
-		lastSentMaxVoltCommand = maxVoltCommand;
-	}else{
-		I2C_PRESENT=LOW;
-		lastSentVoltageCommand = 0xFF;
-		lastSentSpeedCommand = 0xFF;
-		lastSentMinVoltCommand = 0xFF;
-		lastSentMaxVoltCommand = 0xFF;
-		Debug.addLine(String(F("I2C write failed; voltage command was ")) +
-			String(voltageCommand / 10.0, 1) + F("V"));
-	}
-}
-
-void readI2Cdata(){
-  bool readSucceeded = false;
-  if(I2C_PRESENT){
-    Wire.requestFrom(I2C_ADDRESS, I2C_DATALEN);
-    uint8_t b_avail = Wire.available();
-    if (b_avail == I2C_DATALEN) {
-      for(uint8_t i=0; i<I2C_DATALEN; i++){
-        i2c_data[i] = Wire.read();
-      }
-      I2C_PRESENT = HIGH;
-      readSucceeded = true;
-    } else {
-      while (Wire.available()) {
-        Wire.read();
-      }
-      I2C_PRESENT = LOW;
-      Debug.addLine(String(F("I2C read failed; received ")) + b_avail + F(" bytes"));
-    }
-  }
-  if(!readSucceeded){
-    for(uint8_t i=0; i<I2C_DATALEN; i++){i2c_data[i]=0;}
-  }
-  // assign to variables
-  setVoltage = (float)i2c_data[0]/10.0;
-  //changeVoltageSpeed = (float)i2c_data[1]/10.0;
-  //minVoltage = (float)i2c_data[2]/10.0; 
-  //maxVoltage = (float)i2c_data[3]/10.0; 
-  i2c_PWM_value = i2c_data[4];
-  measuredVoltage = (float)i2c_data[5]/10.0; 
-  measuredCurrent = (float)i2c_data[6]/10.0; 
-  measuredCurrent = (measuredCurrent>13.0 ? 0 : measuredCurrent); // hack. To lazy to fix buck converter code. :)
-}
-
-
 void setup() {
 	pinMode (HOT_FAN, OUTPUT);
   pinMode (HEAT_WIRE, OUTPUT);
@@ -406,30 +305,8 @@ void setup() {
 
 	INIT_DS18B20();
 
-	Wire.begin(D2,D1);  // D2-sda, D1-scl
-	delay(100); // this delay is very essential for proper working of I2C line
-	Wire.setClock(50000); // higher rate is unstable
-	Wire.setClockStretchLimit(150000L); // 150ms timeout to allow slave time for clock stretching
-
 	Serial.begin(115200);
-
-	 // Detect I2C device
-	Wire.beginTransmission(I2C_ADDRESS);
-	byte error = Wire.endTransmission();
-	if (error==0){
-		I2C_PRESENT=HIGH;
-		Serial.println(F("I2C Buck converter fund at address 0x5E"));
-	}else{
-		I2C_PRESENT=LOW;
-		Serial.println(F("I2C Buck converter is not connected."));
-		Debug.addLine(F("I2C device not detected"));
-	}
-   
-	delay(200);
-
-	//readI2Cdata();
-  
-	millisReadI2CDataInterval = millis();
+	initI2C();
 	
 	restoreSettings();	// restore PID and internet settings
 

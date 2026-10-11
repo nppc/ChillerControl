@@ -84,6 +84,7 @@ void restoreSettings();
 bool restoreSettingsFromEEPROM();
 void saveSettings();
 void setCoolerStopped(bool stopped);
+void initI2C();
 void sendI2Cdata(bool force = false);
 void readI2Cdata();
 String formatBytes(size_t bytes);
