@@ -168,7 +168,7 @@ void handleSettingsStore(){
   }
   hotPID.SetOutputLimits(0, maxHotPWM);  // same limits as for Buck converter
   delay(50);	// make sure, data is not sent too often
-  updateCoolingOutput();
+  updateCoolingOutput(true, true);
   delay(50);	// make sure, data is not sent too often
   saveSettings();	// Store settings
   httpServer.sendHeader("Location", String("/"), true);

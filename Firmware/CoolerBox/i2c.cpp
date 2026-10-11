@@ -26,7 +26,7 @@ void initI2C() {
 	millisReadI2CDataInterval = millis();
 }
 
-void sendI2Cdata(bool force) {
+void sendI2Cdata(bool force, bool sendLimits) {
 	static uint8_t lastSentVoltageCommand = 0xFF;
 	static uint8_t lastSentSpeedCommand = 0xFF;
 	static uint8_t lastSentMinVoltCommand = 0xFF;
@@ -37,22 +37,24 @@ void sendI2Cdata(bool force) {
 	const uint8_t minVoltCommand = static_cast<uint8_t>(minVoltage * 10.0);
 	const uint8_t maxVoltCommand = static_cast<uint8_t>(maxVoltage * 10.0);
 
-	bool valuesChanged = (voltageCommand != lastSentVoltageCommand ||
-	                      speedCommand != lastSentSpeedCommand ||
+	bool limitsChanged = (speedCommand != lastSentSpeedCommand ||
 	                      minVoltCommand != lastSentMinVoltCommand ||
 	                      maxVoltCommand != lastSentMaxVoltCommand);
+	bool voltageChanged = (voltageCommand != lastSentVoltageCommand);
 
-	if (!force && !valuesChanged) {
+	bool shouldSendLimits = sendLimits || limitsChanged;
+
+	if (!force && !shouldSendLimits && !voltageChanged) {
 		return;
 	}
 
 	Wire.beginTransmission(I2C_ADDRESS);
 	Wire.write(voltageCommand); // Byte 0: Set Voltage (V*10)
-	Wire.write(speedCommand);   // Byte 1: Voltage change rate ((V*10)/s)
-	Wire.write(minVoltCommand);  // Byte 2: Min Voltage (V*10)
-	Wire.write(maxVoltCommand);  // Byte 3: Max Voltage (V*10)
-	for (uint8_t i = 4; i < I2C_DATALEN; i++) {
-		Wire.write(0);           // Bytes 4-10: Unused on write, fill with 0
+
+	if (shouldSendLimits) {
+		Wire.write(speedCommand);   // Byte 1: Voltage change rate ((V*10)/s)
+		Wire.write(minVoltCommand);  // Byte 2: Min Voltage (V*10)
+		Wire.write(maxVoltCommand);  // Byte 3: Max Voltage (V*10)
 	}
 	byte error = Wire.endTransmission();
 
@@ -61,12 +63,20 @@ void sendI2Cdata(bool force) {
 			I2C_PRESENT = HIGH;
 			Debug.addLine(F("I2C connection restored"));
 		}
-		Debug.addLine(String(F("I2C voltage command ACK: ")) +
-			String(voltageCommand / 10.0, 1) + F("V"));
-		lastSentVoltageCommand = voltageCommand;
-		lastSentSpeedCommand = speedCommand;
-		lastSentMinVoltCommand = minVoltCommand;
-		lastSentMaxVoltCommand = maxVoltCommand;
+		if (shouldSendLimits) {
+			Debug.addLine(String(F("I2C limits updated: min=")) +
+				String(minVoltCommand / 10.0, 1) + F("V max=") +
+				String(maxVoltCommand / 10.0, 1) + F("V rate=") +
+				String(speedCommand / 10.0, 1) + F("V/s"));
+			lastSentSpeedCommand = speedCommand;
+			lastSentMinVoltCommand = minVoltCommand;
+			lastSentMaxVoltCommand = maxVoltCommand;
+		}
+		if (voltageChanged || shouldSendLimits) {
+			Debug.addLine(String(F("I2C voltage command ACK: ")) +
+				String(voltageCommand / 10.0, 1) + F("V"));
+			lastSentVoltageCommand = voltageCommand;
+		}
 	} else {
 		if (I2C_PRESENT) {
 			I2C_PRESENT = LOW;
@@ -93,7 +103,7 @@ void readI2Cdata() {
 		if (!I2C_PRESENT) {
 			I2C_PRESENT = HIGH;
 			Debug.addLine(F("I2C connection restored"));
-			sendI2Cdata(true); // Sync current settings to the reconnected device
+			sendI2Cdata(true, true); // Sync current settings to the reconnected device
 		}
 		readSucceeded = true;
 	} else {

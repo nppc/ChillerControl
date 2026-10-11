@@ -62,7 +62,7 @@ float hotPID_kD=DEFAULT_PID_KD;
 // Create hot PID with default values
 PID hotPID(&(boxTemp), &(setHotPWM), &(dynamicTemp), hotPID_kP, hotPID_kI, hotPID_kD, DIRECT); // no reverse as it works for heating
 
-void updateCoolingOutput(bool forceSend) {
+void updateCoolingOutput(bool forceSend, bool sendLimits) {
 	bool isStopped = stopCooler;
 	bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
 
@@ -72,7 +72,7 @@ void updateCoolingOutput(bool forceSend) {
 		bool coolingDemand = (boxTemp >= dynamicTemp);
 		setVoltage = coolingDemand ? maxVoltage : minVoltage;
 	}
-	sendI2Cdata(forceSend);
+	sendI2Cdata(forceSend, sendLimits);
 }
 
 void setCoolerStopped(bool stopped) {
@@ -119,6 +119,7 @@ void setup() {
 	restoreSettings();	// restore PID and internet settings
 
 	maxVoltage_backup = maxVoltage; // update backup
+	updateCoolingOutput(true, true); // send initial limits and voltage to I2C buck converter
   	
 	Serial.println();
 	if (emergencyMode) {
@@ -240,16 +241,26 @@ void processControl() {
 		}
 	}
 	
-	if(boxMode!=3){
+	static float thermalVoltageCap = 12.0f;
+	if (boxMode != 3) {
 		// Cooler routines
-		// If radiator is very hot, reduce power (decrease max voltage allowed).
-		if(HotTemp>=RADIATOR_EXTREME_TEMP && !flagExtremeTemp) {flagExtremeTemp = HIGH;}
-		if(flagExtremeTemp){
-			maxVoltage = maxVoltage + (HotTemp>=RADIATOR_EXTREME_TEMP ? -0.1 : 0.1); // change voltage slowly to avoid spikes
-			if(maxVoltage>maxVoltage_backup){maxVoltage=maxVoltage_backup;}
-			if(maxVoltage<minVoltage){maxVoltage=minVoltage;}
-			if(HotTemp<RADIATOR_EXTREME_TEMP && maxVoltage==maxVoltage_backup){flagExtremeTemp = LOW;}
+		// If radiator is very hot, reduce operating voltage without modifying configuration limits.
+		if (HotTemp >= RADIATOR_EXTREME_TEMP && !flagExtremeTemp) {
+			flagExtremeTemp = HIGH;
+			thermalVoltageCap = maxVoltage;
 		}
+		if (flagExtremeTemp) {
+			thermalVoltageCap += (HotTemp >= RADIATOR_EXTREME_TEMP ? -0.1f : 0.1f); // change voltage slowly to avoid spikes
+			if (thermalVoltageCap > maxVoltage) { thermalVoltageCap = maxVoltage; }
+			if (thermalVoltageCap < minVoltage) { thermalVoltageCap = minVoltage; }
+			if (HotTemp < RADIATOR_EXTREME_TEMP && thermalVoltageCap >= maxVoltage) {
+				flagExtremeTemp = LOW;
+				thermalVoltageCap = maxVoltage;
+			}
+		}
+	} else {
+		flagExtremeTemp = LOW;
+		thermalVoltageCap = maxVoltage;
 	}
 
 	bool isStopped = stopCooler;
@@ -259,7 +270,8 @@ void processControl() {
 	if (isStopped || isHeating) {
 		setVoltage = 0.0;
 	} else {
-		setVoltage = coolingDemand ? maxVoltage : minVoltage;
+		float effectiveMax = flagExtremeTemp ? thermalVoltageCap : maxVoltage;
+		setVoltage = coolingDemand ? effectiveMax : minVoltage;
 	}
 
 	static int lastLoggedMode = -1;
