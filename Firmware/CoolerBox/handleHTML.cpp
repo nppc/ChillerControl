@@ -4,7 +4,7 @@ void handleRoot() {
 
 // Build an HTML page to display on the web-server root address
 	String html = FPSTR(HTTP_HEADweb);
-	html.replace("{Caption}", "Main Info");
+	html.replace("{Caption}", emergencyMode ? "Main Info (Emergency AP)" : "Main Info");
 	html += FPSTR(HTTP_MAIN_DATA);
 	html.replace("{FW}", FIRMWAREVERSION);
 	html.replace("{boxTemp}", String(boxTemp,1));
@@ -108,7 +108,7 @@ void handleSettingsStore(){
   }
   hotPID.SetOutputLimits(0, maxHotPWM);  // same limits as for Buck converter
   delay(50);	// make sure, data is not sent too often
-  sendI2Cdata();
+  updateCoolingOutput();
   delay(50);	// make sure, data is not sent too often
   saveSettings();	// Store settings
   httpServer.sendHeader("Location", String("/"), true);
@@ -163,13 +163,13 @@ void handleSetTemp(){
 			}
 		}
 	}
+	setCoolerStopped(LOW); // resume Cooler if temperature changed
 	delay(50);	// make sure, data is not sent too often
-	sendI2Cdata();
+	updateCoolingOutput();
 	delay(50);	// make sure, data is not sent too often
 	httpServer.sendHeader("Location", String("/"), true);
 	httpServer.send ( 302, "text/plain", "");
-  sendTelemetry();
-  setCoolerStopped(LOW); // resume Cooler if temperature changed
+	sendTelemetry();
 }
 
 void handleStop(){
@@ -200,8 +200,10 @@ void handleNotFound() {
 void handleNetwork() {
 	// Build an HTML page to display on the web-server 
 	String html = FPSTR(HTTP_HEADweb);
-	html.replace("{Caption}", "Network");
+	html.replace("{Caption}", emergencyMode ? "Network (Recovery Mode)" : "Network");
 	html += FPSTR(HTTP_NETWORK_DATA);
+	html.replace("{apSSID}", String(apSSID));
+	html.replace("{apPassword}", String(apPassword));
 	html.replace("{IntSSID}", String(IntSSID));
 	html.replace("{IntPASS}", String(IntPASS));
 	html.replace("{endpointAddress}", endpointAddress);
@@ -217,6 +219,23 @@ void handleNetworkStore(){
 	if (httpServer.args() > 0 ) {
 		for(uint8_t i=0;i<httpServer.args();i++) {
 			String s = httpServer.arg(i);
+			if (httpServer.argName(i) == "apSSID") {
+				s.trim();
+				if (s.isEmpty()) {
+					strncpy(apSSID, "Cooler", sizeof(apSSID));
+					apSSID[sizeof(apSSID) - 1] = '\0';
+				} else {
+					s.toCharArray(apSSID, sizeof(apSSID));
+				}
+			}
+			if (httpServer.argName(i) == "apPassword" || httpServer.argName(i) == "apPASS") {
+				s.trim();
+				if (s.isEmpty() || s.length() >= 8) {
+					s.toCharArray(apPassword, sizeof(apPassword));
+				} else {
+					Debug.addLine(F("AP password must be at least 8 characters or empty"));
+				}
+			}
 			if (httpServer.argName(i) == "IntSSID") {
 				s.toCharArray(IntSSID,20);
 			}
@@ -242,10 +261,18 @@ void handleNetworkStore(){
 			}
 		}
 	}
-	saveSettings();	// Store new PID values
+	saveSettings();	// Store new settings
+	drd.stop();		// Ensure next boot is normal
 
-	httpServer.sendHeader("Location", String("/"), true);
-	httpServer.send ( 302, "text/plain", "");
+	String html = FPSTR(HTTP_HEADweb);
+	html.replace("{Caption}", "Rebooting");
+	html.replace("</head>", "<meta http-equiv=\"refresh\" content=\"6;url=/\"></head>");
+	html += F("<BR><TABLE class=\"values_table\"><TR class=\"values_header\"><TD>Network Settings</TD></TR>");
+	html += F("<TR><TD style=\"padding:20px;\">Settings saved successfully.<BR><BR>Rebooting device, please wait...</TD></TR></TABLE>");
+	html += FPSTR(HTTP_END);
+	httpServer.send(200, "text/html", html);
+	delay(1000);
+	ESP.restart();
 }
 
 void handleDebug() {

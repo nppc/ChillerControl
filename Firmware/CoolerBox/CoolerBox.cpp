@@ -23,25 +23,23 @@ bool stopCooler = LOW;
 double setHotPWM=0.0; // initially off
 int maxHotPWM = MAXIMUM_PWM_HOT_WIRE; 
 
-OneWire oneWire(ONE_WIRE_BUS);
-DallasTemperature DS18B20(&oneWire);
-DeviceAddress  DS18B20_adr[2];
-uint8_t DS18B20_count = 0;
 unsigned long millisPIDinterval;
 unsigned long millisSendDataInterval;
 unsigned long millisReadI2CDataInterval;
 unsigned long millisWIFIcheckInterval;
 
 int ColdSensorId = 0;
-int HotSensorId = 0;
-
-int boxTemp_SmoothArray[filterSamples];   // array for holding raw sensor values for PT1000 sensor 
-int HotTemp_SmoothArray[filterSamples];   // array for holding raw sensor values for PT1000 sensor 
+int HotSensorId = 0; 
 
 
 // Default IP in AP mode is 192.168.4.1
-const char *ssid = "Cooler";
-const char *password = "1234Test";
+char apSSID[33] = "Cooler";
+char apPassword[65] = "";
+bool emergencyMode = false;
+const char *ssid = apSSID;
+const char *password = apPassword;
+
+DoubleResetDetector drd(10, 0);
 
 char IntSSID[20];
 char IntPASS[20];
@@ -64,6 +62,30 @@ const uint32_t SETTINGS_EEPROM_MAGIC = 0x434F4F4C;
 bool settingsEepromReady = false;
 
 void applySettings(JsonDocument &doc) {
+	if (doc["apSSID"].is<JsonVariantConst>() && !doc["apSSID"].as<String>().isEmpty()) {
+		String s = doc["apSSID"].as<String>();
+		s.toCharArray(apSSID, sizeof(apSSID));
+	} else if (doc["APSSID"].is<JsonVariantConst>() && !doc["APSSID"].as<String>().isEmpty()) {
+		String s = doc["APSSID"].as<String>();
+		s.toCharArray(apSSID, sizeof(apSSID));
+	} else {
+		strncpy(apSSID, "Cooler", sizeof(apSSID));
+		apSSID[sizeof(apSSID) - 1] = '\0';
+	}
+
+	if (doc["apPassword"].is<JsonVariantConst>()) {
+		String s = doc["apPassword"].as<String>();
+		s.toCharArray(apPassword, sizeof(apPassword));
+	} else if (doc["apPASS"].is<JsonVariantConst>()) {
+		String s = doc["apPASS"].as<String>();
+		s.toCharArray(apPassword, sizeof(apPassword));
+	} else if (doc["APPASS"].is<JsonVariantConst>()) {
+		String s = doc["APPASS"].as<String>();
+		s.toCharArray(apPassword, sizeof(apPassword));
+	} else {
+		apPassword[0] = '\0';
+	}
+
 	String s = doc["IntSSID"].as<String>();s.toCharArray(IntSSID,20);
 	s = doc["IntPASS"].as<String>();s.toCharArray(IntPASS,20);
 	endpointAddress = doc["endpointAddress"].as<String>();
@@ -95,72 +117,6 @@ float hotPID_kD=DEFAULT_PID_KD;
 // Create hot PID with default values
 PID hotPID(&(boxTemp), &(setHotPWM), &(dynamicTemp), hotPID_kP, hotPID_kI, hotPID_kD, DIRECT); // no reverse as it works for heating
 
-
-// smooth algorytm for ADC reading
-int digitalSmooth(int rawIn, int *sensSmoothArray){     // "int *sensSmoothArray" passes an array to the function - the asterisk indicates the array name is a pointer
-  int j, k, temp, top, bottom;
-  long total;
-  static int i;
-  static int sorted[filterSamples];
-  boolean done;
-
-  i = (i + 1) % filterSamples;    // increment counter and roll over if necc. -  % (modulo operator) rolls over variable
-  sensSmoothArray[i] = rawIn;                 // input new data into the oldest slot
-
-  for (j=0; j<filterSamples; j++){     // transfer data array into anther array for sorting and averaging
-    sorted[j] = sensSmoothArray[j];
-  }
-
-  done = 0;                // flag to know when we're done sorting              
-  while(done != 1){        // simple swap sort, sorts numbers from lowest to highest
-    done = 1;
-    for (j = 0; j < (filterSamples - 1); j++){
-      if (sorted[j] > sorted[j + 1]){     // numbers are out of order - swap
-        temp = sorted[j + 1];
-        sorted [j+1] =  sorted[j] ;
-        sorted [j] = temp;
-        done = 0;
-      }
-    }
-  }
-
-  // throw out top and bottom 15% of samples - limit to throw out at least one from top and bottom
-  bottom = max(((filterSamples * 15)  / 100), 1); 
-  top = min((((filterSamples * 85) / 100) + 1  ), (filterSamples - 1));   // the + 1 is to make up for asymmetry caused by integer rounding
-  k = 0;
-  total = 0;
-  for ( j = bottom; j< top; j++){
-    total += sorted[j];  // total remaining indices
-    k++; 
-  }
-
-  return total / k;    // divide by number of samples
-}
-
-
-void INIT_DS18B20(){
-  DS18B20.begin();
-  DS18B20_count = 0;
-  oneWire.reset_search();
-
-  DeviceAddress address;
-  while (DS18B20_count < 2 && oneWire.search(address)) {
-    if (OneWire::crc8(address, 7) != address[7] || address[0] != 0x28) {
-      continue;
-    }
-
-    memcpy(DS18B20_adr[DS18B20_count], address, sizeof(DeviceAddress));
-    DS18B20_count++;
-  }
-
-  for (uint8_t x = 0; x < DS18B20_count; x++) {
-    DS18B20.setResolution(DS18B20_adr[x], 12);
-  }
-
-  if (DS18B20_count == 0) {
-    Debug.addLine(F("No DS18B20 found by direct OneWire scan"));
-  }
-}
 
 bool restoreSettingsFromEEPROM(){
 	if (!settingsEepromReady) {
@@ -226,6 +182,8 @@ void saveSettings(){
 		return;
 	}
 	JsonDocument doc;
+	doc["apSSID"] = String(apSSID);
+	doc["apPassword"] = String(apPassword);
 	doc["IntSSID"] = String(IntSSID);
 	doc["IntPASS"] = String(IntPASS);
 	doc["endpointAddress"] = endpointAddress;
@@ -266,15 +224,25 @@ void saveSettings(){
 	Debug.addLine(F("Settings saved to EEPROM"));
 }
 
+void updateCoolingOutput(bool forceSend) {
+	bool isStopped = stopCooler;
+	bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
+
+	if (isStopped || isHeating) {
+		setVoltage = 0.0;
+	} else {
+		bool coolingDemand = (boxTemp >= dynamicTemp);
+		setVoltage = coolingDemand ? maxVoltage : minVoltage;
+	}
+	sendI2Cdata(forceSend);
+}
+
 void setCoolerStopped(bool stopped) {
 	if (stopCooler == stopped) {
 		return;
 	}
 	stopCooler = stopped;
-	if (stopped) {
-		setVoltage = 0.0;
-		sendI2Cdata();
-	}
+	updateCoolingOutput();
 	Debug.addLine(stopped ? F("Cooler stopped") : F("Cooler resumed"));
 }
 
@@ -290,6 +258,9 @@ void setup() {
 	digitalWrite (LED_WARN, LOW);
 
   Debug.init();
+
+	drd.detectDoubleReset();
+	emergencyMode = drd.isDoubleResetDetected();
   
 	boxMode=1;	// set some mode in case this setting not yet present
 	
@@ -313,51 +284,64 @@ void setup() {
 	maxVoltage_backup = maxVoltage; // update backup
   	
 	Serial.println();
-	Serial.println("Configuring access point...");
-	
-	//You can remove the password parameter if you want the AP to be open.
-	WiFi.softAP(ssid, password);
+	if (emergencyMode) {
+		Serial.println("Double reset detected! Starting unsecured AP 'Cooler'...");
+		Debug.addLine(F("Double reset detected: started unsecured AP 'Cooler'"));
 
-	WiFi.persistent(false); // don't write wifi settings to flash
-	WiFi.mode(WIFI_AP_STA);
+		WiFi.persistent(false);
+		WiFi.mode(WIFI_AP);
+		WiFi.softAP("Cooler");
 
-	IPAddress myIP = WiFi.softAPIP();
-	Serial.print("AP IP address: ");
-	Serial.println(myIP);
+		IPAddress myIP = WiFi.softAPIP();
+		Serial.print("AP IP address: ");
+		Serial.println(myIP);
 
-	Serial.println();
-	Serial.println("Connecting to Internet...");
+		primeDS18B20();
+	} else {
+		Serial.println("Configuring access point...");
 
-	WiFi.setAutoConnect(false);
-	WiFi.setAutoReconnect(true);
-	WiFi.begin(IntSSID, IntPASS);
+		WiFi.persistent(false); // don't write wifi settings to flash
+		WiFi.mode(WIFI_AP_STA);
 
-    for(byte i1=0;i1<filterSamples*2;i1++){
-      DS18B20.requestTemperatures(); 
-      delay(1000);
-      int tmpT = (int)round(DS18B20.getTempCByIndex(ColdSensorId)*100.0);
-      boxTemp = (float)digitalSmooth(tmpT, boxTemp_SmoothArray) / 100.0;
-      tmpT = (int)round(DS18B20.getTempCByIndex(HotSensorId)*100.0);
-      HotTemp = (float)digitalSmooth(tmpT, HotTemp_SmoothArray) / 100.0;
-    }
+		if (apPassword[0] != '\0') {
+			Debug.addLine(String(F("Normal boot: starting secured AP '")) + apSSID + F("'"));
+			WiFi.softAP(apSSID, apPassword);
+		} else {
+			Debug.addLine(String(F("Normal boot: starting unsecured AP '")) + apSSID + F("'"));
+			WiFi.softAP(apSSID);
+		}
 
-  int i = 20;
-  while (WiFi.status() != WL_CONNECTED && i>0) {
-    delay(500);
-    Serial.print(i);
-    i--;
-    }
+		IPAddress myIP = WiFi.softAPIP();
+		Serial.print("AP IP address: ");
+		Serial.println(myIP);
 
-  if(WiFi.status() == WL_CONNECTED){
-    Serial.print(F("Internet IP address: "));
-    Serial.println(WiFi.localIP());
-  }else{
-    Serial.print(F("Internet connection failed."));
-    Serial.print(F(" Error is: "));
-    Serial.println(WiFi.status());
-    //WiFi.disconnect();
-  }
-//  WIFIlocIP = WiFi.localIP();
+		Serial.println();
+		Serial.println("Connecting to Internet...");
+
+		WiFi.setAutoConnect(false);
+		WiFi.setAutoReconnect(true);
+		WiFi.begin(IntSSID, IntPASS);
+
+		primeDS18B20();
+
+		int i = 20;
+		while (WiFi.status() != WL_CONNECTED && i > 0) {
+			delay(500);
+			Serial.print(i);
+			i--;
+		}
+
+		if (WiFi.status() == WL_CONNECTED) {
+			Serial.print(F("Internet IP address: "));
+			Serial.println(WiFi.localIP());
+			Debug.addLine(String(F("Internet connected: ")) + WiFi.localIP().toString());
+		} else {
+			Serial.print(F("Internet connection failed."));
+			Serial.print(F(" Error is: "));
+			Serial.println(WiFi.status());
+			Debug.addLine(String(F("Internet connection failed, status: ")) + WiFi.status());
+		}
+	}
 
 
 	httpServer.on ( "/", handleRoot );
@@ -390,137 +374,140 @@ void setup() {
     millisSendDataInterval=millis();
 
     millisPIDinterval=millis();
+    resetTempConversionState();
 	
   hotPID.SetOutputLimits(0, maxHotPWM);  // same limits for hot wire PWM
   hotPID.SetMode(AUTOMATIC);
   hotPID.SetTunings(hotPID_kP, hotPID_kI, hotPID_kD);
+
+  drd.notifySetupComplete();
 }
 
+void processControl() {
+#if ENABLE_ISPINDEL_DYNAMIC_TEMP
+	if (iSpindelTemperature > 0) {
+		dynamicTemp = setTemp + ((setTemp - iSpindelTemperature) * dynamicTempDiffCoeff);
+	}
+#endif
+	// should we swithc boxSubMode?
+	if(boxMode==1){
+		if(boxSubMode==2){ //Cooling
+			if(boxTemp<(dynamicTemp-0.5)){
+				boxSubMode=3;	// Switch to heating mode
+			}
+		}else{
+			if(boxTemp>(dynamicTemp+0.5)){
+				boxSubMode=2;	// Switch to cooling mode
+				setHotPWM = 0.0;
+			}
+		}
+	}
+	
+	if(boxMode!=3){
+		// Cooler routines
+		// If radiator is very hot, reduce power (decrease max voltage allowed).
+		if(HotTemp>=RADIATOR_EXTREME_TEMP && !flagExtremeTemp) {flagExtremeTemp = HIGH;}
+		if(flagExtremeTemp){
+			maxVoltage = maxVoltage + (HotTemp>=RADIATOR_EXTREME_TEMP ? -0.1 : 0.1); // change voltage slowly to avoid spikes
+			if(maxVoltage>maxVoltage_backup){maxVoltage=maxVoltage_backup;}
+			if(maxVoltage<minVoltage){maxVoltage=minVoltage;}
+			if(HotTemp<RADIATOR_EXTREME_TEMP && maxVoltage==maxVoltage_backup){flagExtremeTemp = LOW;}
+		}
+	}
 
+	bool isStopped = stopCooler;
+	bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
+	bool coolingDemand = (!isStopped && !isHeating) && (boxTemp >= dynamicTemp);
+
+	if (isStopped || isHeating) {
+		setVoltage = 0.0;
+	} else {
+		setVoltage = coolingDemand ? maxVoltage : minVoltage;
+	}
+
+	static int lastLoggedMode = -1;
+	static int lastLoggedSubMode = -1;
+	static bool lastLoggedStopState = false;
+	static bool lastLoggedDemand = false;
+	static double lastLoggedSetVoltage = -1.0;
+	if (boxMode != lastLoggedMode || boxSubMode != lastLoggedSubMode ||
+		stopCooler != lastLoggedStopState || coolingDemand != lastLoggedDemand ||
+		setVoltage != lastLoggedSetVoltage) {
+		Debug.addLine(String(F("Cooling decision: mode=")) + boxMode +
+			F(" submode=") + boxSubMode +
+			F(" stopped=") + (isStopped ? F("yes") : F("no")) +
+			F(" heating=") + (isHeating ? F("yes") : F("no")) +
+			F(" temp=") + String(boxTemp, 1) +
+			F(" target=") + String(dynamicTemp, 1) +
+			F(" demand=") + (coolingDemand ? F("ON") : F("OFF")) +
+			F(" requested=") + String(setVoltage, 1) + F("V"));
+		lastLoggedMode = boxMode;
+		lastLoggedSubMode = boxSubMode;
+		lastLoggedStopState = stopCooler;
+		lastLoggedDemand = coolingDemand;
+		lastLoggedSetVoltage = setVoltage;
+	}
+	// we need to send new values to Buck Converter
+	sendI2Cdata();
+	if((boxMode==3 && measuredVoltage<3.0) || (boxMode==1 && boxSubMode==3)){ // make sure that peltie is not taking much current
+/*
+		// Prevent I windup at edge values
+		if((setHotPWM==maxHotPWM || setHotPWM==0.0) && hotPID.GetKi()!=0.0){
+			hotPID.SetTunings(hotPID_kP, 0.0, hotPID_kD);
+		}else if((setHotPWM!=maxHotPWM && setHotPWM!=0.0) && hotPID.GetKi()==0.0){
+			hotPID.SetTunings(hotPID_kP, hotPID_kI, hotPID_kD);
+		}
+*/
+		// now compute PID
+		hotPID.Compute();
+	}else{
+		//make sure heater is off
+		setHotPWM = 0.0;
+	}      
+	analogWrite(HEAT_WIRE, setHotPWM);
+
+	// Send data to IoT
+	if(!emergencyMode && (millis()-millisSendDataInterval>static_cast<unsigned long>(sendInterval) * 1000UL)){
+		millisSendDataInterval = millis();
+		sendTelemetry();
+	}		
+	// control Fan
+	if(HotSensorId==ColdSensorId || fanDynamic_checked==0){
+		// Fan always ON if only one temperature sensor detected or Dynamic control is disabled
+		// Also check if heating is on, then Fan should be off
+		digitalWrite(HOT_FAN, (boxMode==3 || (boxMode==1 && boxSubMode==3) ? LOW : HIGH));	// Fan is OFF when heating.
+	}else{
+		if(HotTemp>=32.0 && digitalRead(HOT_FAN)==LOW){
+			digitalWrite(HOT_FAN, HIGH);
+		}else if(HotTemp<=24.0 && digitalRead(HOT_FAN)==HIGH){
+			digitalWrite(HOT_FAN, LOW);
+		}		
+	}
+}
+
+void handleTemperatureControl() {
+	if (updateDS18B20()) {
+		processControl();
+	}
+}
 
 void loop() {
+	drd.loop();
+
 	//check connection every 5 minutes
-	if(millis()-millisWIFIcheckInterval>(300 * 1000)){
+	if(!emergencyMode && (millis()-millisWIFIcheckInterval>(300 * 1000UL))){
+		millisWIFIcheckInterval = millis();
 		if(WiFi.status() != WL_CONNECTED || WiFi.localIP() == IPAddress(0,0,0,0)) {
 			WiFi.reconnect();
-			delay(1000);
 		}
 	}
 
 	httpServer.handleClient();
 	delay(1);
 	
-	if(millis()-millisPIDinterval>(PIDCOMPUTE_INTERVAL * 1000)){
-		millisPIDinterval=millis();
-		// before computing PID we want latest temperatures
-		DS18B20.requestTemperatures(); 
-		delay(1000);
-		int tmpT = (int)round(DS18B20.getTempCByIndex(ColdSensorId)*100.0);
-		boxTemp = (float)digitalSmooth(tmpT, boxTemp_SmoothArray) / 100.0;
-		tmpT = (int)round(DS18B20.getTempCByIndex(HotSensorId)*100.0);
-		HotTemp = (float)digitalSmooth(tmpT, HotTemp_SmoothArray) / 100.0;
-#if ENABLE_ISPINDEL_DYNAMIC_TEMP
-		if (iSpindelTemperature > 0) {
-			dynamicTemp = setTemp + ((setTemp - iSpindelTemperature) * dynamicTempDiffCoeff);
-		}
-#endif
-		// should we swithc boxSubMode?
-		if(boxMode==1){
-			if(boxSubMode==2){ //Cooling
-				if(boxTemp<(dynamicTemp-0.5)){
-					boxSubMode=3;	// Switch to heating mode
-				}
-			}else{
-				if(boxTemp>(dynamicTemp+0.5)){
-					boxSubMode=2;	// Switch to cooling mode
-          setHotPWM = 0.0;
-				}
-			}
-		}
-		
-		static bool heatingOnlyLogged = false;
-		if(boxMode!=3){
-			heatingOnlyLogged = false;
-			// Cooler routines
-			// If radiator is very hot, reduce power (decrease max voltage allowed).
-			if(HotTemp>=RADIATOR_EXTREME_TEMP && !flagExtremeTemp) {flagExtremeTemp = HIGH;}
-			if(flagExtremeTemp){
-				maxVoltage = maxVoltage + (HotTemp>=RADIATOR_EXTREME_TEMP ? -0.1 : 0.1); // change voltage slowly to avoid spikes
-				if(maxVoltage>maxVoltage_backup){maxVoltage=maxVoltage_backup;}
-				if(maxVoltage<minVoltage){maxVoltage=minVoltage;}
-				if(HotTemp<RADIATOR_EXTREME_TEMP && maxVoltage==maxVoltage_backup){flagExtremeTemp = LOW;}
-			}
-			bool coolingEnabled = !stopCooler &&
-				(boxMode != 1 || boxSubMode == 2) &&
-				boxMode != 3;
-			bool coolingDemand = coolingEnabled && boxTemp >= dynamicTemp;
-			setVoltage = coolingDemand ? maxVoltage : 0.0;
-			static int lastLoggedMode = -1;
-			static int lastLoggedSubMode = -1;
-			static bool lastLoggedStopState = false;
-			static bool lastLoggedDemand = false;
-			if (boxMode != lastLoggedMode || boxSubMode != lastLoggedSubMode ||
-				stopCooler != lastLoggedStopState || coolingDemand != lastLoggedDemand) {
-				Debug.addLine(String(F("Cooling decision: mode=")) + boxMode +
-					F(" submode=") + boxSubMode +
-					F(" stopped=") + (stopCooler ? F("yes") : F("no")) +
-					F(" temp=") + String(boxTemp, 1) +
-					F(" target=") + String(dynamicTemp, 1) +
-					F(" demand=") + (coolingDemand ? F("ON") : F("OFF")) +
-					F(" requested=") + String(setVoltage, 1) + F("V"));
-				lastLoggedMode = boxMode;
-				lastLoggedSubMode = boxSubMode;
-				lastLoggedStopState = stopCooler;
-				lastLoggedDemand = coolingDemand;
-			}
-			// we need to send new values to Buck Converter
-			sendI2Cdata();
-		}else{
-		  //make sure cooler is off
-		  setVoltage=0;
-		  if (!heatingOnlyLogged) {
-			Debug.addLine(F("Cooling disabled: heating-only mode"));
-			heatingOnlyLogged = true;
-		  }
-		  sendI2Cdata();
-		}
-		if((boxMode==3 && measuredVoltage<3.0) || (boxMode==1 && boxSubMode==3)){ // make sure that peltie is not taking much current
-/*
-		  // Prevent I windup at edge values
-		  if((setHotPWM==maxHotPWM || setHotPWM==0.0) && hotPID.GetKi()!=0.0){
-        hotPID.SetTunings(hotPID_kP, 0.0, hotPID_kD);
-		  }else if((setHotPWM!=maxHotPWM && setHotPWM!=0.0) && hotPID.GetKi()==0.0){
-        hotPID.SetTunings(hotPID_kP, hotPID_kI, hotPID_kD);
-		  }
-*/
-      // now compute PID
-		  hotPID.Compute();
-		}else{
-		  //make sure heater is off
-		  setHotPWM = 0.0;
-		}      
-		analogWrite(HEAT_WIRE, setHotPWM);
-   
-		// Send data to IoT
-		if(millis()-millisSendDataInterval>static_cast<unsigned long>(sendInterval) * 1000UL){
-			millisSendDataInterval = millis();
-			sendTelemetry();
-		}		
-		// control Fan
-		if(HotSensorId==ColdSensorId || fanDynamic_checked==0){
-			// Fan always ON if only one temperature sensor detected or Dynamic control is disabled
-			// Also check if heating is on, then Fan should be off
-			digitalWrite(HOT_FAN, (boxMode==3 || (boxMode==1 && boxSubMode==3) ? LOW : HIGH));	// Fan is OFF when heating.
-		}else{
-			if(HotTemp>=32.0 && digitalRead(HOT_FAN)==LOW){
-				digitalWrite(HOT_FAN, HIGH);
-			}else if(HotTemp<=24.0 && digitalRead(HOT_FAN)==HIGH){
-				digitalWrite(HOT_FAN, LOW);
-			}		
-		}
-	}
+	handleTemperatureControl();
 	
-	if(millis()-millisReadI2CDataInterval>(I2C_INTERVAL * 1000)){
+	if(millis()-millisReadI2CDataInterval>(I2C_INTERVAL * 1000UL)){
 		millisReadI2CDataInterval = millis();
 		readI2Cdata();
 	}

@@ -15,6 +15,7 @@
 #include "Globals.h"
 #include "webpage.htm.h"
 #include "DebugHTML.h"
+#include "DoubleResetDetector.h"
 
 #define I2C_ADDRESS 0x5E
 #define I2C_DATALEN 11
@@ -60,6 +61,10 @@ extern int ColdSensorId;
 extern int HotSensorId;
 extern int boxTemp_SmoothArray[filterSamples];
 extern int HotTemp_SmoothArray[filterSamples];
+extern DoubleResetDetector drd;
+extern char apSSID[33];
+extern char apPassword[65];
+extern bool emergencyMode;
 extern const char *ssid;
 extern const char *password;
 extern char IntSSID[20];
@@ -80,10 +85,17 @@ extern PID hotPID;
 
 int digitalSmooth(int rawIn, int *sensSmoothArray);
 void INIT_DS18B20();
+void primeDS18B20();
+void readDS18B20Temperatures();
+bool updateDS18B20();
+void resetTempConversionState();
+void handleTemperatureControl();
+void processControl();
 void restoreSettings();
 bool restoreSettingsFromEEPROM();
 void saveSettings();
 void setCoolerStopped(bool stopped);
+void updateCoolingOutput(bool forceSend = false);
 void initI2C();
 void sendI2Cdata(bool force = false);
 void readI2Cdata();

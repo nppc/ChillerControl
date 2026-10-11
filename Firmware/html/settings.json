@@ -1,4 +1,6 @@
 {
+	"apSSID":"Cooler",
+	"apPassword":"",
 	"IntSSID":"---SSID---", 
 	"IntPASS":"---PASS---", 
 	"endpointAddress":"https://aa.ddnss.eu/api/v1",

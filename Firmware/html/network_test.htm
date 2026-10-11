@@ -21,11 +21,19 @@
 <form action="/network_store" method="post">
 <TABLE class="values_table">
 <BR>
-<tr class="values_header"><td colspan=4>SSID</td></tr>
+<tr class="values_header"><td colspan=4>Access Point SSID</td></tr>
+<tr><td colspan=3><input type="text" name="apSSID" class="inputtext" maxlength="32" value="{apSSID}"/></td>
+<TD rowspan=2>SSID of the device Access Point</TD></tr>
+<TR><TD colspan=3>&nbsp;</TD><TR>
+<tr class="values_header"><td colspan=4>Access Point Password</td></tr>
+<tr><td colspan=3><input type="text" name="apPassword" class="inputtext" maxlength="63" value="{apPassword}"/></td>
+<TD rowspan=2>Password for device Access Point (at least 8 chars, or empty for open)</TD></tr>
+<TR><TD colspan=3>&nbsp;</TD><TR>
+<tr class="values_header"><td colspan=4>Internet WiFi SSID</td></tr>
 <tr><td colspan=3><input type="text" name="IntSSID" class="inputtext" value="{IntSSID}"/></td>
 <TD rowspan=2>SSID of the Access Point that has connection to the Internet</TD></tr>
 <TR><TD colspan=3>&nbsp;</TD><TR>
-<tr class="values_header"><td colspan=4>Password</td></tr>
+<tr class="values_header"><td colspan=4>Internet WiFi Password</td></tr>
 <tr><td colspan=3><input type="text" name="IntPASS" class="inputtext" value="{IntPASS}"/></td>
 <TD rowspan=2>Password for SSID</TD></tr>
 <TR><TD colspan=3>&nbsp;</TD><TR>
@@ -50,7 +58,7 @@
 <TR><TD colspan=3>&nbsp;</TD><TR>
 </TABLE>
 <TABLE width="100%">
-<TR><TD><button type="submit" class="btn btn_round">Save Network Settings</button></TD></TR>
+<TR><TD><button type="submit" class="btn btn_round">Save Network Settings & Reboot</button></TD></TR>
 </TABLE>
 </form>
 
