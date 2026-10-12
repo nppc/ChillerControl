@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>Cooler Box Controller - Update</title>
+<link href="webpage.css" rel="stylesheet" type="text/css">
+</head>
+<body>
+<div class="container">
+<table class="hdr_table">
+<tr><td class="hdr_caption" id="hdrCaption">Update</td>
+<td class="hdr_logo">
+<div class="hdr_logo_text_short">COOLER</div>
+<div class="hdr_logo_text_long">Peltie Voltage Controller</div>
+</td></tr></table>
+<BR>
+
+<div id="updateCard">
+<table class="values_table">
+<tr class="values_header"><td>Firmware Image</td></tr>
+<tr><td style="padding: 15px; text-align: left;">
+<form data-update-form>
+  <div style="margin-bottom: 8px;">Select PlatformIO <b>firmware.bin</b>:</div>
+  <input type="file" name="update" accept=".bin" required class="inputtext" style="width: 100%; box-sizing: border-box; margin-bottom: 12px;"><br>
+  <input type="hidden" name="type" value="firmware">
+  <button type="submit" class="btn btn_round" style="height: 45px; font-size: 16px;">Upload Firmware</button>
+</form>
+</td></tr>
+</table>
+<BR>
+
+<table class="values_table">
+<tr class="values_header"><td>LittleFS Image</td></tr>
+<tr><td style="padding: 15px; text-align: left;">
+<form data-update-form>
+  <div style="margin-bottom: 8px;">Select LittleFS <b>littlefs.bin</b>:</div>
+  <input type="file" name="update" accept=".bin" required class="inputtext" style="width: 100%; box-sizing: border-box; margin-bottom: 12px;"><br>
+  <input type="hidden" name="type" value="filesystem">
+  <button type="submit" class="btn btn_round" style="height: 45px; font-size: 16px;">Upload LittleFS</button>
+</form>
+</td></tr>
+</table>
+</div>
+
+<div id="progressPanel" style="display: none; margin-top: 15px;">
+<table class="values_table">
+<tr class="values_header"><td id="progressStatus">Uploading...</td></tr>
+<tr><td style="padding: 20px;">
+  <div id="progressPercent" style="font-size: 26px; font-weight: bold; margin-bottom: 10px; color: #0ae;">0%</div>
+  <div style="background: #EEEEEE; border-radius: 12px; height: 24px; width: 100%; overflow: hidden; border: 1px solid #DDDDDD; box-sizing: border-box;">
+    <div id="progressFill" style="background: #0ae; height: 100%; width: 0%; transition: width 0.2s;"></div>
+  </div>
+  <div id="progressDetail" style="font-size: 13px; color: GRAY; margin-top: 10px;">0 B sent</div>
+</td></tr>
+</table>
+</div>
+
+<div id="rebootPanel" style="display: none; margin-top: 15px;">
+<table class="values_table">
+<tr class="values_header"><td>Firmware Flash</td></tr>
+<tr><td style="padding: 25px; font-size: 16px; line-height: 1.8;">
+  Update successful!<BR><BR>
+  Rebooting device, returning to main page in <b id="countdown" style="font-size: 20px; color: #0ae;">10</b> seconds...
+</td></tr>
+</table>
+</div>
+
+<div id="navButtons" style="margin-top: 20px;">
+<form action="/settings" method="get">
+  <button type="submit" class="btn btn_round" style="height: 45px; font-size: 16px;">Back to Settings</button>
+</form>
+</div>
+
+</div>
+
+<script>
+const forms = document.querySelectorAll('[data-update-form]');
+const updateCard = document.getElementById('updateCard');
+const progressPanel = document.getElementById('progressPanel');
+const rebootPanel = document.getElementById('rebootPanel');
+const navButtons = document.getElementById('navButtons');
+const progressFill = document.getElementById('progressFill');
+const progressPercent = document.getElementById('progressPercent');
+const progressStatus = document.getElementById('progressStatus');
+const progressDetail = document.getElementById('progressDetail');
+const hdrCaption = document.getElementById('hdrCaption');
+let uploadInProgress = false;
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+forms.forEach(form => {
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    if (uploadInProgress) return;
+
+    const fileInput = form.querySelector('input[type="file"]');
+    if (!fileInput.files.length) return;
+
+    uploadInProgress = true;
+    const file = fileInput.files[0];
+    const formData = new FormData(form);
+    const request = new XMLHttpRequest();
+    const buttons = document.querySelectorAll('button, input');
+    buttons.forEach(b => b.disabled = true);
+
+    progressPanel.style.display = 'block';
+    progressFill.style.width = '0%';
+    progressPercent.textContent = '0%';
+    progressStatus.textContent = 'Uploading ' + file.name;
+    progressDetail.textContent = '0 B of ' + formatBytes(file.size);
+
+    request.upload.addEventListener('progress', e => {
+      if (!e.lengthComputable) {
+        progressDetail.textContent = formatBytes(e.loaded) + ' sent';
+        return;
+      }
+      const percent = Math.round((e.loaded / e.total) * 100);
+      progressFill.style.width = percent + '%';
+      progressPercent.textContent = percent + '%';
+      progressDetail.textContent = formatBytes(e.loaded) + ' of ' + formatBytes(e.total);
+    });
+
+    request.addEventListener('load', () => {
+      if (request.status >= 200 && request.status < 300) {
+        progressPanel.style.display = 'none';
+        updateCard.style.display = 'none';
+        navButtons.style.display = 'none';
+        hdrCaption.textContent = 'Rebooting';
+        rebootPanel.style.display = 'block';
+
+        let count = 10;
+        document.getElementById('countdown').textContent = count;
+        const interval = setInterval(() => {
+          count--;
+          if (count >= 0) {
+            document.getElementById('countdown').textContent = count;
+          }
+          if (count <= 0) {
+            clearInterval(interval);
+            window.location.href = '/';
+          }
+        }, 1000);
+      } else {
+        progressStatus.textContent = 'Upload failed';
+        progressDetail.textContent = request.responseText || ('Server error: ' + request.status);
+        uploadInProgress = false;
+        buttons.forEach(b => b.disabled = false);
+      }
+    });
+
+    request.addEventListener('error', () => {
+      progressStatus.textContent = 'Upload connection lost';
+      progressDetail.textContent = 'Device may be rebooting. Please wait a moment.';
+      uploadInProgress = false;
+      buttons.forEach(b => b.disabled = false);
+    });
+
+    request.open('POST', '/update');
+    request.send(formData);
+  });
+});
+</script>
+</body>
+</html>
+

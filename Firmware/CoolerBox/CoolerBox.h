@@ -3,7 +3,8 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
-#include <ESP8266HTTPUpdateServer.h>
+#include <flash_hal.h>
+#include <WiFiUdp.h>
 #include <OneWire.h>
 #include <Wire.h>
 #include <DallasTemperature.h>
@@ -76,7 +77,9 @@ extern int fanDynamic_checked;
 extern int boxMode;
 extern int boxSubMode;
 extern ESP8266WebServer httpServer;
-extern ESP8266HTTPUpdateServer httpUpdater;
+void handleUpdate();
+void handleUpdateUpload();
+void handleUpdateResult();
 extern float hotPID_kP;
 extern float hotPID_kI;
 extern float hotPID_kD;

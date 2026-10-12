@@ -1,4 +1,4 @@
-#define FIRMWAREVERSION "3.1.1"
+#define FIRMWAREVERSION "3.2"
 
 // Default values
 #define DEFAULT_HYSTERESIS 0.05  // ±0.05 °C (0.10 °C total deadband span)

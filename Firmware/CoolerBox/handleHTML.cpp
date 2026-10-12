@@ -345,3 +345,74 @@ void handleScript() {
 		httpServer.send(404, "text/plain", "main.js not found");
 	}
 }
+
+void handleUpdate() {
+	if (!handleFileRead("/update.htm")) {
+		httpServer.send(200, "text/html",
+			F("<!DOCTYPE html><html><head><title>Update</title><link href='webpage.css' rel='stylesheet'></head><body>"
+			  "<div class='container'><h2>Firmware Update</h2>"
+			  "<form method='POST' action='/update' enctype='multipart/form-data'>"
+			  "<p>Select firmware.bin:<br><input type='file' name='update' accept='.bin' required></p>"
+			  "<button type='submit' class='btn btn_round'>Upload</button>"
+			  "</form></div></body></html>"));
+	}
+}
+
+static bool updateFailed = false;
+static bool updateReceived = false;
+
+void handleUpdateUpload() {
+	HTTPUpload &upload = httpServer.upload();
+
+	if (upload.status == UPLOAD_FILE_START) {
+		updateFailed = false;
+		updateReceived = false;
+		drd.stop(); // Clear double reset flag so reboot is a normal boot
+
+		const bool filesystem = (httpServer.arg("type") == "filesystem" ||
+		                         upload.name == "filesystem" ||
+		                         upload.filename.indexOf("littlefs") >= 0 ||
+		                         upload.filename.indexOf("filesystem") >= 0);
+		const int command = filesystem ? U_FS : U_FLASH;
+
+		size_t maxUpdateSize = 0;
+		if (filesystem) {
+			LittleFS.end();
+			maxUpdateSize = ((size_t)FS_end - (size_t)FS_start);
+		} else {
+			maxUpdateSize = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+		}
+
+		WiFiUDP::stopAll();
+		Serial.printf("OTA upload started: %s (%s, max size: %u)\n",
+		              upload.filename.c_str(), filesystem ? "LittleFS" : "firmware", (unsigned int)maxUpdateSize);
+
+		if (!Update.begin(maxUpdateSize, command)) {
+			Update.printError(Serial);
+			updateFailed = true;
+		}
+	} else if (upload.status == UPLOAD_FILE_WRITE) {
+		if (!updateFailed && Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+			Update.printError(Serial);
+			updateFailed = true;
+		}
+	} else if (upload.status == UPLOAD_FILE_END) {
+		if (!updateFailed && !Update.end(true)) {
+			Update.printError(Serial);
+			updateFailed = true;
+		}
+		updateReceived = true;
+		Serial.printf("OTA upload finished: %u bytes\n", (unsigned int)upload.totalSize);
+	}
+}
+
+void handleUpdateResult() {
+	if (!updateReceived || updateFailed || Update.hasError()) {
+		httpServer.send(500, "text/plain", "Update failed: flash write error");
+		return;
+	}
+
+	httpServer.send(200, "text/plain", "Update successful. Restarting...");
+	delay(100);
+	ESP.restart();
+}

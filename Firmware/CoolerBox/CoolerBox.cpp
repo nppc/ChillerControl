@@ -53,7 +53,6 @@ int boxSubMode = 3; // 2-Cooling, 3-Heating
 
 // Define a web server at port 80 for HTTP
 ESP8266WebServer httpServer(80);
-ESP8266HTTPUpdateServer httpUpdater(true);
 
 float hotPID_kP=DEFAULT_PID_KP;
 float hotPID_kI=DEFAULT_PID_KI;
@@ -227,7 +226,8 @@ void setup() {
 //    httpServer.send ( 200, "text/plain", "this works as well" );
 //  } );
 	
-	httpUpdater.setup(&httpServer, "/update");
+	httpServer.on("/update", HTTP_GET, handleUpdate);
+	httpServer.on("/update", HTTP_POST, handleUpdateResult, handleUpdateUpload);
 	httpServer.begin();
 	Serial.println("HTTP server started");
 
