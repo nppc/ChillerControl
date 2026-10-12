@@ -119,7 +119,7 @@ async function setupSettingsPage() {
         const opt = document.createElement('option');
         opt.value = s.id;
         if (s.id === selectedId) opt.selected = true;
-        opt.textContent = `${s.addr} = ${s.temp.toFixed(2)}° C`;
+        opt.textContent = `${s.addr} = ${s.temp.toFixed(2)}\u00B0 C`;
         sel.appendChild(opt);
       });
     };

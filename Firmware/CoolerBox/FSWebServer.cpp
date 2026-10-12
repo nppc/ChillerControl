@@ -1,13 +1,13 @@
 #include "CoolerBox.h"
 
 String getContentType(const String &filename) {
-	if (filename.endsWith(F(".htm")) || filename.endsWith(F(".html"))) return F("text/html");
-	if (filename.endsWith(F(".css"))) return F("text/css");
-	if (filename.endsWith(F(".js"))) return F("application/javascript");
-	if (filename.endsWith(F(".json"))) return F("application/json");
+	if (filename.endsWith(F(".htm")) || filename.endsWith(F(".html"))) return F("text/html; charset=utf-8");
+	if (filename.endsWith(F(".css"))) return F("text/css; charset=utf-8");
+	if (filename.endsWith(F(".js"))) return F("application/javascript; charset=utf-8");
+	if (filename.endsWith(F(".json"))) return F("application/json; charset=utf-8");
 	if (filename.endsWith(F(".ico"))) return F("image/x-icon");
 	if (filename.endsWith(F(".gz"))) return F("application/x-gzip");
-	return F("text/plain");
+	return F("text/plain; charset=utf-8");
 }
 
 bool handleFileRead(String path) {
