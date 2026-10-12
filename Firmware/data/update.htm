@@ -21,8 +21,8 @@
 <tr class="values_header"><td>Firmware Image</td></tr>
 <tr><td style="padding: 15px; text-align: left;">
 <form data-update-form>
-  <div style="margin-bottom: 8px;">Select PlatformIO <b>firmware.bin</b>:</div>
-  <input type="file" name="update" accept=".bin" required class="inputtext" style="width: 100%; box-sizing: border-box; margin-bottom: 12px;"><br>
+  <div style="margin-bottom: 8px;">Select PlatformIO <b>firmware.bin</b> (or firmware.bin.gz):</div>
+  <input type="file" name="update" accept=".bin,.gz,.bin.gz" required class="inputtext" style="width: 100%; box-sizing: border-box; margin-bottom: 12px;"><br>
   <input type="hidden" name="type" value="firmware">
   <button type="submit" class="btn btn_round" style="height: 45px; font-size: 16px;">Upload Firmware</button>
 </form>
@@ -34,8 +34,8 @@
 <tr class="values_header"><td>LittleFS Image</td></tr>
 <tr><td style="padding: 15px; text-align: left;">
 <form data-update-form>
-  <div style="margin-bottom: 8px;">Select LittleFS <b>littlefs.bin</b>:</div>
-  <input type="file" name="update" accept=".bin" required class="inputtext" style="width: 100%; box-sizing: border-box; margin-bottom: 12px;"><br>
+  <div style="margin-bottom: 8px;">Select LittleFS <b>littlefs.bin</b> (or littlefs.bin.gz):</div>
+  <input type="file" name="update" accept=".bin,.gz,.bin.gz" required class="inputtext" style="width: 100%; box-sizing: border-box; margin-bottom: 12px;"><br>
   <input type="hidden" name="type" value="filesystem">
   <button type="submit" class="btn btn_round" style="height: 45px; font-size: 16px;">Upload LittleFS</button>
 </form>

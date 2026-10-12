@@ -1,11 +1,28 @@
 function NumberChange(n, i) {
   const el = document.getElementById(i);
-  if (el) el.stepUp(n);
+  if (!el) return;
+  if (!el.value || el.value === '') {
+    const setTempEl = document.getElementById('setTemp');
+    const current = setTempEl ? parseFloat(setTempEl.textContent) : 19.0;
+    el.value = (isNaN(current) ? 19.0 : current).toFixed(1);
+  }
+  el.stepUp(n);
 }
 
 function showhide() {
   const el = document.getElementById("settemperature");
-  if (el) el.style.display = (el.style.display !== "none") ? "none" : "block";
+  if (!el) return;
+  const isHidden = (el.style.display === "none" || !el.style.display);
+  el.style.display = isHidden ? "block" : "none";
+  if (isHidden) {
+    const tempInput = document.getElementById("Temp");
+    const setTempEl = document.getElementById("setTemp");
+    if (tempInput && setTempEl) {
+      const current = parseFloat(setTempEl.textContent);
+      if (!isNaN(current)) tempInput.value = current.toFixed(1);
+      tempInput.focus();
+    }
+  }
 }
 
 async function updateStatus() {
@@ -56,8 +73,10 @@ async function updateStatus() {
       }
     }
 
+    const setTempPanel = document.getElementById('settemperature');
+    const isEditing = setTempPanel && setTempPanel.style.display !== 'none';
     const tempInput = document.getElementById('Temp');
-    if (tempInput && data.rawSetTemp !== undefined && document.activeElement !== tempInput) {
+    if (tempInput && data.rawSetTemp !== undefined && !isEditing && document.activeElement !== tempInput) {
       tempInput.value = data.rawSetTemp;
     }
   } catch (e) {
@@ -74,12 +93,29 @@ function setupIndexPage() {
     tempForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const tempInput = document.getElementById('Temp');
-      if (!tempInput) return;
+      if (!tempInput || !tempInput.value) return;
+      const val = parseFloat(tempInput.value);
+      if (isNaN(val) || val < 0 || val > 45) {
+        alert('Please enter a temperature between 0.0 and 45.0 \u00B0C');
+        return;
+      }
+      const setBtn = tempForm.querySelector('button[type="submit"]');
+      if (setBtn) setBtn.disabled = true;
+
+      const setTempEl = document.getElementById('setTemp');
+      if (setTempEl) setTempEl.textContent = val.toFixed(1);
+
       try {
-        await fetch('/setTemp?Temp=' + encodeURIComponent(tempInput.value));
-        showhide();
+        const res = await fetch('/setTemp?Temp=' + encodeURIComponent(val.toFixed(1)));
+        if (res.ok) {
+          const panel = document.getElementById('settemperature');
+          if (panel) panel.style.display = 'none';
+        }
+      } catch (err) {
+      } finally {
+        if (setBtn) setBtn.disabled = false;
         await updateStatus();
-      } catch (err) {}
+      }
     });
   }
 

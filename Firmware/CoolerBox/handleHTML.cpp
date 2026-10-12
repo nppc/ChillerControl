@@ -203,37 +203,34 @@ void handlePIDsStore() {
 }
 
 void handleSetTemp() {
-	if (httpServer.args() > 0) {
-		for (uint8_t i = 0; i < httpServer.args(); i++) {
-			if (httpServer.argName(i) == "Temp") {
-				float tmpTemp = httpServer.arg(i).toFloat();
-				if (tmpTemp > 45.0f) { tmpTemp = setTemp; }
-				if (tmpTemp < 0.0f) { tmpTemp = 0.0f; }
-				setTemp = tmpTemp;
-				dynamicTemp = tmpTemp;
-				saveSettings();
-			}
+	if (httpServer.hasArg("Temp")) {
+		float tmpTemp = httpServer.arg("Temp").toFloat();
+		if (tmpTemp >= 0.0f && tmpTemp <= 45.0f) {
+			setTemp = tmpTemp;
+			dynamicTemp = tmpTemp;
+			saveSettings();
 		}
 	}
 	setCoolerStopped(LOW);
 	delay(50);
 	updateCoolingOutput();
-	delay(50);
-	httpServer.sendHeader("Location", String("/"), true);
-	httpServer.send(302, "text/plain", "");
-	sendTelemetry();
+
+	JsonDocument doc;
+	doc["status"] = "ok";
+	doc["setTemp"] = setTemp;
+	String json;
+	serializeJson(doc, json);
+	httpServer.send(200, "application/json", json);
 }
 
 void handleStop() {
 	setCoolerStopped(HIGH);
-	httpServer.sendHeader("Location", String("/"), true);
-	httpServer.send(302, "text/plain", "");
+	httpServer.send(200, "application/json", "{\"status\":\"stopped\"}");
 }
 
 void handleStart() {
 	setCoolerStopped(LOW);
-	httpServer.sendHeader("Location", String("/"), true);
-	httpServer.send(302, "text/plain", "");
+	httpServer.send(200, "application/json", "{\"status\":\"started\"}");
 }
 
 void handleNotFound() {
@@ -329,7 +326,7 @@ void handleUpdate() {
 			F("<!DOCTYPE html><html><head><title>Update</title><link href='webpage.css' rel='stylesheet'></head><body>"
 			  "<div class='container'><h2>Firmware Update</h2>"
 			  "<form method='POST' action='/update' enctype='multipart/form-data'>"
-			  "<p>Select firmware.bin:<br><input type='file' name='update' accept='.bin' required></p>"
+			  "<p>Select firmware.bin (or .bin.gz):<br><input type='file' name='update' accept='.bin,.gz,.bin.gz' required></p>"
 			  "<button type='submit' class='btn btn_round'>Upload</button>"
 			  "</form></div></body></html>"));
 	}
