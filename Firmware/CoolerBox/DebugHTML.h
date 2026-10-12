@@ -2,7 +2,7 @@
 #include <Arduino.h>
 
 #define DEBUG_MAX_RECORDS 20
-#define DEBUG_LINE_MAX_LEN 96
+#define DEBUG_LINE_MAX_LEN 128
 
 class DebugHTML {
 private:
@@ -27,7 +27,19 @@ public:
 
 	void addLine(const char *strLine) {
 		if (!strLine) return;
-		snprintf(debugStr[curRecord], DEBUG_LINE_MAX_LEN, "%08lu:%s", millis(), strLine);
+		unsigned long ms = millis();
+		unsigned long sec = ms / 1000;
+		unsigned long min = sec / 60;
+		unsigned long hr = min / 60;
+		unsigned long days = hr / 24;
+
+		if (days > 0) {
+			snprintf(debugStr[curRecord], DEBUG_LINE_MAX_LEN, "[%lud %02lu:%02lu:%02lu] %s",
+			         days, hr % 24, min % 60, sec % 60, strLine);
+		} else {
+			snprintf(debugStr[curRecord], DEBUG_LINE_MAX_LEN, "[%02lu:%02lu:%02lu] %s",
+			         hr, min % 60, sec % 60, strLine);
+		}
 		curRecord = (curRecord + 1) % DEBUG_MAX_RECORDS;
 	}
 
