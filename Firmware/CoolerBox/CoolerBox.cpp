@@ -305,43 +305,66 @@ void processControl() {
 		float effectiveMax = flagExtremeTemp ? thermalVoltageCap : maxVoltage;
 		setVoltage = demand ? effectiveMax : minVoltage;
 	}
+	sendI2Cdata();
+
+	if (!isStopped && ((boxMode == 3 && measuredVoltage < 3.0f) || (boxMode == 1 && boxSubMode == 3))) {
+		pidInput = boxTemp;
+		pidSetpoint = dynamicTemp;
+		hotPID.Compute();
+		setHotPWM = (float)pidOutput;
+	} else {
+		setHotPWM = 0.0f;
+		pidOutput = 0.0;
+	}
+	analogWrite(HEAT_WIRE, (int)round(setHotPWM));
+
+	int pwmPct = (int)round(setHotPWM * 100.0f / (float)maxHotPWM);
 
 	static int lastLoggedMode = -1;
 	static int lastLoggedSubMode = -1;
 	static bool lastLoggedStopState = false;
 	static bool lastLoggedDemand = false;
 	static float lastLoggedSetVoltage = -1.0f;
-	if (boxMode != lastLoggedMode || boxSubMode != lastLoggedSubMode ||
-		stopCooler != lastLoggedStopState || demand != lastLoggedDemand ||
-		setVoltage != lastLoggedSetVoltage) {
-		Debug.addLine(String(F("Cooling decision: mode=")) + boxMode +
-			F(" submode=") + boxSubMode +
-			F(" stopped=") + (isStopped ? F("yes") : F("no")) +
-			F(" heating=") + (isHeating ? F("yes") : F("no")) +
-			F(" temp=") + String(boxTemp, 2) +
-			F(" target=") + String(dynamicTemp, 2) +
-			F(" demand=") + (demand ? F("ON") : F("OFF")) +
-			F(" requested=") + String(setVoltage, 1) + F("V"));
+	static int lastLoggedPwmPct = -1;
+
+	bool stateChanged = (boxMode != lastLoggedMode || boxSubMode != lastLoggedSubMode ||
+	                     stopCooler != lastLoggedStopState);
+	bool coolingChanged = (!isHeating && !isStopped && (demand != lastLoggedDemand || setVoltage != lastLoggedSetVoltage));
+	bool heatingChanged = (isHeating && !isStopped && (abs(pwmPct - lastLoggedPwmPct) >= 5 || (lastLoggedPwmPct == -1)));
+
+	if (stateChanged || coolingChanged || heatingChanged) {
+		String msg;
+		if (isStopped) {
+			msg = F("Cooler stopped: temp=");
+			msg += String(boxTemp, 2);
+			msg += F(" target=");
+			msg += String(dynamicTemp, 2);
+		} else if (isHeating) {
+			msg = F("Heating: temp=");
+			msg += String(boxTemp, 2);
+			msg += F(" target=");
+			msg += String(dynamicTemp, 2);
+			msg += F(" PWM=");
+			msg += pwmPct;
+			msg += F("%");
+		} else {
+			msg = F("Cooling: temp=");
+			msg += String(boxTemp, 2);
+			msg += F(" target=");
+			msg += String(dynamicTemp, 2);
+			msg += F(" requested=");
+			msg += String(setVoltage, 1);
+			msg += F("V");
+		}
+		Debug.addLine(msg);
+
 		lastLoggedMode = boxMode;
 		lastLoggedSubMode = boxSubMode;
 		lastLoggedStopState = stopCooler;
 		lastLoggedDemand = demand;
 		lastLoggedSetVoltage = setVoltage;
+		lastLoggedPwmPct = pwmPct;
 	}
-	// we need to send new values to Buck Converter
-	sendI2Cdata();
-	if((boxMode==3 && measuredVoltage<3.0f) || (boxMode==1 && boxSubMode==3)){ // make sure that peltie is not taking much current
-		// now compute PID
-		pidInput = boxTemp;
-		pidSetpoint = dynamicTemp;
-		hotPID.Compute();
-		setHotPWM = (float)pidOutput;
-	}else{
-		//make sure heater is off
-		setHotPWM = 0.0f;
-		pidOutput = 0.0;
-	}      
-	analogWrite(HEAT_WIRE, (int)round(setHotPWM));
 
 	// Send data to IoT
 	if(!emergencyMode && (millis()-millisSendDataInterval>static_cast<unsigned long>(sendInterval) * 1000UL)){
