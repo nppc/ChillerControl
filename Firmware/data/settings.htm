@@ -4,11 +4,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
 <title>Cooler Box Controller</title>
 <link href="webpage.css" rel="stylesheet" type="text/css">
+<script src="main.js" defer></script>
 </head>
 <body>
 <div class="container">
 <table class="hdr_table">
-<tr><td class="hdr_caption">{Caption}</td>
+<tr><td class="hdr_caption" id="Caption">Settings</td>
 <td class="hdr_logo">
 <div class="hdr_logo_text_short">COOLER</div>
 <div class="hdr_logo_text_long">Peltie Voltage Controller</div>
@@ -17,41 +18,40 @@
 <form action="/settings_store" method="get">
 <TABLE class="values_table">
 <TR class="values_header"><TD colspan=2>Temperature Sensors</TD></TR>
-<TR><TD>Cold Sensor </TD><TD><select name="SelColdSensor">{ColdDSlist}</select></TD></TR>
-<TR><TD>Hot Sensor </TD><TD><select name="SelHotSensor">{HotDSlist}</select></TD></TR>
+<TR><TD>Cold Sensor </TD><TD><select name="SelColdSensor" id="SelColdSensor"><option value='' disabled selected>Loading...</option></select></TD></TR>
+<TR><TD>Hot Sensor </TD><TD><select name="SelHotSensor" id="SelHotSensor"><option value='' disabled selected>Loading...</option></select></TD></TR>
 </TABLE>
 <BR>
 <TABLE class="values_table">
 <tr class="values_header"><td colspan=2>Cooling/Heating</td></tr>
 <tr><TD width=240px, style="line-height: 2;text-align: left">
-    <input name="boxMode" type="radio" value="1" {boxMode_1}> Cooling/Heating<BR>
-    <input name="boxMode" type="radio" value="2" {boxMode_2}> Cooling<BR>
-    <input name="boxMode" type="radio" value="3" {boxMode_3}> Heating<BR>
+    <input name="boxMode" type="radio" value="1"> Cooling/Heating<BR>
+    <input name="boxMode" type="radio" value="2"> Cooling<BR>
+    <input name="boxMode" type="radio" value="3"> Heating<BR>
 </TD>
 <TD rowspan=2>To adjust temperature inside, device can cool or heat air, just cool, or just heat. </TD></tr>
 <TR><TD>&nbsp;</TD><TR>
 </TABLE>
 <BR>
-<script>function NumberChange(n,i){document.getElementById(i).stepUp(n);}</script>
 <TABLE class="values_table">
 <tr class="values_header"><td colspan=4>Voltage change (V/S)</td></tr>
 <tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'VoltChange')">&#171;</button></td>
 <td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
-<input type="number" name="VoltChange" id="VoltChange" class="input" min="0.4" max="25.0" step="0.1" placeholder="V" value="{changeVoltageSpeed}"/></td>
+<input type="number" name="VoltChange" id="VoltChange" class="input" min="0.4" max="25.0" step="0.1" placeholder="V" value="0.4"/></td>
 <td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'VoltChange')">&#187;</button></td>
 <TD rowspan=2>How fast voltage allowed to change inside DC/DC Buck converter. For example, with value 1.0 voltage will rise from 0V to 5V within 5 seconds.</TD></tr>
 <TR><TD colspan=3>&nbsp;</TD><TR>
 <tr class="values_header"><td colspan=4>Minimum Voltage (V)</td></tr>
 <tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'VoltMin')">&#171;</button></td>
 <td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
-<input type="number" name="VoltMin" id="VoltMin" class="input" min="1.0" max="12.0" step="0.1" placeholder="V" value="{minVoltage}"/></td>
+<input type="number" name="VoltMin" id="VoltMin" class="input" min="1.0" max="12.0" step="0.1" placeholder="V" value="2.0"/></td>
 <td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'VoltMin')">&#187;</button></td>
 <TD rowspan=2>Minimum voltage that is allowed for the DC/DC to be during temperature regulation. 0 Also allowed, meaning DC/DC is off.</TD></tr>
 <TR><TD colspan=3>&nbsp;</TD><TR>
 <tr class="values_header"><td colspan=4>Maximum Voltage (V)</td></tr>
 <tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'VoltMax')">&#171;</button></td>
 <td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
-<input type="number" name="VoltMax" id="VoltMax" class="input" min="1.0" max="12.0" step="0.1" placeholder="V" value="{maxVoltage}"/></td>
+<input type="number" name="VoltMax" id="VoltMax" class="input" min="1.0" max="12.0" step="0.1" placeholder="V" value="12.0"/></td>
 <td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'VoltMax')">&#187;</button></td>
 <TD rowspan=2>Maximum voltage that is allowed for the DC/DC to be during temperature regulation.</TD></tr>
 <TR><TD colspan=3>&nbsp;</TD><TR>
@@ -60,7 +60,7 @@
 <TABLE class="values_table">
 <tr class="values_header"><td colspan=2>Dynamic Fan Control</td></tr>
 <tr><TD width=240px, style="line-height: 2;text-align: left">
-<input type="checkbox" name="fanDynamic" id="fanDynamic" {fanDynamic_checked}><label for="fanDynamic"> Enable Dynamic control</label>
+<input type="checkbox" name="fanDynamic" id="fanDynamic"><label for="fanDynamic"> Enable Dynamic control</label>
 </TD>
 <TD rowspan=2>Cooling fan on the top of the fridge can be turned off automatically if radiator is not hot.</TD></tr>
 <TR><TD>&nbsp;</TD><TR>
@@ -77,4 +77,3 @@
 </div>
 </body>
 </html>
-

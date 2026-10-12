@@ -223,6 +223,10 @@ void setup() {
 	httpServer.on("/network_store", handleNetworkStore);
 	httpServer.on("/status", handleStatus);
 	httpServer.on("/ajax", handleStatus);
+	httpServer.on("/api/settings", HTTP_GET, handleApiSettings);
+	httpServer.on("/api/pids", HTTP_GET, handleApiPIDs);
+	httpServer.on("/api/network", HTTP_GET, handleApiNetwork);
+	httpServer.on("/api/debug", HTTP_GET, handleApiDebug);
   
 	handleFSWebServer();
 

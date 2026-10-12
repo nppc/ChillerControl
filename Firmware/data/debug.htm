@@ -4,11 +4,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
 <title>Cooler Box Controller</title>
 <link href="webpage.css" rel="stylesheet" type="text/css">
+<script src="main.js" defer></script>
 </head>
 <body>
 <div class="container">
 <table class="hdr_table">
-<tr><td class="hdr_caption">{Caption}</td>
+<tr><td class="hdr_caption" id="Caption">Debug</td>
 <td class="hdr_logo">
 <div class="hdr_logo_text_short">COOLER</div>
 <div class="hdr_logo_text_long">Peltie Voltage Controller</div>
@@ -16,13 +17,12 @@
 <BR>
 <TABLE class="values_table">
 <TR class="values_header"><TD>Debug Data</TD></TR>
-<TR><TD><pre style="font-family:monospace;text-align:left;">{Debug}</pre></TD></TR>
+<TR><TD><pre id="debugLog" style="font-family:monospace;text-align:left;">Loading...</pre></TD></TR>
 </TABLE>
 <BR>
 <TABLE width="100%">
-<TR><TD><form action="/debug" method="get"><button type="submit" class="btn btn_round">Refresh</button></form></TD></TR>
+<TR><TD><button type="button" id="refreshDebugBtn" class="btn btn_round">Refresh</button></TD></TR>
 </TABLE>
 </div>
 </body>
 </html>
-
