@@ -318,21 +318,18 @@ void processControl() {
 	}
 	analogWrite(HEAT_WIRE, (int)round(setHotPWM));
 
-	int pwmPct = (int)round(setHotPWM * 100.0f / (float)maxHotPWM);
-
 	static int lastLoggedMode = -1;
 	static int lastLoggedSubMode = -1;
 	static bool lastLoggedStopState = false;
 	static bool lastLoggedDemand = false;
 	static float lastLoggedSetVoltage = -1.0f;
-	static int lastLoggedPwmPct = -1;
+	static bool lastLoggedHeating = false;
 
 	bool stateChanged = (boxMode != lastLoggedMode || boxSubMode != lastLoggedSubMode ||
-	                     stopCooler != lastLoggedStopState);
+	                     stopCooler != lastLoggedStopState || isHeating != lastLoggedHeating);
 	bool coolingChanged = (!isHeating && !isStopped && (demand != lastLoggedDemand || setVoltage != lastLoggedSetVoltage));
-	bool heatingChanged = (isHeating && !isStopped && (abs(pwmPct - lastLoggedPwmPct) >= 5 || (lastLoggedPwmPct == -1)));
 
-	if (stateChanged || coolingChanged || heatingChanged) {
+	if (stateChanged || coolingChanged) {
 		String msg;
 		if (isStopped) {
 			msg = F("Cooler stopped: temp=");
@@ -340,13 +337,10 @@ void processControl() {
 			msg += F(" target=");
 			msg += String(dynamicTemp, 2);
 		} else if (isHeating) {
-			msg = F("Heating: temp=");
+			msg = F("Heating is on: temp=");
 			msg += String(boxTemp, 2);
 			msg += F(" target=");
 			msg += String(dynamicTemp, 2);
-			msg += F(" PWM=");
-			msg += pwmPct;
-			msg += F("%");
 		} else {
 			msg = F("Cooling: temp=");
 			msg += String(boxTemp, 2);
@@ -363,7 +357,7 @@ void processControl() {
 		lastLoggedStopState = stopCooler;
 		lastLoggedDemand = demand;
 		lastLoggedSetVoltage = setVoltage;
-		lastLoggedPwmPct = pwmPct;
+		lastLoggedHeating = isHeating;
 	}
 
 	// Send data to IoT
