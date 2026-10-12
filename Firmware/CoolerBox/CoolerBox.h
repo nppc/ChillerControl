@@ -111,7 +111,7 @@ void handleFileDelete();
 void handleFileList();
 void file_download();
 void handleFSWebServer();
-void handleAJAXrequest();
+void handleStatus();
 void handleRoot();
 String ConstructDS18B20list(int idx);
 void handleSettings();

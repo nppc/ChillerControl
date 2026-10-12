@@ -217,7 +217,8 @@ void setup() {
 	httpServer.on("/webpage.css", handleCSS);
 	//httpServer.serveStatic("webpage.css", LittleFS, "/webpage.css");
 	httpServer.on("/network_store", handleNetworkStore);
-	httpServer.on("/ajax", handleAJAXrequest);
+	httpServer.on("/status", handleStatus);
+	httpServer.on("/ajax", handleStatus);
   
 	handleFSWebServer();
 
