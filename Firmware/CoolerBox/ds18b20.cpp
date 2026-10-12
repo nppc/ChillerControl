@@ -15,7 +15,7 @@ enum TempConversionState {
 
 static TempConversionState tempConvState = TEMP_CONV_IDLE;
 static unsigned long tempRequestStartTime = 0;
-const unsigned long TEMP_CONVERSION_DELAY_MS = 800; // DS18B20 12-bit max conversion is 750ms + 50ms margin
+const unsigned long TEMP_CONVERSION_DELAY_MS = 1000; // 1000ms ensures 12-bit conversion completes across all temperatures and clone ICs
 
 // smooth algorithm for ADC reading
 int digitalSmooth(int rawIn, int *sensSmoothArray) {
@@ -58,10 +58,17 @@ int digitalSmooth(int rawIn, int *sensSmoothArray) {
 	return total / k;
 }
 
+static bool firstRequestPending = true;
+static bool boxTempInitialized = false;
+static bool hotTempInitialized = false;
+
 void resetTempConversionState() {
 	tempConvState = TEMP_CONV_IDLE;
 	tempRequestStartTime = 0;
 	millisPIDinterval = millis();
+	firstRequestPending = true;
+	boxTempInitialized = false;
+	hotTempInitialized = false;
 }
 
 void INIT_DS18B20() {
@@ -91,14 +98,46 @@ void INIT_DS18B20() {
 	}
 }
 
+static bool isTemperatureValid(float temp) {
+	return (temp != DEVICE_DISCONNECTED_C && temp > -55.0f && temp < 125.0f);
+}
+
+static float fetchSensorTemperature(int sensorId, const char* sensorName) {
+	float temp = DEVICE_DISCONNECTED_C;
+	if (sensorId >= 0 && sensorId < DS18B20_count) {
+		temp = DS18B20.getTempC(DS18B20_adr[sensorId]);
+	} else {
+		temp = DS18B20.getTempCByIndex(sensorId);
+	}
+
+	if (!isTemperatureValid(temp)) {
+		Debug.addLine(String(F("Notice: ")) + sensorName + F(" sensor read retry"));
+		delay(10);
+		if (sensorId >= 0 && sensorId < DS18B20_count) {
+			temp = DS18B20.getTempC(DS18B20_adr[sensorId]);
+		} else {
+			temp = DS18B20.getTempCByIndex(sensorId);
+		}
+	}
+	return temp;
+}
+
 void readDS18B20Temperatures() {
-	float rawCold = DS18B20.getTempCByIndex(ColdSensorId);
-	float rawHot = DS18B20.getTempCByIndex(HotSensorId);
+	float rawCold = fetchSensorTemperature(ColdSensorId, "Cold");
+	float rawHot = fetchSensorTemperature(HotSensorId, "Hot");
 
 	static bool coldFailLogged = false;
-	if (rawCold != DEVICE_DISCONNECTED_C && rawCold > -55.0f && rawCold < 125.0f) {
+	if (isTemperatureValid(rawCold)) {
 		int tmpT = (int)round(rawCold * 100.0f);
-		boxTemp = (float)digitalSmooth(tmpT, boxTemp_SmoothArray) / 100.0f;
+		if (!boxTempInitialized) {
+			for (int idx = 0; idx < filterSamples; idx++) {
+				boxTemp_SmoothArray[idx] = tmpT;
+			}
+			boxTempInitialized = true;
+			boxTemp = rawCold;
+		} else {
+			boxTemp = (float)digitalSmooth(tmpT, boxTemp_SmoothArray) / 100.0f;
+		}
 		coldFailLogged = false;
 	} else if (!coldFailLogged) {
 		Debug.addLine(F("Warn: Cold sensor read failed"));
@@ -106,9 +145,17 @@ void readDS18B20Temperatures() {
 	}
 
 	static bool hotFailLogged = false;
-	if (rawHot != DEVICE_DISCONNECTED_C && rawHot > -55.0f && rawHot < 125.0f) {
+	if (isTemperatureValid(rawHot)) {
 		int tmpT = (int)round(rawHot * 100.0f);
-		HotTemp = (float)digitalSmooth(tmpT, HotTemp_SmoothArray) / 100.0f;
+		if (!hotTempInitialized) {
+			for (int idx = 0; idx < filterSamples; idx++) {
+				HotTemp_SmoothArray[idx] = tmpT;
+			}
+			hotTempInitialized = true;
+			HotTemp = rawHot;
+		} else {
+			HotTemp = (float)digitalSmooth(tmpT, HotTemp_SmoothArray) / 100.0f;
+		}
 		hotFailLogged = false;
 	} else if (!hotFailLogged) {
 		Debug.addLine(F("Warn: Hot sensor read failed"));
@@ -117,16 +164,17 @@ void readDS18B20Temperatures() {
 }
 
 void primeDS18B20() {
-	for (byte i1 = 0; i1 < filterSamples * 2; i1++) {
-		DS18B20.requestTemperatures();
-		delay(1000);
-		readDS18B20Temperatures();
-	}
+	DS18B20.requestTemperatures();
+	delay(TEMP_CONVERSION_DELAY_MS);
+	readDS18B20Temperatures();
+	firstRequestPending = false;
+	millisPIDinterval = millis();
 }
 
 bool updateDS18B20() {
 	if (tempConvState == TEMP_CONV_IDLE) {
-		if (millis() - millisPIDinterval > (PIDCOMPUTE_INTERVAL * 1000UL)) {
+		if (firstRequestPending || (millis() - millisPIDinterval > (PIDCOMPUTE_INTERVAL * 1000UL))) {
+			firstRequestPending = false;
 			millisPIDinterval = millis();
 			DS18B20.requestTemperatures();
 			tempRequestStartTime = millis();

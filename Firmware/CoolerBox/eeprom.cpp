@@ -92,7 +92,6 @@ bool restoreSettingsFromEEPROM(){
 	}
 
 	applySettings(doc);
-	Debug.addLine(F("Settings restored from EEPROM"));
 	return true;
 }
 

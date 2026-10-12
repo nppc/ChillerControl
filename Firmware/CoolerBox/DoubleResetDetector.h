@@ -7,7 +7,7 @@
 
 class DoubleResetDetector {
 public:
-	DoubleResetDetector(unsigned long timeoutSeconds = 10, uint32_t rtcAddress = 0);
+	DoubleResetDetector(unsigned long timeoutSeconds = 10, uint32_t rtcAddress = 64);
 
 	bool detectDoubleReset();
 	void notifySetupComplete();

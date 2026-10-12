@@ -39,7 +39,7 @@ bool emergencyMode = false;
 const char *ssid = apSSID;
 const char *password = apPassword;
 
-DoubleResetDetector drd(10, 0);
+DoubleResetDetector drd(10, 64);
 
 char IntSSID[20];
 char IntPASS[20];
@@ -53,7 +53,7 @@ int boxSubMode = 3; // 2-Cooling, 3-Heating
 
 // Define a web server at port 80 for HTTP
 ESP8266WebServer httpServer(80);
-ESP8266HTTPUpdateServer httpUpdater;
+ESP8266HTTPUpdateServer httpUpdater(true);
 
 float hotPID_kP=DEFAULT_PID_KP;
 float hotPID_kI=DEFAULT_PID_KI;
@@ -62,6 +62,28 @@ float hotPID_kD=DEFAULT_PID_KD;
 // Create hot PID with default values
 PID hotPID(&(boxTemp), &(setHotPWM), &(dynamicTemp), hotPID_kP, hotPID_kI, hotPID_kD, DIRECT); // no reverse as it works for heating
 
+static bool currentCoolingDemand = false;
+
+static bool evaluateCoolingDemand() {
+	bool isStopped = stopCooler;
+	bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
+
+	if (isStopped || isHeating) {
+		currentCoolingDemand = false;
+	} else {
+		if (!currentCoolingDemand) {
+			if (boxTemp >= (dynamicTemp + DEFAULT_HYSTERESIS)) {
+				currentCoolingDemand = true;
+			}
+		} else {
+			if (boxTemp <= (dynamicTemp - DEFAULT_HYSTERESIS)) {
+				currentCoolingDemand = false;
+			}
+		}
+	}
+	return currentCoolingDemand;
+}
+
 void updateCoolingOutput(bool forceSend, bool sendLimits) {
 	bool isStopped = stopCooler;
 	bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
@@ -69,8 +91,8 @@ void updateCoolingOutput(bool forceSend, bool sendLimits) {
 	if (isStopped || isHeating) {
 		setVoltage = 0.0;
 	} else {
-		bool coolingDemand = (boxTemp >= dynamicTemp);
-		setVoltage = coolingDemand ? maxVoltage : minVoltage;
+		bool demand = evaluateCoolingDemand();
+		setVoltage = demand ? maxVoltage : minVoltage;
 	}
 	sendI2Cdata(forceSend, sendLimits);
 }
@@ -265,13 +287,13 @@ void processControl() {
 
 	bool isStopped = stopCooler;
 	bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
-	bool coolingDemand = (!isStopped && !isHeating) && (boxTemp >= dynamicTemp);
+	bool demand = evaluateCoolingDemand();
 
 	if (isStopped || isHeating) {
 		setVoltage = 0.0;
 	} else {
 		float effectiveMax = flagExtremeTemp ? thermalVoltageCap : maxVoltage;
-		setVoltage = coolingDemand ? effectiveMax : minVoltage;
+		setVoltage = demand ? effectiveMax : minVoltage;
 	}
 
 	static int lastLoggedMode = -1;
@@ -280,20 +302,20 @@ void processControl() {
 	static bool lastLoggedDemand = false;
 	static double lastLoggedSetVoltage = -1.0;
 	if (boxMode != lastLoggedMode || boxSubMode != lastLoggedSubMode ||
-		stopCooler != lastLoggedStopState || coolingDemand != lastLoggedDemand ||
+		stopCooler != lastLoggedStopState || demand != lastLoggedDemand ||
 		setVoltage != lastLoggedSetVoltage) {
 		Debug.addLine(String(F("Cooling decision: mode=")) + boxMode +
 			F(" submode=") + boxSubMode +
 			F(" stopped=") + (isStopped ? F("yes") : F("no")) +
 			F(" heating=") + (isHeating ? F("yes") : F("no")) +
-			F(" temp=") + String(boxTemp, 1) +
-			F(" target=") + String(dynamicTemp, 1) +
-			F(" demand=") + (coolingDemand ? F("ON") : F("OFF")) +
+			F(" temp=") + String(boxTemp, 2) +
+			F(" target=") + String(dynamicTemp, 2) +
+			F(" demand=") + (demand ? F("ON") : F("OFF")) +
 			F(" requested=") + String(setVoltage, 1) + F("V"));
 		lastLoggedMode = boxMode;
 		lastLoggedSubMode = boxSubMode;
 		lastLoggedStopState = stopCooler;
-		lastLoggedDemand = coolingDemand;
+		lastLoggedDemand = demand;
 		lastLoggedSetVoltage = setVoltage;
 	}
 	// we need to send new values to Buck Converter
@@ -341,6 +363,13 @@ void handleTemperatureControl() {
 }
 
 void loop() {
+	if (Update.isRunning()) {
+		drd.stop();
+		httpServer.handleClient();
+		delay(1);
+		return;
+	}
+
 	drd.loop();
 
 	//check connection every 5 minutes
