@@ -216,6 +216,7 @@ void setup() {
 	httpServer.on("/pids", handlePIDs);
 	httpServer.on("/pids_store", handlePIDsStore);
 	httpServer.on("/stop", handleStop);
+	httpServer.on("/start", handleStart);
 	httpServer.on("/network", handleNetwork);
 	httpServer.on("/debug", handleDebug);
 	httpServer.on("/webpage.css", handleCSS);

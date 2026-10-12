@@ -197,6 +197,12 @@ void handleStop() {
 	httpServer.send(302, "text/plain", "");
 }
 
+void handleStart() {
+	setCoolerStopped(LOW);
+	httpServer.sendHeader("Location", String("/"), true);
+	httpServer.send(302, "text/plain", "");
+}
+
 void handleNotFound() {
 	digitalWrite(LED_BUILTIN, LOW);
 	String message = F("File Not Found\n\n");

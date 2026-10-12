@@ -19,7 +19,7 @@ void handleStatus() {
 	doc["boxTemp"] = String(boxTemp, 1);
 	doc["setHotPWM"] = String((int)round(setHotPWM * 100.0f / (float)maxHotPWM)) + "%";
 	doc["stopping"] = stopCooler;
-	doc["setTemp"] = stopCooler ? "Stopping..." : String(setTemp, 1);
+	doc["setTemp"] = String(setTemp, 1);
 	doc["rawSetTemp"] = String(setTemp, 1);
 	doc["Voltage"] = String(measuredVoltage, 1) + "V";
 	doc["Current"] = String(measuredCurrent, 1) + "A";

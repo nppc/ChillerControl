@@ -114,6 +114,7 @@ void handlePIDs();
 void handlePIDsStore();
 void handleSetTemp();
 void handleStop();
+void handleStart();
 void handleNotFound();
 void handleNetwork();
 void handleNetworkStore();

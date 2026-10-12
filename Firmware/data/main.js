@@ -34,10 +34,25 @@ async function updateStatus() {
 
     const setTempEl = document.getElementById('setTemp');
     if (setTempEl && data.setTemp !== undefined) {
+      setTempEl.textContent = data.setTemp;
+    }
+
+    const stopBadge = document.getElementById('stopBadge');
+    if (stopBadge) {
+      stopBadge.style.display = data.stopping ? 'inline' : 'none';
+    }
+
+    const controlBtn = document.getElementById('controlBtn');
+    const controlForm = document.getElementById('controlForm');
+    if (controlBtn && controlForm) {
       if (data.stopping) {
-        setTempEl.innerHTML = "<div style='color:RED;display:inline-block'>Stopping...</div>";
+        controlBtn.textContent = 'START';
+        controlBtn.className = 'btn btn_round btn_green';
+        controlForm.action = '/start';
       } else {
-        setTempEl.textContent = data.setTemp;
+        controlBtn.textContent = 'STOP';
+        controlBtn.className = 'btn btn_round btn_red';
+        controlForm.action = '/stop';
       }
     }
 
@@ -68,13 +83,14 @@ function setupIndexPage() {
     });
   }
 
-  const stopForm = document.getElementById('stopForm');
-  if (stopForm) {
-    stopForm.addEventListener('submit', async (e) => {
+  const controlForm = document.getElementById('controlForm');
+  if (controlForm) {
+    controlForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (!confirm('Stop?')) return;
+      const isStopping = (controlForm.action.indexOf('/stop') >= 0);
+      if (isStopping && !confirm('Stop?')) return;
       try {
-        await fetch('/stop');
+        await fetch(isStopping ? '/stop' : '/start');
         await updateStatus();
       } catch (err) {}
     });
