@@ -85,21 +85,24 @@ void handleRoot() {
 	});
 }
 
-String ConstructDS18B20list(int idx){
+String ConstructDS18B20list(int idx) {
 	uint8_t available = DS18B20_count;
-	String AdrTbl = "";
 	if (available == 0) {
 		return F("<option value='' disabled selected>No sensors detected</option>");
 	}
-	for(uint8_t x=0; x < available; x++){
-		AdrTbl += F("<option value='");
-		AdrTbl += String(x) + "' " + (idx==x ? "selected" : "") + ">";
+	String AdrTbl;
+	AdrTbl.reserve(available * 96);
+	for (uint8_t x = 0; x < available; x++) {
+		char hexAddr[17];
 		for (uint8_t i = 0; i < 8; i++) {
-			if (DS18B20_adr[x][i] < 16) AdrTbl += "0";
-			AdrTbl += String(DS18B20_adr[x][i], HEX);
+			snprintf(&hexAddr[i * 2], 3, "%02X", DS18B20_adr[x][i]);
 		}
-		AdrTbl += " = " + String(DS18B20.getTempC(DS18B20_adr[x]),2);
-		AdrTbl += F("&deg; C</option>");
+		hexAddr[16] = '\0';
+
+		char line[110];
+		snprintf(line, sizeof(line), "<option value='%u'%s>%s = %.2f&deg; C</option>",
+		         x, (idx == x ? " selected" : ""), hexAddr, DS18B20.getTempC(DS18B20_adr[x]));
+		AdrTbl += line;
 	}
 	return AdrTbl;
 }	

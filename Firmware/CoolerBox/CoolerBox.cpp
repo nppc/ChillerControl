@@ -5,22 +5,22 @@ DebugHTML Debug;
 bool flagExtremeTemp = LOW;
 float maxVoltage_backup; // backup original value
 
-double boxTemp = 0.0;	// current measured temperature inside the box
-double HotTemp = 0.0;	// current measured temperature of hot radiator
-double setTemp = 19.0;	// preset temperature
-double dynamicTemp = 19.0; // The option to adjust setTemp dynamically
+float boxTemp = 0.0f;	// current measured temperature inside the box
+float HotTemp = 0.0f;	// current measured temperature of hot radiator
+float setTemp = 19.0f;	// preset temperature
+float dynamicTemp = 19.0f; // The option to adjust setTemp dynamically
 #if ENABLE_ISPINDEL_DYNAMIC_TEMP
-double iSpindelTemperature = 0.0;
-float dynamicTempDiffCoeff = 2.0;
+float iSpindelTemperature = 0.0f;
+float dynamicTempDiffCoeff = 2.0f;
 #endif
-double setVoltage = 0.0;
+float setVoltage = 0.0f;
 float changeVoltageSpeed = 0.4f; 
 float minVoltage = 2.0f; 
 float maxVoltage = 12.0f; 
 float measuredVoltage = 0.0f; 
 float measuredCurrent = 0.0f; 
 bool stopCooler = LOW;
-double setHotPWM=0.0; // initially off
+float setHotPWM = 0.0f; // initially off
 int maxHotPWM = MAXIMUM_PWM_HOT_WIRE; 
 
 unsigned long millisPIDinterval;
@@ -58,8 +58,12 @@ float hotPID_kP=DEFAULT_PID_KP;
 float hotPID_kI=DEFAULT_PID_KI;
 float hotPID_kD=DEFAULT_PID_KD;
 
+static double pidInput = 0.0;
+static double pidOutput = 0.0;
+static double pidSetpoint = 0.0;
+
 // Create hot PID with default values
-PID hotPID(&(boxTemp), &(setHotPWM), &(dynamicTemp), hotPID_kP, hotPID_kI, hotPID_kD, DIRECT); // no reverse as it works for heating
+PID hotPID(&pidInput, &pidOutput, &pidSetpoint, hotPID_kP, hotPID_kI, hotPID_kD, DIRECT); // no reverse as it works for heating
 
 static bool currentCoolingDemand = false;
 
@@ -88,7 +92,7 @@ void updateCoolingOutput(bool forceSend, bool sendLimits) {
 	bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
 
 	if (isStopped || isHeating) {
-		setVoltage = 0.0;
+		setVoltage = 0.0f;
 	} else {
 		bool demand = evaluateCoolingDemand();
 		setVoltage = demand ? maxVoltage : minVoltage;
@@ -246,20 +250,21 @@ void setup() {
 
 void processControl() {
 #if ENABLE_ISPINDEL_DYNAMIC_TEMP
-	if (iSpindelTemperature > 0) {
+	if (iSpindelTemperature > 0.0f) {
 		dynamicTemp = setTemp + ((setTemp - iSpindelTemperature) * dynamicTempDiffCoeff);
 	}
 #endif
 	// should we swithc boxSubMode?
 	if(boxMode==1){
 		if(boxSubMode==2){ //Cooling
-			if(boxTemp<(dynamicTemp-0.5)){
+			if(boxTemp<(dynamicTemp-0.5f)){
 				boxSubMode=3;	// Switch to heating mode
 			}
 		}else{
-			if(boxTemp>(dynamicTemp+0.5)){
+			if(boxTemp>(dynamicTemp+0.5f)){
 				boxSubMode=2;	// Switch to cooling mode
-				setHotPWM = 0.0;
+				setHotPWM = 0.0f;
+				pidOutput = 0.0;
 			}
 		}
 	}
@@ -291,7 +296,7 @@ void processControl() {
 	bool demand = evaluateCoolingDemand();
 
 	if (isStopped || isHeating) {
-		setVoltage = 0.0;
+		setVoltage = 0.0f;
 	} else {
 		float effectiveMax = flagExtremeTemp ? thermalVoltageCap : maxVoltage;
 		setVoltage = demand ? effectiveMax : minVoltage;
@@ -301,7 +306,7 @@ void processControl() {
 	static int lastLoggedSubMode = -1;
 	static bool lastLoggedStopState = false;
 	static bool lastLoggedDemand = false;
-	static double lastLoggedSetVoltage = -1.0;
+	static float lastLoggedSetVoltage = -1.0f;
 	if (boxMode != lastLoggedMode || boxSubMode != lastLoggedSubMode ||
 		stopCooler != lastLoggedStopState || demand != lastLoggedDemand ||
 		setVoltage != lastLoggedSetVoltage) {
@@ -321,22 +326,18 @@ void processControl() {
 	}
 	// we need to send new values to Buck Converter
 	sendI2Cdata();
-	if((boxMode==3 && measuredVoltage<3.0) || (boxMode==1 && boxSubMode==3)){ // make sure that peltie is not taking much current
-/*
-		// Prevent I windup at edge values
-		if((setHotPWM==maxHotPWM || setHotPWM==0.0) && hotPID.GetKi()!=0.0){
-			hotPID.SetTunings(hotPID_kP, 0.0, hotPID_kD);
-		}else if((setHotPWM!=maxHotPWM && setHotPWM!=0.0) && hotPID.GetKi()==0.0){
-			hotPID.SetTunings(hotPID_kP, hotPID_kI, hotPID_kD);
-		}
-*/
+	if((boxMode==3 && measuredVoltage<3.0f) || (boxMode==1 && boxSubMode==3)){ // make sure that peltie is not taking much current
 		// now compute PID
+		pidInput = boxTemp;
+		pidSetpoint = dynamicTemp;
 		hotPID.Compute();
+		setHotPWM = (float)pidOutput;
 	}else{
 		//make sure heater is off
-		setHotPWM = 0.0;
+		setHotPWM = 0.0f;
+		pidOutput = 0.0;
 	}      
-	analogWrite(HEAT_WIRE, setHotPWM);
+	analogWrite(HEAT_WIRE, (int)round(setHotPWM));
 
 	// Send data to IoT
 	if(!emergencyMode && (millis()-millisSendDataInterval>static_cast<unsigned long>(sendInterval) * 1000UL)){
@@ -349,9 +350,9 @@ void processControl() {
 		// Also check if heating is on, then Fan should be off
 		digitalWrite(HOT_FAN, (boxMode==3 || (boxMode==1 && boxSubMode==3) ? LOW : HIGH));	// Fan is OFF when heating.
 	}else{
-		if(HotTemp>=32.0 && digitalRead(HOT_FAN)==LOW){
+		if(HotTemp>=32.0f && digitalRead(HOT_FAN)==LOW){
 			digitalWrite(HOT_FAN, HIGH);
-		}else if(HotTemp<=24.0 && digitalRead(HOT_FAN)==HIGH){
+		}else if(HotTemp<=24.0f && digitalRead(HOT_FAN)==HIGH){
 			digitalWrite(HOT_FAN, LOW);
 		}		
 	}
@@ -391,7 +392,7 @@ void loop() {
 		readI2Cdata();
 	}
 	
-	if(measuredVoltage<2.0){
+	if(measuredVoltage<2.0f){
 		digitalWrite(LED_WARN, LOW);
 	}else{
 		digitalWrite(LED_WARN, HIGH);

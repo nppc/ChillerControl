@@ -32,10 +32,10 @@ void sendI2Cdata(bool force, bool sendLimits) {
 	static uint8_t lastSentMinVoltCommand = 0xFF;
 	static uint8_t lastSentMaxVoltCommand = 0xFF;
 
-	const uint8_t voltageCommand = static_cast<uint8_t>(setVoltage * 10.0);
-	const uint8_t speedCommand = static_cast<uint8_t>(changeVoltageSpeed * 10.0);
-	const uint8_t minVoltCommand = static_cast<uint8_t>(minVoltage * 10.0);
-	const uint8_t maxVoltCommand = static_cast<uint8_t>(maxVoltage * 10.0);
+	const uint8_t voltageCommand = static_cast<uint8_t>(setVoltage * 10.0f);
+	const uint8_t speedCommand = static_cast<uint8_t>(changeVoltageSpeed * 10.0f);
+	const uint8_t minVoltCommand = static_cast<uint8_t>(minVoltage * 10.0f);
+	const uint8_t maxVoltCommand = static_cast<uint8_t>(maxVoltage * 10.0f);
 
 	bool limitsChanged = (speedCommand != lastSentSpeedCommand ||
 	                      minVoltCommand != lastSentMinVoltCommand ||
