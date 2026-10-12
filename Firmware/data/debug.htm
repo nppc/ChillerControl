@@ -17,12 +17,23 @@
 </td></tr></table>
 <BR>
 <TABLE class="values_table">
-<TR class="values_header"><TD>Debug Data</TD></TR>
-<TR><TD><pre id="debugLog" style="font-family:monospace;text-align:left;">Loading...</pre></TD></TR>
+<TR class="values_header"><TD colspan=2>Diagnostics</TD></TR>
+<TR><TD style="text-align:left; font-weight:bold;">Free RAM</TD><TD style="text-align:right;" id="freeHeap">--</TD></TR>
+<TR><TD style="text-align:left; font-weight:bold;">Wi-Fi Signal (RSSI)</TD><TD style="text-align:right;" id="wifiRssi">--</TD></TR>
+<TR><TD style="text-align:left; font-weight:bold;">I2C Buck Converter</TD><TD style="text-align:right;" id="i2cStatus">--</TD></TR>
+<TR><TD style="text-align:left; font-weight:bold;">Reset Reason</TD><TD style="text-align:right;" id="resetReason">--</TD></TR>
+<TR><TD style="text-align:left; font-weight:bold;">Sensors Found</TD><TD style="text-align:right;" id="sensorCount">--</TD></TR>
+<TR><TD style="text-align:left; font-weight:bold;">Uptime</TD><TD style="text-align:right;" id="dbgUptime">--</TD></TR>
+</TABLE>
+<BR>
+<TABLE class="values_table">
+<TR class="values_header"><TD>Debug Log</TD></TR>
+<TR><TD><pre id="debugLog" style="font-family:monospace;text-align:left;overflow-x:auto;">Loading...</pre></TD></TR>
 </TABLE>
 <BR>
 <TABLE width="100%">
-<TR><TD><button type="button" id="refreshDebugBtn" class="btn btn_round">Refresh</button></TD></TR>
+<TR><TD><button type="button" id="refreshDebugBtn" class="btn btn_round">Refresh</button></TD>
+<TD><form action="/" method="get"><button type="submit" class="btn btn_round">Main Page</button></form></TD></TR>
 </TABLE>
 </div>
 </body>

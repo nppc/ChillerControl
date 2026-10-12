@@ -194,8 +194,18 @@ async function fetchDebug() {
     if (!res.ok) return;
     const data = await res.json();
 
-    const capEl = document.getElementById('Caption');
-    if (capEl && data.Caption) capEl.textContent = data.Caption;
+    const setIf = (id, val) => {
+      const el = document.getElementById(id);
+      if (el && val !== undefined) el.textContent = val;
+    };
+
+    setIf('Caption', data.Caption);
+    setIf('freeHeap', data.freeHeap);
+    setIf('wifiRssi', data.wifiRssi);
+    setIf('i2cStatus', data.i2cStatus);
+    setIf('resetReason', data.resetReason);
+    setIf('sensorCount', data.sensorCount);
+    setIf('dbgUptime', data.uptime);
 
     const debugLog = document.getElementById('debugLog');
     if (debugLog && data.debug !== undefined) debugLog.innerHTML = data.debug;
@@ -204,6 +214,10 @@ async function fetchDebug() {
 
 function setupDebugPage() {
   fetchDebug();
+  setInterval(() => {
+    if (!document.hidden) fetchDebug();
+  }, 5000);
+
   const refreshBtn = document.getElementById('refreshDebugBtn');
   if (refreshBtn) {
     refreshBtn.addEventListener('click', (e) => {
