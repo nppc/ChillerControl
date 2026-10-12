@@ -8,12 +8,14 @@
 #include <OneWire.h>
 #include <Wire.h>
 #include <DallasTemperature.h>
-#include <PID_v1.h>
+#include <QuickPID.h>
 #include <ArduinoJson.h>
 #include <EEPROM.h>
 #include <LittleFS.h>
 
 #include "Globals.h"
+#include "HeatingControl.h"
+#include "CoolingControl.h"
 #include "DebugHTML.h"
 #include "DoubleResetDetector.h"
 
@@ -29,8 +31,6 @@ extern DebugHTML Debug;
 
 extern bool I2C_PRESENT;
 extern uint8_t i2c_data[I2C_DATALEN];
-extern bool flagExtremeTemp;
-extern float maxVoltage_backup;
 extern float boxTemp;
 extern float HotTemp;
 extern float setTemp;
@@ -39,16 +39,9 @@ extern float dynamicTemp;
 extern float iSpindelTemperature;
 extern float dynamicTempDiffCoeff;
 #endif
-extern float setVoltage;
-extern float changeVoltageSpeed;
-extern float minVoltage;
-extern float maxVoltage;
 extern byte i2c_PWM_value;
 extern float measuredVoltage;
 extern float measuredCurrent;
-extern bool stopCooler;
-extern float setHotPWM;
-extern int maxHotPWM;
 extern OneWire oneWire;
 extern DallasTemperature DS18B20;
 extern DeviceAddress DS18B20_adr[2];
@@ -80,10 +73,6 @@ extern ESP8266WebServer httpServer;
 void handleUpdate();
 void handleUpdateUpload();
 void handleUpdateResult();
-extern float hotPID_kP;
-extern float hotPID_kI;
-extern float hotPID_kD;
-extern PID hotPID;
 
 int digitalSmooth(int rawIn, int *sensSmoothArray);
 void INIT_DS18B20();
@@ -98,8 +87,6 @@ void initDefaultSettings();
 void restoreSettings();
 bool restoreSettingsFromEEPROM();
 void saveSettings();
-void setCoolerStopped(bool stopped);
-void updateCoolingOutput(bool forceSend = false, bool sendLimits = false);
 void initI2C();
 void sendI2Cdata(bool force = false, bool sendLimits = false);
 void readI2Cdata();
@@ -121,6 +108,8 @@ void handleNetworkStore();
 void handleDebug();
 void handleApiSettings();
 void handleApiPIDs();
+void handleAutotune();
+void handleApiAutotune();
 void handleApiNetwork();
 void handleApiDebug();
 void handleCSS();

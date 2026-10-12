@@ -45,6 +45,7 @@ void applySettings(JsonDocument &doc) {
 	hotPID_kP = doc["hotPID_kP"];
 	hotPID_kI = doc["hotPID_kI"];
 	hotPID_kD = doc["hotPID_kD"];
+	setHeatingTunings(hotPID_kP, hotPID_kI, hotPID_kD);
 	ColdSensorId = doc["ColdSensorId"];
 	HotSensorId = doc["HotSensorId"];
 	fanDynamic_checked = doc["fanDynamic_checked"];
@@ -110,6 +111,7 @@ void initDefaultSettings() {
 	hotPID_kP = DEFAULT_PID_KP;
 	hotPID_kI = DEFAULT_PID_KI;
 	hotPID_kD = DEFAULT_PID_KD;
+	setHeatingTunings(hotPID_kP, hotPID_kI, hotPID_kD);
 	ColdSensorId = 0;
 	HotSensorId = 0;
 	fanDynamic_checked = 0;

@@ -195,9 +195,65 @@ void handlePIDsStore() {
 			}
 		}
 	}
-	hotPID.SetTunings(hotPID_kP, hotPID_kI, hotPID_kD);
+	setHeatingTunings(hotPID_kP, hotPID_kI, hotPID_kD);
 	saveSettings();
 
+	httpServer.sendHeader("Location", String("/pids"), true);
+	httpServer.send(302, "text/plain", "");
+}
+
+void handleApiAutotune() {
+	if (httpServer.method() == HTTP_POST) {
+		String action = httpServer.arg("action");
+		if (action == "start") {
+			float target = httpServer.hasArg("targetTemp") ? httpServer.arg("targetTemp").toFloat() : setTemp;
+			float pwm = httpServer.hasArg("testPWM") ? httpServer.arg("testPWM").toFloat() : 500.0f;
+			float noise = httpServer.hasArg("noiseBand") ? httpServer.arg("noiseBand").toFloat() : 0.25f;
+			int cyc = httpServer.hasArg("cycles") ? httpServer.arg("cycles").toInt() : 4;
+			startHeatingAutoTune(target, pwm, noise, cyc);
+		} else if (action == "stop") {
+			stopHeatingAutoTune();
+		}
+	}
+
+	AutoTuneStatus st = getHeatingAutoTuneStatus();
+	JsonDocument doc;
+	doc["active"] = isHeatingAutoTuning();
+	doc["state"] = static_cast<int>(st.state);
+
+	const char *stateStr = "IDLE";
+	if (st.state == AutoTuneState::WARMING_UP) stateStr = "WARMING_UP";
+	else if (st.state == AutoTuneState::CYCLING) stateStr = "CYCLING";
+	else if (st.state == AutoTuneState::COMPLETED) stateStr = "COMPLETED";
+	else if (st.state == AutoTuneState::FAILED) stateStr = "FAILED";
+
+	doc["stateStr"] = stateStr;
+	doc["cycle"] = st.currentCycle;
+	doc["targetCycles"] = st.targetCycles;
+	doc["targetTemp"] = st.targetTemp;
+	doc["currentTemp"] = st.currentTemp;
+	doc["peakTemp"] = st.peakTemp;
+	doc["valleyTemp"] = st.valleyTemp;
+	doc["calculatedKp"] = st.calculatedKp;
+	doc["calculatedKi"] = st.calculatedKi;
+	doc["calculatedKd"] = st.calculatedKd;
+	doc["message"] = st.message;
+
+	String json;
+	serializeJson(doc, json);
+	httpServer.send(200, "application/json", json);
+}
+
+void handleAutotune() {
+	if (httpServer.hasArg("action")) {
+		String action = httpServer.arg("action");
+		if (action == "start") {
+			float target = httpServer.hasArg("targetTemp") ? httpServer.arg("targetTemp").toFloat() : setTemp;
+			startHeatingAutoTune(target);
+		} else if (action == "stop") {
+			stopHeatingAutoTune();
+		}
+	}
 	httpServer.sendHeader("Location", String("/pids"), true);
 	httpServer.send(302, "text/plain", "");
 }

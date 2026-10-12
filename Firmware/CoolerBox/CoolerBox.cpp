@@ -2,9 +2,6 @@
 
 DebugHTML Debug;
 
-bool flagExtremeTemp = LOW;
-float maxVoltage_backup; // backup original value
-
 float boxTemp = 0.0f;	// current measured temperature inside the box
 float HotTemp = 0.0f;	// current measured temperature of hot radiator
 float setTemp = 19.0f;	// preset temperature
@@ -13,15 +10,8 @@ float dynamicTemp = 19.0f; // The option to adjust setTemp dynamically
 float iSpindelTemperature = 0.0f;
 float dynamicTempDiffCoeff = 2.0f;
 #endif
-float setVoltage = 0.0f;
-float changeVoltageSpeed = 0.4f; 
-float minVoltage = 2.0f; 
-float maxVoltage = 12.0f; 
 float measuredVoltage = 0.0f; 
 float measuredCurrent = 0.0f; 
-bool stopCooler = LOW;
-float setHotPWM = 0.0f; // initially off
-int maxHotPWM = MAXIMUM_PWM_HOT_WIRE; 
 
 unsigned long millisPIDinterval;
 unsigned long millisSendDataInterval;
@@ -30,7 +20,6 @@ unsigned long millisWIFIcheckInterval;
 
 int ColdSensorId = 0;
 int HotSensorId = 0; 
-
 
 // Default IP in AP mode is 192.168.4.1
 char apSSID[33] = "Cooler";
@@ -54,73 +43,16 @@ int boxSubMode = 3; // 2-Cooling, 3-Heating
 // Define a web server at port 80 for HTTP
 ESP8266WebServer httpServer(80);
 
-float hotPID_kP=DEFAULT_PID_KP;
-float hotPID_kI=DEFAULT_PID_KI;
-float hotPID_kD=DEFAULT_PID_KD;
-
-static double pidInput = 0.0;
-static double pidOutput = 0.0;
-static double pidSetpoint = 0.0;
-
-// Create hot PID with default values
-PID hotPID(&pidInput, &pidOutput, &pidSetpoint, hotPID_kP, hotPID_kI, hotPID_kD, DIRECT); // no reverse as it works for heating
-
-static bool currentCoolingDemand = false;
-
-static bool evaluateCoolingDemand() {
-	bool isStopped = stopCooler;
-	bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
-
-	if (isStopped || isHeating) {
-		currentCoolingDemand = false;
-	} else {
-		if (!currentCoolingDemand) {
-			if (boxTemp >= (dynamicTemp + DEFAULT_HYSTERESIS)) {
-				currentCoolingDemand = true;
-			}
-		} else {
-			if (boxTemp <= (dynamicTemp - DEFAULT_HYSTERESIS)) {
-				currentCoolingDemand = false;
-			}
-		}
-	}
-	return currentCoolingDemand;
-}
-
-void updateCoolingOutput(bool forceSend, bool sendLimits) {
-	bool isStopped = stopCooler;
-	bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
-
-	if (isStopped || isHeating) {
-		setVoltage = 0.0f;
-	} else {
-		bool demand = evaluateCoolingDemand();
-		setVoltage = demand ? maxVoltage : minVoltage;
-	}
-	sendI2Cdata(forceSend, sendLimits);
-}
-
-void setCoolerStopped(bool stopped) {
-	if (stopCooler == stopped) {
-		return;
-	}
-	stopCooler = stopped;
-	updateCoolingOutput();
-	Debug.addLine(stopped ? F("Cooler stopped") : F("Cooler resumed"));
-}
-
 void setup() {
-	pinMode (HOT_FAN, OUTPUT);
-  pinMode (HEAT_WIRE, OUTPUT);
+	pinMode(HOT_FAN, OUTPUT);
+	digitalWrite(HOT_FAN, HIGH);
+	pinMode(LED_WARN, OUTPUT);
+	digitalWrite(LED_WARN, LOW);
 
-  analogWriteFreq(100); // 100hz for heating
-  analogWrite(HEAT_WIRE, 0);
-  
-	digitalWrite (HOT_FAN, HIGH);
-	pinMode (LED_WARN, OUTPUT);
-	digitalWrite (LED_WARN, LOW);
+	initHeating();
+	initCooling();
 
-  Debug.init();
+	Debug.init();
 
 	drd.detectDoubleReset();
 	emergencyMode = drd.isDoubleResetDetected();
@@ -228,6 +160,10 @@ void setup() {
 	httpServer.on("/api/pids", HTTP_GET, handleApiPIDs);
 	httpServer.on("/api/network", HTTP_GET, handleApiNetwork);
 	httpServer.on("/api/debug", HTTP_GET, handleApiDebug);
+	httpServer.on("/autotune", HTTP_GET, handleAutotune);
+	httpServer.on("/autotune", HTTP_POST, handleAutotune);
+	httpServer.on("/api/autotune", HTTP_GET, handleApiAutotune);
+	httpServer.on("/api/autotune", HTTP_POST, handleApiAutotune);
   
 	handleFSWebServer();
 
@@ -245,10 +181,6 @@ void setup() {
 
     millisPIDinterval=millis();
     resetTempConversionState();
-	
-  hotPID.SetOutputLimits(0, maxHotPWM);  // same limits for hot wire PWM
-  hotPID.SetMode(AUTOMATIC);
-  hotPID.SetTunings(hotPID_kP, hotPID_kI, hotPID_kD);
 
   drd.notifySetupComplete();
 }
@@ -259,66 +191,57 @@ void processControl() {
 		dynamicTemp = setTemp + ((setTemp - iSpindelTemperature) * dynamicTempDiffCoeff);
 	}
 #endif
-	// should we swithc boxSubMode?
-	if(boxMode==1){
-		if(boxSubMode==2){ //Cooling
-			if(boxTemp<(dynamicTemp-0.5f)){
-				boxSubMode=3;	// Switch to heating mode
-			}
-		}else{
-			if(boxTemp>(dynamicTemp+0.5f)){
-				boxSubMode=2;	// Switch to cooling mode
-				setHotPWM = 0.0f;
-				pidOutput = 0.0;
-			}
-		}
-	}
-	
-	static float thermalVoltageCap = 12.0f;
-	if (boxMode != 3) {
-		// Cooler routines
-		// If radiator is very hot, reduce operating voltage without modifying configuration limits.
-		if (HotTemp >= RADIATOR_EXTREME_TEMP && !flagExtremeTemp) {
-			flagExtremeTemp = HIGH;
-			thermalVoltageCap = maxVoltage;
-		}
-		if (flagExtremeTemp) {
-			thermalVoltageCap += (HotTemp >= RADIATOR_EXTREME_TEMP ? -0.1f : 0.1f); // change voltage slowly to avoid spikes
-			if (thermalVoltageCap > maxVoltage) { thermalVoltageCap = maxVoltage; }
-			if (thermalVoltageCap < minVoltage) { thermalVoltageCap = minVoltage; }
-			if (HotTemp < RADIATOR_EXTREME_TEMP && thermalVoltageCap >= maxVoltage) {
-				flagExtremeTemp = LOW;
-				thermalVoltageCap = maxVoltage;
-			}
-		}
-	} else {
-		flagExtremeTemp = LOW;
-		thermalVoltageCap = maxVoltage;
+
+	// Autotune mode override
+	if (isHeatingAutoTuning()) {
+		processCooling(boxTemp, HotTemp, dynamicTemp, false); // cooling disabled
+		processHeating(boxTemp, dynamicTemp, true);
+		digitalWrite(HOT_FAN, LOW); // Fan is always OFF during heating autotune
+		return;
 	}
 
-	bool isStopped = stopCooler;
+	// Automatic switchover between cooling and heating in Dual Mode (boxMode == 1)
+	if (boxMode == 1) {
+		if (boxSubMode == 2) { // Currently Cooling
+			if (boxTemp < (dynamicTemp - 0.5f)) {
+				boxSubMode = 3;	// Switch to heating mode
+			}
+		} else { // Currently Heating
+			if (boxTemp > (dynamicTemp + 0.5f)) {
+				boxSubMode = 2;	// Switch to cooling mode
+			}
+		}
+	}
+
+	bool isStopped = isCoolerStopped();
 	bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
-	bool demand = evaluateCoolingDemand();
+	bool isCooling = !isHeating && !isStopped;
 
-	if (isStopped || isHeating) {
-		setVoltage = 0.0f;
-	} else {
-		float effectiveMax = flagExtremeTemp ? thermalVoltageCap : maxVoltage;
-		setVoltage = demand ? effectiveMax : minVoltage;
+	// Reset PID memory whenever transitioning into Heating mode to eliminate stale memory and prevent windups
+	static bool wasHeating = false;
+	static bool wasStopped = true;
+	static int lastSubMode = -1;
+
+	bool enteredHeating = (!wasHeating && isHeating && !isStopped) ||
+	                      (wasStopped && !isStopped && isHeating) ||
+	                      (boxSubMode == 3 && lastSubMode != 3 && !isStopped);
+	if (enteredHeating) {
+		resetHeatingPID();
+		Debug.addLine(F("Switched to Heating: PID memory fully reset"));
 	}
-	sendI2Cdata();
+	wasHeating = isHeating;
+	wasStopped = isStopped;
+	lastSubMode = boxSubMode;
 
-	if (!isStopped && ((boxMode == 3 && measuredVoltage < 3.0f) || (boxMode == 1 && boxSubMode == 3))) {
-		pidInput = boxTemp;
-		pidSetpoint = dynamicTemp;
-		hotPID.Compute();
-		setHotPWM = (float)pidOutput;
-	} else {
-		setHotPWM = 0.0f;
-		pidOutput = 0.0;
-	}
-	analogWrite(HEAT_WIRE, (int)round(setHotPWM));
+	// Execute separated cooling logic
+	processCooling(boxTemp, HotTemp, dynamicTemp, isCooling);
 
+	// Execute separated heating logic
+	// In heating-only mode (boxMode == 3), wait for buck converter voltage to be < 3.0V before powering heat wire
+	bool heatingAllowed = !isStopped && ((boxMode == 3 && measuredVoltage < 3.0f) || (boxMode == 1 && boxSubMode == 3));
+	processHeating(boxTemp, dynamicTemp, isHeating && heatingAllowed);
+
+	// Log control state changes
 	static int lastLoggedMode = -1;
 	static int lastLoggedSubMode = -1;
 	static bool lastLoggedStopState = false;
@@ -326,8 +249,9 @@ void processControl() {
 	static float lastLoggedSetVoltage = -1.0f;
 	static bool lastLoggedHeating = false;
 
+	bool demand = isCoolingDemanded();
 	bool stateChanged = (boxMode != lastLoggedMode || boxSubMode != lastLoggedSubMode ||
-	                     stopCooler != lastLoggedStopState || isHeating != lastLoggedHeating);
+	                     isStopped != lastLoggedStopState || isHeating != lastLoggedHeating);
 	bool coolingChanged = (!isHeating && !isStopped && (demand != lastLoggedDemand || setVoltage != lastLoggedSetVoltage));
 
 	if (stateChanged || coolingChanged) {
@@ -355,28 +279,29 @@ void processControl() {
 
 		lastLoggedMode = boxMode;
 		lastLoggedSubMode = boxSubMode;
-		lastLoggedStopState = stopCooler;
+		lastLoggedStopState = isStopped;
 		lastLoggedDemand = demand;
 		lastLoggedSetVoltage = setVoltage;
 		lastLoggedHeating = isHeating;
 	}
 
 	// Send data to IoT
-	if(!emergencyMode && (millis()-millisSendDataInterval>static_cast<unsigned long>(sendInterval) * 1000UL)){
+	if (!emergencyMode && (millis() - millisSendDataInterval > static_cast<unsigned long>(sendInterval) * 1000UL)) {
 		millisSendDataInterval = millis();
 		sendTelemetry();
-	}		
-	// control Fan
-	if(HotSensorId==ColdSensorId || fanDynamic_checked==0){
-		// Fan always ON if only one temperature sensor detected or Dynamic control is disabled
-		// Also check if heating is on, then Fan should be off
-		digitalWrite(HOT_FAN, (boxMode==3 || (boxMode==1 && boxSubMode==3) ? LOW : HIGH));	// Fan is OFF when heating.
-	}else{
-		if(HotTemp>=32.0f && digitalRead(HOT_FAN)==LOW){
+	}
+
+	// Control Fan
+	if (isHeating) {
+		digitalWrite(HOT_FAN, LOW); // Fan is always OFF when heating
+	} else if (HotSensorId == ColdSensorId || fanDynamic_checked == 0) {
+		digitalWrite(HOT_FAN, HIGH);
+	} else {
+		if (HotTemp >= 32.0f && digitalRead(HOT_FAN) == LOW) {
 			digitalWrite(HOT_FAN, HIGH);
-		}else if(HotTemp<=24.0f && digitalRead(HOT_FAN)==HIGH){
+		} else if (HotTemp <= 24.0f && digitalRead(HOT_FAN) == HIGH) {
 			digitalWrite(HOT_FAN, LOW);
-		}		
+		}
 	}
 }
 

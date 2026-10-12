@@ -41,6 +41,21 @@
 <TR><TD><button type="submit" class="btn btn_round">Save PIDs</button></TD></TR>
 </TABLE>
 </form>
+<BR>
+<div style="border: 1px solid #DDDDDD; padding: 10px; margin-top: 15px; background: #fff;">
+<div class="values_header" style="margin: -10px -10px 10px -10px; padding: 8px;">Heating Autotune (Relay / Tyreus-Luyben)</div>
+<table style="width: 100%; margin-bottom: 10px;">
+<tr>
+  <td style="text-align: left; padding: 5px;">Target Temp (&deg;C):</td>
+  <td style="text-align: right; padding: 5px;">
+    <input type="number" id="atTargetTemp" class="input" min="5.0" max="40.0" step="0.5" value="20.0" style="width: 80px; text-align: center;" />
+  </td>
+</tr>
+</table>
+<button type="button" id="btnAutotune" class="btn btn_round btn_green" onclick="toggleAutotune()">Start Autotune</button>
+<div id="atStatusBox" style="margin-top: 10px; font-size: 14px; text-align: center; color: #333;">Status: Idle</div>
+<div id="atDetailsBox" style="margin-top: 5px; font-size: 12px; text-align: center; color: #666;"></div>
+</div>
 </div>
 </body>
 </html>

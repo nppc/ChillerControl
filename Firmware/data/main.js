@@ -181,6 +181,78 @@ async function setupSettingsPage() {
   } catch (e) {}
 }
 
+let autotuneTimer = null;
+let isAutotuning = false;
+
+async function pollAutotuneStatus() {
+  try {
+    const res = await fetch('/api/autotune');
+    if (!res.ok) return;
+    const data = await res.json();
+
+    const btn = document.getElementById('btnAutotune');
+    const statusBox = document.getElementById('atStatusBox');
+    const detailsBox = document.getElementById('atDetailsBox');
+
+    isAutotuning = data.active;
+    if (btn) {
+      if (data.active) {
+        btn.textContent = 'Stop Autotune';
+        btn.className = 'btn btn_round btn_red';
+      } else {
+        btn.textContent = 'Start Autotune';
+        btn.className = 'btn btn_round btn_green';
+      }
+    }
+
+    if (statusBox) {
+      statusBox.textContent = `Status: ${data.message || data.stateStr}`;
+    }
+
+    if (detailsBox) {
+      if (data.active) {
+        detailsBox.textContent = `Cycle ${data.cycle}/${data.targetCycles} | Temp: ${data.currentTemp.toFixed(2)}\u00B0C (Pk: ${data.peakTemp.toFixed(2)}\u00B0C, Vl: ${data.valleyTemp.toFixed(2)}\u00B0C)`;
+      } else if (data.calculatedKp > 0) {
+        detailsBox.textContent = `Calculated: Kp=${data.calculatedKp.toFixed(2)}, Ki=${data.calculatedKi.toFixed(4)}, Kd=${data.calculatedKd.toFixed(2)}`;
+        const setIf = (id, val) => {
+          const el = document.getElementById(id);
+          if (el && val !== undefined) el.value = val;
+        };
+        setIf('hotPID_kP', data.calculatedKp.toFixed(1));
+        setIf('hotPID_kI', data.calculatedKi.toFixed(3));
+        setIf('hotPID_kD', data.calculatedKd.toFixed(1));
+      } else {
+        detailsBox.textContent = '';
+      }
+    }
+  } catch (e) {}
+}
+
+async function toggleAutotune() {
+  const targetTempInput = document.getElementById('atTargetTemp');
+  const targetTemp = targetTempInput ? parseFloat(targetTempInput.value) : 20.0;
+  const action = isAutotuning ? 'stop' : 'start';
+
+  try {
+    const formData = new URLSearchParams();
+    formData.append('action', action);
+    if (action === 'start') {
+      formData.append('targetTemp', isNaN(targetTemp) ? '20.0' : targetTemp.toString());
+    }
+
+    const res = await fetch('/api/autotune', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData.toString()
+    });
+    if (res.ok) {
+      pollAutotuneStatus();
+    }
+  } catch (e) {
+    alert('Error sending autotune request: ' + e);
+  }
+}
+
 async function setupPidsPage() {
   try {
     const res = await fetch('/api/pids');
@@ -197,6 +269,11 @@ async function setupPidsPage() {
     setIf('hotPID_kP', data.hotPID_kP);
     setIf('hotPID_kI', data.hotPID_kI);
     setIf('hotPID_kD', data.hotPID_kD);
+
+    pollAutotuneStatus();
+    if (!autotuneTimer) {
+      autotuneTimer = setInterval(pollAutotuneStatus, 2000);
+    }
   } catch (e) {}
 }
 
