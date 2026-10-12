@@ -6,7 +6,7 @@
 #define DEFAULT_PID_KI 0.005
 #define DEFAULT_PID_KD 0.2
 
-#define PIDCOMPUTE_INTERVAL 1	// seconds, continuous 12-bit DS18B20 conversion
+#define PIDCOMPUTE_INTERVAL 2	// seconds, continuous 12-bit DS18B20 conversion
 #define I2C_INTERVAL 2			// seconds, Send/Request data from I2C Buck 
 
 #define ENABLE_ISPINDEL_DYNAMIC_TEMP 0 // Disabled until an iSpindel input source is implemented.

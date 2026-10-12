@@ -15,7 +15,7 @@ enum TempConversionState {
 
 static TempConversionState tempConvState = TEMP_CONV_IDLE;
 static unsigned long tempRequestStartTime = 0;
-const unsigned long TEMP_CONVERSION_DELAY_MS = 1000; // 1000ms ensures 12-bit conversion completes across all temperatures and clone ICs
+const unsigned long TEMP_CONVERSION_DELAY_MS = 1000; // 1000ms provides margin for slow clone ICs at cold temperatures
 
 // smooth algorithm for ADC reading
 int digitalSmooth(int rawIn, int *sensSmoothArray) {
@@ -99,25 +99,26 @@ void INIT_DS18B20() {
 }
 
 static bool isTemperatureValid(float temp) {
-	return (temp != DEVICE_DISCONNECTED_C && temp > -55.0f && temp < 125.0f);
+	return (temp != DEVICE_DISCONNECTED_C && temp != 85.0f && temp > -55.0f && temp < 125.0f);
 }
 
 static float fetchSensorTemperature(int sensorId, const char* sensorName) {
 	float temp = DEVICE_DISCONNECTED_C;
-	if (sensorId >= 0 && sensorId < DS18B20_count) {
-		temp = DS18B20.getTempC(DS18B20_adr[sensorId]);
-	} else {
-		temp = DS18B20.getTempCByIndex(sensorId);
-	}
-
-	if (!isTemperatureValid(temp)) {
-		Debug.addLine(String(F("Notice: ")) + sensorName + F(" sensor read retry"));
-		delay(10);
+	for (int attempt = 0; attempt < 3; attempt++) {
 		if (sensorId >= 0 && sensorId < DS18B20_count) {
 			temp = DS18B20.getTempC(DS18B20_adr[sensorId]);
 		} else {
 			temp = DS18B20.getTempCByIndex(sensorId);
 		}
+
+		if (isTemperatureValid(temp)) {
+			return temp;
+		}
+
+		if (attempt == 0) {
+			Debug.addLine(String(F("Notice: ")) + sensorName + F(" sensor read retry"));
+		}
+		delay(25);
 	}
 	return temp;
 }
