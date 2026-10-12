@@ -44,4 +44,6 @@ bool startHeatingAutoTune(float targetTemp, float testPWM = 500.0f, float noiseB
 void stopHeatingAutoTune(const char *reason = "Aborted by user");
 bool isHeatingAutoTuning();
 AutoTuneStatus getHeatingAutoTuneStatus();
+float getHeatingAutoTuneTargetTemp();
+void setHeatingAutoTuneTargetTemp(float target);
 

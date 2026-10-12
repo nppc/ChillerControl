@@ -68,6 +68,8 @@ void handleApiPIDs() {
 	doc["hotPID_kP"] = hotPID_kP;
 	doc["hotPID_kI"] = hotPID_kI;
 	doc["hotPID_kD"] = hotPID_kD;
+	doc["setTemp"] = setTemp;
+	doc["targetTemp"] = getHeatingAutoTuneTargetTemp();
 
 	String json;
 	serializeJson(doc, json);
@@ -206,7 +208,7 @@ void handleApiAutotune() {
 	if (httpServer.method() == HTTP_POST) {
 		String action = httpServer.arg("action");
 		if (action == "start") {
-			float target = httpServer.hasArg("targetTemp") ? httpServer.arg("targetTemp").toFloat() : setTemp;
+			float target = httpServer.hasArg("targetTemp") ? httpServer.arg("targetTemp").toFloat() : getHeatingAutoTuneTargetTemp();
 			float pwm = httpServer.hasArg("testPWM") ? httpServer.arg("testPWM").toFloat() : 500.0f;
 			float noise = httpServer.hasArg("noiseBand") ? httpServer.arg("noiseBand").toFloat() : 0.25f;
 			int cyc = httpServer.hasArg("cycles") ? httpServer.arg("cycles").toInt() : 4;
@@ -219,6 +221,7 @@ void handleApiAutotune() {
 	AutoTuneStatus st = getHeatingAutoTuneStatus();
 	JsonDocument doc;
 	doc["active"] = isHeatingAutoTuning();
+	doc["stopping"] = isCoolerStopped();
 	doc["state"] = static_cast<int>(st.state);
 
 	const char *stateStr = "IDLE";
@@ -231,6 +234,7 @@ void handleApiAutotune() {
 	doc["cycle"] = st.currentCycle;
 	doc["targetCycles"] = st.targetCycles;
 	doc["targetTemp"] = st.targetTemp;
+	doc["setTemp"] = setTemp;
 	doc["currentTemp"] = st.currentTemp;
 	doc["peakTemp"] = st.peakTemp;
 	doc["valleyTemp"] = st.valleyTemp;

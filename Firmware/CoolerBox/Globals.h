@@ -2,9 +2,9 @@
 
 // Default values
 #define DEFAULT_HYSTERESIS 0.05  // ±0.05 °C (0.10 °C total deadband span)
-#define DEFAULT_PID_KP 10        
-#define DEFAULT_PID_KI 0.005
-#define DEFAULT_PID_KD 0.2
+#define DEFAULT_PID_KP 60.0        
+#define DEFAULT_PID_KI 0.080
+#define DEFAULT_PID_KD 15.0
 
 #define PIDCOMPUTE_INTERVAL 2	// seconds, continuous 12-bit DS18B20 conversion
 #define I2C_INTERVAL 2			// seconds, Send/Request data from I2C Buck 

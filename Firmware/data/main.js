@@ -184,6 +184,28 @@ async function setupSettingsPage() {
 let autotuneTimer = null;
 let isAutotuning = false;
 
+function initAutotuneTarget(targetVal) {
+  const targetInput = document.getElementById('atTargetTemp');
+  if (!targetInput) return;
+  if (!targetInput.dataset.userEdited) {
+    const saved = localStorage.getItem('autotune_target');
+    const val = saved ? parseFloat(saved) : (targetVal || 19.0);
+    if (!isNaN(val)) {
+      targetInput.value = val.toFixed(1);
+    }
+  }
+  if (!targetInput.dataset.listenerAttached) {
+    targetInput.dataset.listenerAttached = 'true';
+    targetInput.addEventListener('input', () => {
+      targetInput.dataset.userEdited = 'true';
+      const v = parseFloat(targetInput.value);
+      if (!isNaN(v) && v >= 5 && v <= 45) {
+        localStorage.setItem('autotune_target', v.toFixed(1));
+      }
+    });
+  }
+}
+
 async function pollAutotuneStatus() {
   try {
     const res = await fetch('/api/autotune');
@@ -193,6 +215,7 @@ async function pollAutotuneStatus() {
     const btn = document.getElementById('btnAutotune');
     const statusBox = document.getElementById('atStatusBox');
     const detailsBox = document.getElementById('atDetailsBox');
+    const targetInput = document.getElementById('atTargetTemp');
 
     isAutotuning = data.active;
     if (btn) {
@@ -202,6 +225,14 @@ async function pollAutotuneStatus() {
       } else {
         btn.textContent = 'Start Autotune';
         btn.className = 'btn btn_round btn_green';
+      }
+    }
+
+    if (targetInput) {
+      if (data.active && data.targetTemp !== undefined) {
+        targetInput.value = parseFloat(data.targetTemp).toFixed(1);
+      } else {
+        initAutotuneTarget(data.targetTemp || data.setTemp);
       }
     }
 
@@ -230,7 +261,10 @@ async function pollAutotuneStatus() {
 
 async function toggleAutotune() {
   const targetTempInput = document.getElementById('atTargetTemp');
-  const targetTemp = targetTempInput ? parseFloat(targetTempInput.value) : 20.0;
+  const targetTemp = targetTempInput && targetTempInput.value ? parseFloat(targetTempInput.value) : 20.0;
+  if (!isNaN(targetTemp)) {
+    localStorage.setItem('autotune_target', targetTemp.toFixed(1));
+  }
   const action = isAutotuning ? 'stop' : 'start';
 
   try {
@@ -269,6 +303,8 @@ async function setupPidsPage() {
     setIf('hotPID_kP', data.hotPID_kP);
     setIf('hotPID_kI', data.hotPID_kI);
     setIf('hotPID_kD', data.hotPID_kD);
+
+    initAutotuneTarget(data.targetTemp || data.setTemp);
 
     pollAutotuneStatus();
     if (!autotuneTimer) {

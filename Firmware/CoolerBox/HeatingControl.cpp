@@ -51,6 +51,10 @@ void initHeating() {
 	                 QuickPID::iAwMode::iAwCondition);
 	hotPID.SetControllerDirection(QuickPID::Action::direct);
 	hotPID.SetMode(QuickPID::Control::automatic);
+
+	if (setTemp > 0.0f && setTemp < 45.0f) {
+		atTargetTemp = setTemp;
+	}
 }
 
 void resetHeatingPID() {
@@ -164,6 +168,8 @@ static void stepAutoTune(float currentTemp) {
 					atCalcKp = 0.45f * Ku;
 					atCalcKi = (0.205f * Ku) / Pu;
 					atCalcKd = 0.071f * Ku * Pu;
+					if (atCalcKd > 100.0f) atCalcKd = 100.0f; // Cap Kd to prevent digital sensor bit-flip chatter
+					if (atCalcKd < 0.0f) atCalcKd = 0.0f;
 
 					setHeatingTunings(atCalcKp, atCalcKi, atCalcKd);
 					saveSettings();
@@ -172,6 +178,7 @@ static void stepAutoTune(float currentTemp) {
 					setHotPWM = 0.0f;
 					analogWrite(HEAT_WIRE, 0);
 					resetHeatingPID();
+					setCoolerStopped(true); // Maintain safe stopped state after tuning
 
 					String resMsg = "Autotune complete: Kp=" + String(atCalcKp, 2) +
 					                " Ki=" + String(atCalcKi, 4) +
@@ -220,6 +227,9 @@ bool startHeatingAutoTune(float targetTemp, float testPWM, float noiseBand, int 
 	if (testPWM > (float)maxHotPWM) testPWM = (float)maxHotPWM;
 	if (noiseBand < 0.05f) noiseBand = 0.05f;
 
+	// Place system in stopped state so normal control does not run
+	setCoolerStopped(true);
+
 	atTargetTemp = targetTemp;
 	atTestPWM = testPWM;
 	atNoiseBand = noiseBand;
@@ -247,6 +257,7 @@ void stopHeatingAutoTune(const char *reason) {
 	setHotPWM = 0.0f;
 	analogWrite(HEAT_WIRE, 0);
 	resetHeatingPID();
+	setCoolerStopped(true);
 	atStatusMessage = String(F("Autotune stopped: ")) + reason;
 	Debug.addLine(atStatusMessage);
 }
@@ -269,5 +280,18 @@ AutoTuneStatus getHeatingAutoTuneStatus() {
 	st.calculatedKd = atCalcKd;
 	st.message = atStatusMessage;
 	return st;
+}
+
+float getHeatingAutoTuneTargetTemp() {
+	if (atState == AutoTuneState::IDLE && atTargetTemp == 20.0f && setTemp > 0.0f) {
+		return setTemp;
+	}
+	return atTargetTemp;
+}
+
+void setHeatingAutoTuneTargetTemp(float target) {
+	if (target >= 5.0f && target <= 45.0f) {
+		atTargetTemp = target;
+	}
 }
 
