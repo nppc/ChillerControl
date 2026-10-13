@@ -84,6 +84,7 @@ void setup() {
 
 		WiFi.persistent(false);
 		WiFi.mode(WIFI_AP);
+		WiFi.setSleepMode(WIFI_NONE_SLEEP);
 		WiFi.softAP("Cooler");
 
 		IPAddress myIP = WiFi.softAPIP();
@@ -96,6 +97,7 @@ void setup() {
 
 		WiFi.persistent(false); // don't write wifi settings to flash
 		WiFi.mode(WIFI_AP_STA);
+		WiFi.setSleepMode(WIFI_NONE_SLEEP); // Disable Wi-Fi modem sleep to improve weak signal (-85 dBm) stability
 
 		if (apPassword[0] != '\0') {
 			Debug.addLine(String(F("Normal boot: starting secured AP '")) + apSSID + F("'"));
@@ -321,11 +323,27 @@ void loop() {
 
 	drd.loop();
 
-	//check connection every 5 minutes
-	if(!emergencyMode && (millis()-millisWIFIcheckInterval>(300 * 1000UL))){
+	// Monitor Wi-Fi connection state and reconnect if dropped
+	static bool wifiWasConnected = false;
+	if (!emergencyMode && (millis() - millisWIFIcheckInterval > (30 * 1000UL))) {
 		millisWIFIcheckInterval = millis();
-		if(WiFi.status() != WL_CONNECTED || WiFi.localIP() == IPAddress(0,0,0,0)) {
-			WiFi.reconnect();
+		bool isConnected = (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0));
+		if (!isConnected) {
+			if (wifiWasConnected) {
+				wifiWasConnected = false;
+				Debug.addLine(F("Wi-Fi connection lost"));
+			}
+			static unsigned long lastReconnectAttempt = 0;
+			if (millis() - lastReconnectAttempt > (60 * 1000UL)) {
+				lastReconnectAttempt = millis();
+				Debug.addLine(F("Wi-Fi disconnected: attempting reconnect"));
+				WiFi.reconnect();
+			}
+		} else {
+			if (!wifiWasConnected) {
+				wifiWasConnected = true;
+				Debug.addLine(String(F("Wi-Fi connected: ")) + WiFi.localIP().toString());
+			}
 		}
 	}
 

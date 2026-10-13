@@ -4,6 +4,9 @@
 #include <WiFiClientSecureBearSSL.h>
 
 void sendTelemetry() {
+	if (WiFi.status() != WL_CONNECTED || WiFi.localIP() == IPAddress(0, 0, 0, 0)) {
+		return;
+	}
 	if (endpointAddress.isEmpty() || endpointAccessToken.isEmpty() || endpointPath.isEmpty()) {
 		Debug.addLine(F("HTTPS endpoint settings missing"));
 		return;
@@ -38,7 +41,11 @@ void sendTelemetry() {
 
 	BearSSL::WiFiClientSecure client;
 	client.setInsecure();
+	client.setBufferSizes(1024, 512); // Limit TLS buffer sizes to save RAM and avoid heap exhaustion
+	client.setTimeout(2500);          // 2.5s timeout on TLS socket operations
+
 	HTTPClient https;
+	https.setTimeout(2500);           // 2.5s HTTP timeout to prevent blocking main loop on weak signal
 	if (!https.begin(client, url)) {
 		Debug.addLine(F("HTTPS endpoint setup failed"));
 		return;
