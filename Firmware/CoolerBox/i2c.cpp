@@ -6,23 +6,33 @@ byte i2c_PWM_value = 0;
 
 void initI2C() {
 	Wire.begin(D2, D1);  // D2-sda, D1-scl
-	delay(100);          // Allow I2C bus lines to stabilize
+	delay(150);          // Allow I2C bus lines and slave MCU power rail to stabilize
 	Wire.setClock(50000); // 50kHz clock rate for stable communication with slave MCU
 	Wire.setClockStretchLimit(150000L); // 150ms timeout to allow slave time for clock stretching
 
-	// Detect I2C device
-	Wire.beginTransmission(I2C_ADDRESS);
-	byte error = Wire.endTransmission();
+	// Detect I2C device with retry for cold start stabilization
+	byte error = 1;
+	for (int attempt = 0; attempt < 5; attempt++) {
+		Wire.beginTransmission(I2C_ADDRESS);
+		error = Wire.endTransmission();
+		if (error == 0) {
+			break;
+		}
+		delay(50);
+	}
+
 	if (error == 0) {
 		I2C_PRESENT = HIGH;
 		Serial.println(F("I2C Buck converter found at address 0x5E"));
+		updateCoolingOutput(true, true); // Sync initial limits and set voltage
+		delay(20);
+		readI2Cdata();                   // Read initial telemetry so voltages are known immediately
 	} else {
 		I2C_PRESENT = LOW;
 		Serial.println(F("I2C Buck converter is not connected."));
 		Debug.addLine(F("I2C device not detected"));
 	}
 
-	delay(100);
 	millisReadI2CDataInterval = millis();
 }
 
@@ -48,6 +58,11 @@ void sendI2Cdata(bool force, bool sendLimits) {
 		return;
 	}
 
+	bool heaterWasActive = (setHotPWM > 0.0f);
+	if (heaterWasActive) {
+		pauseHeatingPWM();
+	}
+
 	Wire.beginTransmission(I2C_ADDRESS);
 	Wire.write(voltageCommand); // Byte 0: Set Voltage (V*10)
 
@@ -57,6 +72,10 @@ void sendI2Cdata(bool force, bool sendLimits) {
 		Wire.write(maxVoltCommand);  // Byte 3: Max Voltage (V*10)
 	}
 	byte error = Wire.endTransmission();
+
+	if (heaterWasActive) {
+		resumeHeatingPWM();
+	}
 
 	if (error == 0) {
 		if (!I2C_PRESENT) {
@@ -93,6 +112,11 @@ void sendI2Cdata(bool force, bool sendLimits) {
 void readI2Cdata() {
 	bool readSucceeded = false;
 
+	bool heaterWasActive = (setHotPWM > 0.0f);
+	if (heaterWasActive) {
+		pauseHeatingPWM();
+	}
+
 	Wire.requestFrom(static_cast<uint8_t>(I2C_ADDRESS), static_cast<uint8_t>(I2C_DATALEN));
 	uint8_t b_avail = Wire.available();
 
@@ -114,6 +138,10 @@ void readI2Cdata() {
 			I2C_PRESENT = LOW;
 			Debug.addLine(String(F("I2C read failed; received ")) + b_avail + F(" bytes"));
 		}
+	}
+
+	if (heaterWasActive) {
+		resumeHeatingPWM();
 	}
 
 	if (readSucceeded) {

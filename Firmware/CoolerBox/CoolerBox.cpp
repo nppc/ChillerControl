@@ -71,12 +71,11 @@ void setup() {
 	INIT_DS18B20();
 
 	Serial.begin(115200);
-	initI2C();
-	
-	restoreSettings();	// restore PID and internet settings
 
+	restoreSettings();	// restore PID, boxMode, and voltage limits first
 	maxVoltage_backup = maxVoltage; // update backup
-	updateCoolingOutput(true, true); // send initial limits and voltage to I2C buck converter
+
+	initI2C();	// Detect I2C slave, sync initial voltage limits, and read initial telemetry
   	
 	Serial.println();
 	if (emergencyMode) {
@@ -237,8 +236,9 @@ void processControl() {
 	processCooling(boxTemp, HotTemp, dynamicTemp, isCooling);
 
 	// Execute separated heating logic
-	// In heating-only mode (boxMode == 3), wait for buck converter voltage to be < 3.0V before powering heat wire
-	bool heatingAllowed = !isStopped && ((boxMode == 3 && measuredVoltage < 3.0f) || (boxMode == 1 && boxSubMode == 3));
+	// In heating mode or dual heating submode, wait for buck converter voltage to be safely below minVoltage + margin
+	float safePeltierThreshold = max(2.5f, minVoltage + 0.5f);
+	bool heatingAllowed = !isStopped && (measuredVoltage < safePeltierThreshold) && ((boxMode == 3) || (boxMode == 1 && boxSubMode == 3));
 	processHeating(boxTemp, dynamicTemp, isHeating && heatingAllowed);
 
 	// Log control state changes

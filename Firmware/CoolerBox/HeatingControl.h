@@ -38,6 +38,8 @@ void initHeating();
 void resetHeatingPID();
 void setHeatingTunings(float kp, float ki, float kd);
 void getHeatingTunings(float &kp, float &ki, float &kd);
+void pauseHeatingPWM();
+void resumeHeatingPWM();
 void processHeating(float currentTemp, float targetTemp, bool enableHeating);
 
 bool startHeatingAutoTune(float targetTemp, float testPWM = 500.0f, float noiseBand = 0.25f, int cycles = 4);

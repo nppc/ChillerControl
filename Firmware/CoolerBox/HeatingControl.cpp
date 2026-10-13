@@ -64,6 +64,16 @@ void resetHeatingPID() {
 	analogWrite(HEAT_WIRE, 0);
 }
 
+void pauseHeatingPWM() {
+	analogWrite(HEAT_WIRE, 0);
+}
+
+void resumeHeatingPWM() {
+	if (setHotPWM > 0.0f) {
+		analogWrite(HEAT_WIRE, (int)round(setHotPWM));
+	}
+}
+
 void setHeatingTunings(float kp, float ki, float kd) {
 	if (kp < 0.0f || ki < 0.0f || kd < 0.0f) {
 		return;
