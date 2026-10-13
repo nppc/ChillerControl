@@ -351,9 +351,11 @@ async function fetchDebug() {
     setIf('Caption', data.Caption);
     setIf('freeHeap', data.freeHeap);
     setIf('wifiRssi', data.wifiRssi);
+    setIf('lastWifiDrop', data.lastWifiDrop);
     setIf('i2cStatus', data.i2cStatus);
     setIf('resetReason', data.resetReason);
     setIf('sensorCount', data.sensorCount);
+    setIf('sensorTemps', data.sensorTemps || data.sensorCount);
     setIf('dbgUptime', data.uptime);
 
     const debugLog = document.getElementById('debugLog');

@@ -17,6 +17,9 @@ unsigned long millisPIDinterval;
 unsigned long millisSendDataInterval;
 unsigned long millisReadI2CDataInterval;
 unsigned long millisWIFIcheckInterval;
+unsigned long lastWifiDropMillis = 0;
+bool wifiDropOccurred = false;
+bool wifiWasConnected = false;
 
 int ColdSensorId = 0;
 int HotSensorId = 0; 
@@ -128,10 +131,12 @@ void setup() {
 		}
 
 		if (WiFi.status() == WL_CONNECTED) {
+			wifiWasConnected = true;
 			Serial.print(F("Internet IP address: "));
 			Serial.println(WiFi.localIP());
 			Debug.addLine(String(F("Internet connected: ")) + WiFi.localIP().toString());
 		} else {
+			wifiWasConnected = false;
 			Serial.print(F("Internet connection failed."));
 			Serial.print(F(" Error is: "));
 			Serial.println(WiFi.status());
@@ -179,6 +184,7 @@ void setup() {
 	Serial.println("HTTP server started");
 
     millisSendDataInterval=millis();
+    millisWIFIcheckInterval=millis();
 
     millisPIDinterval=millis();
     resetTempConversionState();
@@ -324,13 +330,14 @@ void loop() {
 	drd.loop();
 
 	// Monitor Wi-Fi connection state and reconnect if dropped
-	static bool wifiWasConnected = false;
-	if (!emergencyMode && (millis() - millisWIFIcheckInterval > (30 * 1000UL))) {
+	if (!emergencyMode && (millis() - millisWIFIcheckInterval >= 1000UL)) {
 		millisWIFIcheckInterval = millis();
 		bool isConnected = (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0));
 		if (!isConnected) {
 			if (wifiWasConnected) {
 				wifiWasConnected = false;
+				wifiDropOccurred = true;
+				lastWifiDropMillis = millis();
 				Debug.addLine(F("Wi-Fi connection lost"));
 			}
 			static unsigned long lastReconnectAttempt = 0;

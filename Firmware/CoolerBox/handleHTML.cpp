@@ -116,6 +116,35 @@ void handleApiDebug() {
 		doc["wifiRssi"] = "Disconnected";
 	}
 
+	char dropBuf[48];
+	if (emergencyMode) {
+		snprintf(dropBuf, sizeof(dropBuf), "Emergency AP mode");
+	} else if (!wifiDropOccurred) {
+		if (WiFi.status() == WL_CONNECTED) {
+			snprintf(dropBuf, sizeof(dropBuf), "None (since boot)");
+		} else {
+			snprintf(dropBuf, sizeof(dropBuf), "Disconnected (since boot)");
+		}
+	} else {
+		unsigned long dropElapsedSec = (millis() - lastWifiDropMillis) / 1000UL;
+		int dropDays = dropElapsedSec / 86400;
+		int dropHours = (dropElapsedSec / 3600) % 24;
+		int dropMins = (dropElapsedSec / 60) % 60;
+		int dropSecs = dropElapsedSec % 60;
+		bool isCurrentlyConnected = (WiFi.status() == WL_CONNECTED);
+
+		if (dropDays > 0) {
+			snprintf(dropBuf, sizeof(dropBuf), "%dd %02d:%02d:%02d ago%s",
+				dropDays, dropHours, dropMins, dropSecs,
+				isCurrentlyConnected ? "" : " (offline)");
+		} else {
+			snprintf(dropBuf, sizeof(dropBuf), "%02d:%02d:%02d ago%s",
+				dropHours, dropMins, dropSecs,
+				isCurrentlyConnected ? "" : " (offline)");
+		}
+	}
+	doc["lastWifiDrop"] = dropBuf;
+
 	doc["i2cStatus"] = I2C_PRESENT ? "Connected (0x5E)" : "Disconnected";
 	doc["resetReason"] = ESP.getResetReason();
 
@@ -128,9 +157,16 @@ void handleApiDebug() {
 	snprintf(upBuf, sizeof(upBuf), "%dd %02d:%02lu:%02lu", tdays, hr % 24, min % 60, sec % 60);
 	doc["uptime"] = upBuf;
 
-	char sensBuf[32];
-	snprintf(sensBuf, sizeof(sensBuf), "%u detected", DS18B20_count);
-	doc["sensorCount"] = sensBuf;
+	String sensStr;
+	if (DS18B20_count == 0) {
+		sensStr = F("None detected");
+	} else if (DS18B20_count == 1) {
+		sensStr = "Cold: " + String(boxTemp, 1) + "\xC2\xB0" "C";
+	} else {
+		sensStr = "Cold: " + String(boxTemp, 1) + "\xC2\xB0" "C / Hot: " + String(HotTemp, 1) + "\xC2\xB0" "C";
+	}
+	doc["sensorCount"] = sensStr;
+	doc["sensorTemps"] = sensStr;
 
 	String json;
 	serializeJson(doc, json);
