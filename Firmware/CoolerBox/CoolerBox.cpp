@@ -330,7 +330,7 @@ void loop() {
 	drd.loop();
 
 	// Monitor Wi-Fi connection state and reconnect if dropped
-	if (!emergencyMode && (millis() - millisWIFIcheckInterval >= 1000UL)) {
+	if (!emergencyMode && (millis() - millisWIFIcheckInterval >= 3000UL)) {
 		millisWIFIcheckInterval = millis();
 		bool isConnected = (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0));
 		if (!isConnected) {

@@ -15,7 +15,7 @@ enum TempConversionState {
 
 static TempConversionState tempConvState = TEMP_CONV_IDLE;
 static unsigned long tempRequestStartTime = 0;
-const unsigned long TEMP_CONVERSION_DELAY_MS = 1000; // 1000ms provides margin for slow clone ICs at cold temperatures
+const unsigned long TEMP_CONVERSION_DELAY_MS = 1200; // 1200ms provides generous margin for slow clone ICs at cold temperatures
 
 // smooth algorithm for ADC reading
 int digitalSmooth(int rawIn, int *sensSmoothArray) {
@@ -116,9 +116,9 @@ static float fetchSensorTemperature(int sensorId, const char* sensorName) {
 		}
 
 		if (attempt == 0) {
-			Debug.addLine(String(F("Notice: ")) + sensorName + F(" sensor read retry"));
+			Debug.addLine(String(F("Notice: ")) + sensorName + F(" sensor read retry (raw=") + String(temp, 1) + F(")"));
 		}
-		delay(25);
+		delay(35);
 	}
 	return temp;
 }
