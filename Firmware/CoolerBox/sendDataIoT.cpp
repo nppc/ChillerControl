@@ -35,6 +35,7 @@ void sendTelemetry() {
 	doc["current"] = measuredCurrent;
 	doc["hot_pwm"] = setHotPWM * 100.0 / maxHotPWM;
 	doc["ip_address"] = WiFi.localIP().toString();
+	doc["rssi"] = WiFi.RSSI();
 
 	String payload;
 	serializeJson(doc, payload);
