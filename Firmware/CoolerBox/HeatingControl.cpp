@@ -124,8 +124,8 @@ static void stepAutoTune(float currentTemp) {
 		stopHeatingAutoTune("Safety threshold exceeded (>45°C)");
 		return;
 	}
-	if (millis() - atStartTime > (45UL * 60UL * 1000UL)) {
-		stopHeatingAutoTune("Timed out after 45 minutes");
+	if (millis() - atStartTime > (120UL * 60UL * 1000UL)) {
+		stopHeatingAutoTune("Timed out after 120 minutes");
 		return;
 	}
 

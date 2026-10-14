@@ -105,6 +105,11 @@ static bool isTemperatureValid(float temp) {
 static float fetchSensorTemperature(int sensorId, const char* sensorName) {
 	float temp = DEVICE_DISCONNECTED_C;
 	for (int attempt = 0; attempt < 3; attempt++) {
+		if (attempt > 0) {
+			oneWire.reset();
+			delay(25);
+		}
+
 		if (sensorId >= 0 && sensorId < DS18B20_count) {
 			temp = DS18B20.getTempC(DS18B20_adr[sensorId]);
 		} else {
@@ -114,16 +119,15 @@ static float fetchSensorTemperature(int sensorId, const char* sensorName) {
 		if (isTemperatureValid(temp)) {
 			return temp;
 		}
-
-		if (attempt == 0) {
-			Debug.addLine(String(F("Notice: ")) + sensorName + F(" sensor read retry (raw=") + String(temp, 1) + F(")"));
-		}
-		delay(35);
 	}
+
+	Debug.addLine(String(F("Notice: ")) + sensorName + F(" sensor read retry failed (raw=") + String(temp, 1) + F(")"));
 	return temp;
 }
 
 void readDS18B20Temperatures() {
+	oneWire.reset(); // Pre-settle OneWire bus after conversion sleep to avoid clone wake-up timeout
+	delay(5);
 	float rawCold = fetchSensorTemperature(ColdSensorId, "Cold");
 	float rawHot = fetchSensorTemperature(HotSensorId, "Hot");
 
