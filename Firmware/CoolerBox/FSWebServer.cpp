@@ -11,11 +11,17 @@ String getContentType(const String &filename) {
 }
 
 bool handleFileRead(String path) {
+	if (!path.startsWith("/")) path = "/" + path;
 	String contentType = getContentType(path);
 	String pathWithGz = path + ".gz";
 	if (LittleFS.exists(pathWithGz) || LittleFS.exists(path)) {
 		if (LittleFS.exists(pathWithGz)) {
 			path += ".gz";
+		}
+		if (path.indexOf(".css") >= 0 || path.indexOf(".js") >= 0 || path.indexOf(".ico") >= 0) {
+			httpServer.sendHeader("Cache-Control", "public, max-age=86400");
+		} else if (path.indexOf(".htm") >= 0 || path.indexOf(".html") >= 0) {
+			httpServer.sendHeader("Cache-Control", "no-cache");
 		}
 		File file = LittleFS.open(path, "r");
 		httpServer.streamFile(file, contentType);

@@ -126,12 +126,12 @@ function setupNavigation() {
     }).observe(caption, { childList: true, characterData: true, subtree: true });
   }
 
-  fetch('/status')
-    .then(r => r.ok ? r.json() : null)
-    .then(data => { if (data) updateHeaderStatus(data); })
-    .catch(() => {});
-
   if (!document.getElementById('boxTemp')) {
+    fetch('/status')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) updateHeaderStatus(data); })
+      .catch(() => {});
+
     setInterval(() => {
       if (!document.hidden) {
         fetch('/status')
@@ -195,11 +195,40 @@ function showhide() {
   openTempModal();
 }
 
+let statusPollTimer = null;
+let currentPollInterval = 2000;
+let goodSignalCounter = 0;
+
 async function updateStatus() {
+  let nextDelay = currentPollInterval;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 4000);
+
   try {
-    const res = await fetch('/status');
-    if (!res.ok) return;
+    const res = await fetch('/status', { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!res.ok) {
+      currentPollInterval = 5000;
+      goodSignalCounter = 0;
+      return;
+    }
     const data = await res.json();
+
+    // Adapt refresh rate based on RSSI with hysteresis
+    if (typeof data.rssi === 'number') {
+      if (data.rssi <= -80) {
+        currentPollInterval = 5000; // Slow down on weak signal (<= -80 dBm)
+        goodSignalCounter = 0;
+      } else if (data.rssi >= -75) {
+        goodSignalCounter++;
+        if (goodSignalCounter >= 5) { // Require 5 consecutive good readings before switching to 2 seconds
+          currentPollInterval = 2000;
+        }
+      } else {
+        goodSignalCounter = 0;
+      }
+    }
+    nextDelay = currentPollInterval;
 
     updateHeaderStatus(data);
 
@@ -268,13 +297,20 @@ async function updateStatus() {
       tempInput.value = data.rawSetTemp;
     }
   } catch (e) {
-    // ignore network errors
+    clearTimeout(timeoutId);
+    currentPollInterval = 5000;
+    goodSignalCounter = 0;
+    nextDelay = 5000;
+  } finally {
+    if (document.getElementById('boxTemp')) {
+      clearTimeout(statusPollTimer);
+      statusPollTimer = setTimeout(updateStatus, nextDelay);
+    }
   }
 }
 
 function setupIndexPage() {
   updateStatus();
-  setInterval(updateStatus, 2000);
 
   const tempForm = document.getElementById('setTempForm');
   if (tempForm) {

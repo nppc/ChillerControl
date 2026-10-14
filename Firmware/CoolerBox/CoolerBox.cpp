@@ -102,6 +102,7 @@ void setup() {
 		WiFi.persistent(false); // don't write wifi settings to flash
 		WiFi.mode(WIFI_AP_STA);
 		WiFi.setSleepMode(WIFI_NONE_SLEEP); // Disable Wi-Fi modem sleep to improve weak signal (-85 dBm) stability
+		WiFi.setOutputPower(17.5f); // Start with standard transmit power
 
 		if (apPassword[0] != '\0') {
 			Debug.addLine(String(F("Normal boot: starting secured AP '")) + apSSID + F("'"));
@@ -244,6 +245,32 @@ void processControl() {
 
 		static unsigned long coolingZeroStartTime = 0;
 		static float coolingTroughTemp = 999.0f;
+
+		static float lastTargetTemp = -999.0f;
+		if (lastTargetTemp < -900.0f) {
+			lastTargetTemp = dynamicTemp;
+		}
+
+		// If target temperature changed, immediately decide sub-mode based on current temperature
+		if (dynamicTemp != lastTargetTemp) {
+			if (boxMode == 1) {
+				if (boxTemp < dynamicTemp) {
+					boxSubMode = 3; // Immediately switch to Heating
+					Debug.addLine(String(F("Target changed to ")) + String(dynamicTemp, 1) +
+					              F("°C: immediate switch to Heating (boxTemp=") + String(boxTemp, 2) + F("°C)"));
+				} else if (boxTemp > dynamicTemp) {
+					boxSubMode = 2; // Immediately switch to Cooling
+					Debug.addLine(String(F("Target changed to ")) + String(dynamicTemp, 1) +
+					              F("°C: immediate switch to Cooling (boxTemp=") + String(boxTemp, 2) + F("°C)"));
+				}
+			}
+			heatingIdleStartTime = 0;
+			heatingPeakTemp = -999.0f;
+			coolingZeroStartTime = 0;
+			coolingTroughTemp = 999.0f;
+			coolingZeroVoltage = false;
+			lastTargetTemp = dynamicTemp;
+		}
 
 		bool isStopped = isCoolerStopped();
 
@@ -478,6 +505,42 @@ void loop() {
 			if (!wifiWasConnected) {
 				wifiWasConnected = true;
 				Debug.addLine(String(F("Wi-Fi connected: ")) + WiFi.localIP().toString());
+			}
+
+			// Adaptive Wi-Fi TX power based on RSSI (-80 dBm threshold with time debounce)
+			static float currentTxPower = 17.5f;
+			static unsigned long weakSignalStart = 0;
+			static unsigned long goodSignalStart = 0;
+			int rssi = WiFi.RSSI();
+
+			if (rssi < 0) { // Valid negative dBm
+				if (rssi <= -80) {
+					goodSignalStart = 0;
+					if (weakSignalStart == 0) {
+						weakSignalStart = millis();
+					} else if (millis() - weakSignalStart >= 15000UL) { // 15 seconds sustained weak signal
+						if (currentTxPower < 20.5f) {
+							currentTxPower = 20.5f;
+							WiFi.setOutputPower(currentTxPower);
+							Debug.addLine(String(F("Wi-Fi TX power boosted to 20.5 dBm (RSSI: ")) + rssi + F(" dBm)"));
+						}
+					}
+				} else if (rssi >= -75) {
+					weakSignalStart = 0;
+					if (goodSignalStart == 0) {
+						goodSignalStart = millis();
+					} else if (millis() - goodSignalStart >= 45000UL) { // 45 seconds sustained good signal
+						if (currentTxPower > 17.5f) {
+							currentTxPower = 17.5f;
+							WiFi.setOutputPower(currentTxPower);
+							Debug.addLine(String(F("Wi-Fi TX power reduced to 17.5 dBm (RSSI: ")) + rssi + F(" dBm)"));
+						}
+					}
+				} else {
+					// In deadband (-79 to -76 dBm): reset pending transitions
+					weakSignalStart = 0;
+					goodSignalStart = 0;
+				}
 			}
 		}
 	}

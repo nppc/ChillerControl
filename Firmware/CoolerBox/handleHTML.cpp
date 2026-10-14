@@ -306,6 +306,13 @@ void handleSetTemp() {
 		if (tmpTemp >= 0.0f && tmpTemp <= 45.0f) {
 			setTemp = tmpTemp;
 			dynamicTemp = tmpTemp;
+			if (boxMode == 1) {
+				if (boxTemp < dynamicTemp) {
+					boxSubMode = 3; // Immediately switch to Heating
+				} else if (boxTemp > dynamicTemp) {
+					boxSubMode = 2; // Immediately switch to Cooling
+				}
+			}
 			saveSettings();
 		}
 	}
@@ -407,13 +414,13 @@ void handleNetworkStore() {
 }
 
 void handleCSS() {
-	if (!handleFileRead("webpage.css")) {
+	if (!handleFileRead("/webpage.css")) {
 		httpServer.send(404, "text/plain", "webpage.css not found");
 	}
 }
 
 void handleScript() {
-	if (!handleFileRead("main.js")) {
+	if (!handleFileRead("/main.js")) {
 		httpServer.send(404, "text/plain", "main.js not found");
 	}
 }
