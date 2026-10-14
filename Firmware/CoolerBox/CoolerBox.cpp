@@ -209,20 +209,145 @@ void processControl() {
 		bool peltierSafe = !I2C_PRESENT || (measuredVoltage < safePeltierThreshold);
 		processHeating(boxTemp, dynamicTemp, peltierSafe);
 	} else {
-		// Automatic switchover between cooling and heating in Dual Mode (boxMode == 1)
-		if (boxMode == 1) {
-			if (boxSubMode == 2) { // Currently Cooling
-				if (boxTemp < (dynamicTemp - 0.5f)) {
-					boxSubMode = 3;	// Switch to heating mode
+		/*
+		 * Tendency-Based Dual Mode Switchover (5-Minute Window)
+		 * ======================================================
+		 * Rationale:
+		 * Rather than using hard, immediate temperature thresholds (e.g., ±0.5°C) that
+		 * trigger jarring mode flips and fight thermal inertia:
+		 *
+		 * 1. Heating -> Cooling:
+		 *    When heating reaches or overshoots target, the heating PID automatically
+		 *    drops PWM to 0%. Residual thermal mass in the heater wire can cause a minor
+		 *    overshoot. If ambient is cooler than the box, heat naturally dissipates.
+		 *    The system observes the temperature trend for a 5-minute window (MODE_SWITCH_WINDOW_SEC).
+		 *    If the temperature is actively dropping from its peak towards target, the
+		 *    window is renewed so passive cooling can do its work without active Peltier interference.
+		 *    Only if the heater has stayed at 0% for 5 minutes and the temperature is STILL
+		 *    above target and failing to cool down (flat or continuing to rise) do we conclude
+		 *    that ambient or fermentation heat is driving the temperature up, and switch to Cooling mode.
+		 *
+		 * 2. Cooling -> Heating (Two-Stage Handover):
+		 *    When cooling demand satisfies the setpoint (temp <= dynamicTemp - DEFAULT_HYSTERESIS),
+		 *    active cooling demand turns off. If the temperature continues to fall below target:
+		 *    - Stage 1: Cut the Peltier voltage from minVoltage (typically 2.0V) all the way to 0.0V.
+		 *      This completely stops residual cooling current.
+		 *    - Stage 2: Observe the temperature trend at 0.0V for 5 minutes (MODE_SWITCH_WINDOW_SEC).
+		 *      If the temperature starts recovering (rising from its trough back toward target),
+		 *      the window is renewed to let passive ambient warmth restore equilibrium.
+		 *      Only if the Peltier has been at 0.0V for 5 minutes and the temperature is STILL
+		 *      below target and failing to rise (flat or continuing to drop) do we conclude that
+		 *      ambient is cold and active heating is necessary, and switch to Heating mode.
+		 */
+		static unsigned long heatingIdleStartTime = 0;
+		static float heatingPeakTemp = -999.0f;
+
+		static unsigned long coolingZeroStartTime = 0;
+		static float coolingTroughTemp = 999.0f;
+
+		bool isStopped = isCoolerStopped();
+
+		if (boxMode == 1 && !isStopped) {
+			if (boxSubMode == 2) { // Currently in Cooling sub-mode
+				heatingIdleStartTime = 0;
+				heatingPeakTemp = -999.0f;
+
+				// In cooling mode, demand turns off at targetTemp - DEFAULT_HYSTERESIS (e.g. target - 0.05°C)
+				if (boxTemp >= (dynamicTemp - DEFAULT_HYSTERESIS)) {
+					// Temperature is at or above the cooling cutoff; normal cooling or idle at minVoltage
+					coolingZeroVoltage = false;
+					coolingZeroStartTime = 0;
+					coolingTroughTemp = 999.0f;
+				} else {
+					// Temperature is continuing to drop below target:
+					// Stage 1: Cut Peltier voltage to 0.0V to eliminate idle bias
+					coolingZeroVoltage = true;
+
+					if (coolingZeroStartTime == 0) {
+						coolingZeroStartTime = millis();
+						coolingTroughTemp = boxTemp;
+						Debug.addLine(String(F("Cooling idle: temp below target (")) + String(boxTemp, 2) +
+						              F("°C). Cutting Peltier to 0.0V. Observing tendency (5m)..."));
+					} else {
+						// Track the minimum temperature reached during this undershoot
+						if (boxTemp < coolingTroughTemp) {
+							coolingTroughTemp = boxTemp;
+						}
+
+						// Stage 2: Check tendency over time
+						// If temperature has visibly started recovering (+0.05°C above trough), renew window
+						if (boxTemp >= (coolingTroughTemp + 0.05f)) {
+							coolingTroughTemp = boxTemp;
+							coolingZeroStartTime = millis();
+						} else if (millis() - coolingZeroStartTime >= (MODE_SWITCH_WINDOW_SEC * 1000UL)) {
+							// 5 minutes at 0.0V expired and temperature did not recover
+							if (boxTemp < dynamicTemp) {
+								boxSubMode = 3; // Switch to Heating mode
+								coolingZeroVoltage = false;
+								coolingZeroStartTime = 0;
+								coolingTroughTemp = 999.0f;
+								Debug.addLine(String(F("Switching Cooling -> Heating: 5m at 0.0V, temp still dropping/below target (")) +
+								              String(boxTemp, 2) + F("°C)"));
+							}
+						}
+					}
 				}
-			} else { // Currently Heating
-				if (boxTemp > (dynamicTemp + 0.5f)) {
-					boxSubMode = 2;	// Switch to cooling mode
+			} else { // Currently in Heating sub-mode (boxSubMode == 3)
+				coolingZeroVoltage = false;
+				coolingZeroStartTime = 0;
+				coolingTroughTemp = 999.0f;
+
+				// Heater is idle when PID output is 0 and temperature is above target
+				bool heatingIdle = (setHotPWM <= 0.0f) && (boxTemp > dynamicTemp);
+
+				if (!heatingIdle) {
+					// Heater is active or temperature is below target
+					heatingIdleStartTime = 0;
+					heatingPeakTemp = -999.0f;
+				} else {
+					if (heatingIdleStartTime == 0) {
+						heatingIdleStartTime = millis();
+						heatingPeakTemp = boxTemp;
+						Debug.addLine(String(F("Heating idle: heater at 0%, temp above target (")) + String(boxTemp, 2) +
+						              F("°C). Observing tendency (5m)..."));
+					} else {
+						// Track the maximum temperature reached during this overshoot
+						if (boxTemp > heatingPeakTemp) {
+							heatingPeakTemp = boxTemp;
+						}
+
+						// Check tendency over time
+						// If temperature has visibly started cooling down (-0.05°C below peak), renew window
+						if (boxTemp <= (heatingPeakTemp - 0.05f)) {
+							heatingPeakTemp = boxTemp;
+							heatingIdleStartTime = millis();
+						} else if (millis() - heatingIdleStartTime >= (MODE_SWITCH_WINDOW_SEC * 1000UL)) {
+							// 5 minutes at 0% PWM expired and temperature did not drop
+							if (boxTemp > dynamicTemp) {
+								boxSubMode = 2; // Switch to Cooling mode
+								heatingIdleStartTime = 0;
+								heatingPeakTemp = -999.0f;
+								Debug.addLine(String(F("Switching Heating -> Cooling: 5m at 0% PWM, temp still rising/above target (")) +
+								              String(boxTemp, 2) + F("°C)"));
+							}
+						}
+					}
 				}
+			}
+		} else {
+			// Not in Dual Mode or cooler stopped
+			heatingIdleStartTime = 0;
+			heatingPeakTemp = -999.0f;
+			coolingZeroStartTime = 0;
+			coolingTroughTemp = 999.0f;
+			if (boxMode == 2 && !isStopped) {
+				// In cooling-only mode, also cut Peltier to 0.0V if below cutoff to avoid overcooling
+				coolingZeroVoltage = (boxTemp < (dynamicTemp - DEFAULT_HYSTERESIS));
+			} else {
+				coolingZeroVoltage = false;
 			}
 		}
 
-		bool isStopped = isCoolerStopped();
 		bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
 		bool isCooling = !isHeating && !isStopped;
 

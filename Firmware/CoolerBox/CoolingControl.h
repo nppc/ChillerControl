@@ -10,6 +10,7 @@ extern float changeVoltageSpeed;
 extern float minVoltage;
 extern float maxVoltage;
 extern bool stopCooler;
+extern bool coolingZeroVoltage;
 
 void initCooling();
 void setCoolerStopped(bool stopped);

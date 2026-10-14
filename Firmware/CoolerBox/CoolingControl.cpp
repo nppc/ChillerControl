@@ -8,6 +8,7 @@ float changeVoltageSpeed = 0.4f;
 float minVoltage = 2.0f;
 float maxVoltage = 12.0f;
 bool stopCooler = LOW;
+bool coolingZeroVoltage = false;
 
 static bool currentCoolingDemand = false;
 static float thermalVoltageCap = 12.0f;
@@ -16,6 +17,7 @@ void initCooling() {
 	thermalVoltageCap = maxVoltage;
 	flagExtremeTemp = LOW;
 	currentCoolingDemand = false;
+	coolingZeroVoltage = false;
 }
 
 void setCoolerStopped(bool stopped) {
@@ -78,7 +80,7 @@ void processCooling(float boxTemp, float hotTemp, float targetTemp, bool enableC
 	} else {
 		bool demand = evaluateCoolingDemand(boxTemp, targetTemp, enableCooling);
 		float effectiveMax = flagExtremeTemp ? thermalVoltageCap : maxVoltage;
-		setVoltage = demand ? effectiveMax : minVoltage;
+		setVoltage = demand ? effectiveMax : (coolingZeroVoltage ? 0.0f : minVoltage);
 	}
 	sendI2Cdata();
 }
@@ -89,7 +91,7 @@ void updateCoolingOutput(bool forceSend, bool sendLimits) {
 		setVoltage = 0.0f;
 	} else {
 		bool demand = evaluateCoolingDemand(boxTemp, dynamicTemp, true);
-		setVoltage = demand ? maxVoltage : minVoltage;
+		setVoltage = demand ? maxVoltage : (coolingZeroVoltage ? 0.0f : minVoltage);
 	}
 	sendI2Cdata(forceSend, sendLimits);
 }
