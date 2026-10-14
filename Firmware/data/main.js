@@ -9,6 +9,100 @@ function NumberChange(n, i) {
   el.stepUp(n);
 }
 
+function setupNavigation() {
+  const container = document.querySelector('.container');
+  if (!container) return;
+
+  const oldHeader = container.querySelector('.hdr_table');
+  const caption = oldHeader && oldHeader.querySelector('.hdr_caption');
+  const header = document.createElement('header');
+  header.className = 'app-header';
+
+  const menuButton = document.createElement('button');
+  menuButton.type = 'button';
+  menuButton.className = 'menu-toggle';
+  menuButton.id = 'menuBtn';
+  menuButton.setAttribute('aria-label', 'Open navigation menu');
+  menuButton.setAttribute('aria-controls', 'sideMenu');
+  menuButton.setAttribute('aria-expanded', 'false');
+  menuButton.textContent = '\u2630';
+
+  const brandCopy = document.createElement('div');
+  brandCopy.className = 'brand-copy';
+  const brandName = document.createElement('div');
+  brandName.className = 'brand-name';
+  brandName.textContent = 'COOLER BOX';
+  const title = document.createElement('h1');
+  title.id = 'appTitle';
+  title.textContent = caption ? caption.textContent.trim() : document.title;
+  brandCopy.append(brandName, title);
+  header.append(menuButton, brandCopy);
+  container.insertBefore(header, container.firstChild);
+
+  const menu = document.createElement('nav');
+  menu.id = 'sideMenu';
+  menu.setAttribute('aria-label', 'Main navigation');
+  const menuHeading = document.createElement('h2');
+  menuHeading.textContent = 'Menu';
+  menu.appendChild(menuHeading);
+
+  const menuItems = [
+    ['Home', '/'],
+    ['Settings', '/settings'],
+    ['PID tuning', '/pids'],
+    ['Network', '/network'],
+    ['Diagnostics', '/debug'],
+    ['Firmware update', '/update']
+  ];
+  menuItems.forEach(([label, href]) => {
+    const link = document.createElement('a');
+    link.className = 'menu-item';
+    link.href = href;
+    link.textContent = label;
+    if (window.location.pathname === href ||
+        (href === '/' && window.location.pathname === '/index.htm')) {
+      link.setAttribute('aria-current', 'page');
+    }
+    menu.appendChild(link);
+  });
+
+  const backdrop = document.createElement('button');
+  backdrop.type = 'button';
+  backdrop.id = 'sideMenuBackdrop';
+  backdrop.setAttribute('aria-label', 'Close navigation menu');
+  document.body.append(menu, backdrop);
+
+  const closeMenu = () => {
+    menu.classList.remove('open');
+    backdrop.classList.remove('open');
+    menuButton.setAttribute('aria-expanded', 'false');
+    menuButton.setAttribute('aria-label', 'Open navigation menu');
+  };
+  menuButton.addEventListener('click', () => {
+    const isOpen = menu.classList.toggle('open');
+    backdrop.classList.toggle('open', isOpen);
+    menuButton.setAttribute('aria-expanded', String(isOpen));
+    menuButton.setAttribute('aria-label', isOpen ? 'Close navigation menu' : 'Open navigation menu');
+    if (isOpen) menu.querySelector('a').focus();
+  });
+  backdrop.addEventListener('click', closeMenu);
+  menu.addEventListener('click', (event) => {
+    if (event.target.closest('a')) closeMenu();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && menu.classList.contains('open')) {
+      closeMenu();
+      menuButton.focus();
+    }
+  });
+
+  if (caption) {
+    new MutationObserver(() => {
+      title.textContent = caption.textContent.trim();
+    }).observe(caption, { childList: true, characterData: true, subtree: true });
+  }
+}
+
 function showhide() {
   const el = document.getElementById("settemperature");
   if (!el) return;
@@ -419,6 +513,7 @@ function setupDebugPage() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  setupNavigation();
   if (document.getElementById('boxTemp')) {
     setupIndexPage();
   } else if (document.getElementById('VoltChange')) {

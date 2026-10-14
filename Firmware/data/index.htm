@@ -17,9 +17,9 @@
 </td></tr></table>
 <TABLE width=100%><TR><TD><div align="left">Version: <span id="FW">--</span></div></TD><TD><div align="right">Uptime: <div id="CurTime" style="display:inline">--</div></div></TD></TR></TABLE>
 <BR>
-<TABLE class="values_table">
+<TABLE class="values_table temperature-card">
 <TR class="values_header"><TD>Temperature (&deg;C)</TD></TR>
-<TR><TD><div style="font-size:100px" id="boxTemp">--</div>Set to: <div id="setTemp" style="display:inline">--</div>&deg;&nbsp;C <span id="stopBadge" style="display:none; color:red; font-weight:bold; margin-left:6px;">[STOPPED]</span></TD></TR>
+<TR><TD><div class="temperature-value" id="boxTemp">--</div>Set to: <div id="setTemp" style="display:inline">--</div>&deg;&nbsp;C <span id="stopBadge" style="display:none; color:red; font-weight:bold; margin-left:6px;">[STOPPED]</span></TD></TR>
 </TABLE>
 <BR>
 <TABLE class="values_table">
@@ -29,7 +29,6 @@
 <BR>
 <TABLE width="100%"><TR>
 <TD><button type="button" class="btn btn_round" onclick="showhide()">Temperature</button></TD>
-<TD><form action="/settings" method="get"><button type="submit" class="btn btn_round">Settings</button></form></TD>
 <TD><form id="controlForm" action="/stop" method="get"><button type="submit" id="controlBtn" class="btn btn_round btn_red">STOP</button></form></TD></TR>
 </TABLE>
 <div id="settemperature" style="display:none;">
