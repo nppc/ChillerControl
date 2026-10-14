@@ -15,22 +15,63 @@
 <div class="hdr_logo_text_short">COOLER</div>
 <div class="hdr_logo_text_long">Peltie Voltage Controller</div>
 </td></tr></table>
-<TABLE width=100%><TR><TD><div align="left">Version: <span id="FW">--</span></div></TD><TD><div align="right">Uptime: <div id="CurTime" style="display:inline">--</div></div></TD></TR></TABLE>
-<BR>
-<TABLE class="values_table temperature-card">
-<TR class="values_header"><TD>Temperature (&deg;C)</TD></TR>
-<TR><TD><div class="temperature-value" id="boxTemp">--</div>Set to: <div id="setTemp" style="display:inline">--</div>&deg;&nbsp;C <span id="stopBadge" style="display:none; color:red; font-weight:bold; margin-left:6px;">[STOPPED]</span></TD></TR>
-</TABLE>
-<BR>
-<TABLE class="values_table">
-<TR class="values_header"><TD>Hot PWM</TD><TD>Cold Volt</TD><TD>Cold Curr</TD><TD>Hot side</TD></TR>
-<TR><TD id="setHotPWM">--</TD><TD id="Voltage">--</TD><TD id="Current">--</TD><TD id="Fan"><div style="display:inline" id="HotTemp">--</div>&deg;&nbsp;C</TD></TR>
-</TABLE>
-<BR>
-<TABLE width="100%"><TR>
-<TD><button type="button" class="btn btn_round" onclick="showhide()">Temperature</button></TD>
-<TD><form id="controlForm" action="/stop" method="get"><button type="submit" id="controlBtn" class="btn btn_round btn_red">STOP</button></form></TD></TR>
-</TABLE>
+<section class="operation-card" id="operationCard" aria-live="polite">
+<div class="operation-indicator" id="operationIndicator" aria-hidden="true"></div>
+<div class="operation-copy">
+<div class="operation-label" id="operationLabel">Checking status</div>
+<div class="operation-detail" id="operationDetail">Reading controller state…</div>
+</div>
+<div class="operation-mode" id="operationMode">--</div>
+</section>
+<section class="temperature-card">
+<div class="temperature-reading">
+<div class="temperature-label">Box temperature</div>
+<div class="temperature-value"><span id="boxTemp">--</span><span class="temperature-unit">&deg;C</span></div>
+</div>
+<div class="target-reading">
+<div class="temperature-label">Target</div>
+<div class="target-value"><span id="setTemp">--</span>&deg;C</div>
+</div>
+<div class="dashboard-actions">
+<button type="button" class="btn btn_round" onclick="showhide()">Set temperature</button>
+<form id="controlForm" action="/stop" method="get"><button type="submit" id="controlBtn" class="btn btn_round btn_red">STOP</button></form>
+</div>
+</section>
+<section class="process-grid" aria-label="Process readings">
+<article class="process-card" id="coolingCard">
+<header class="process-card-header">
+<h2>Cooling</h2>
+<span class="process-state" id="coolingState">Inactive</span>
+</header>
+<dl class="process-readings">
+<div><dt>Cold-side voltage</dt><dd id="Voltage">--</dd></div>
+<div><dt>Cold-side current</dt><dd id="Current">--</dd></div>
+<div><dt>Hot-side temperature</dt><dd><span id="HotTemp">--</span>&deg;C</dd></div>
+<div><dt>Fan</dt><dd id="Fan">--</dd></div>
+</dl>
+</article>
+<article class="process-card" id="heatingCard">
+<header class="process-card-header">
+<h2>Heating</h2>
+<span class="process-state" id="heatingState">Inactive</span>
+</header>
+<dl class="process-readings">
+<div><dt>Heater output</dt><dd id="setHotPWM">--</dd></div>
+</dl>
+</article>
+</section>
+<div class="main-status">
+<div class="wifi-status signal-0" id="wifiStatus" aria-label="Wi-Fi disconnected">
+<svg class="wifi-icon" viewBox="0 0 32 32" aria-hidden="true">
+<path class="wifi-arc wifi-arc-outer" d="M3 11.5a19 19 0 0 1 26 0"/>
+<path class="wifi-arc wifi-arc-middle" d="M7.5 16a12.5 12.5 0 0 1 17 0"/>
+<path class="wifi-arc wifi-arc-inner" d="M12 20.5a6 6 0 0 1 8 0"/>
+<circle class="wifi-dot" cx="16" cy="25" r="2.2"/>
+</svg>
+<span id="rssiValue">-- dBm</span>
+</div>
+<div class="uptime-status">Uptime: <span id="CurTime">--</span></div>
+</div>
 <div id="settemperature" style="display:none;">
 <form id="setTempForm" action="/setTemp" method="get">
 <TABLE>

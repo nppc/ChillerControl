@@ -131,8 +131,31 @@ async function updateStatus() {
     };
 
     setIf('Caption', data.Caption);
-    setIf('FW', data.FW);
     setIf('CurTime', data.CurTime);
+    setIf('operationLabel', data.activeProcess === 'cooling' ? 'Cooling' :
+      data.activeProcess === 'heating' ? (data.autoTuning ? 'Heating tune' : 'Heating') : 'Stopped');
+    setIf('operationDetail', `${data.controlMode} mode · ${data.processDetail}`);
+    setIf('operationMode', data.controlMode);
+    const operationCard = document.getElementById('operationCard');
+    if (operationCard) operationCard.className = `operation-card ${data.activeProcess || 'stopped'}`;
+    const coolingCard = document.getElementById('coolingCard');
+    const heatingCard = document.getElementById('heatingCard');
+    const coolingActive = data.activeProcess === 'cooling';
+    const heatingActive = data.activeProcess === 'heating';
+    if (coolingCard) coolingCard.classList.toggle('active', coolingActive);
+    if (heatingCard) heatingCard.classList.toggle('active', heatingActive);
+    setIf('coolingState', coolingActive ? data.processDetail : 'Inactive');
+    setIf('heatingState', heatingActive ? data.processDetail : 'Inactive');
+    const wifiStatus = document.getElementById('wifiStatus');
+    const rssiValue = document.getElementById('rssiValue');
+    if (wifiStatus && rssiValue) {
+      const connected = data.wifiConnected === true && Number.isFinite(Number(data.rssi));
+      const rssi = connected ? Number(data.rssi) : null;
+      const signalLevel = !connected ? 0 : rssi >= -55 ? 4 : rssi >= -67 ? 3 : rssi >= -75 ? 2 : 1;
+      wifiStatus.className = `wifi-status signal-${signalLevel}`;
+      wifiStatus.setAttribute('aria-label', connected ? `Wi-Fi signal ${rssi} dBm` : 'Wi-Fi disconnected');
+      rssiValue.textContent = connected ? `${rssi} dBm` : '-- dBm';
+    }
     setIf('I2CStatus', data.I2CStatus);
     setIf('HotTemp', data.HotTemp);
     setIf('boxTemp', data.boxTemp);
@@ -140,23 +163,19 @@ async function updateStatus() {
     setIf('Voltage', data.Voltage);
     setIf('Current', data.Current);
 
-    const fanEl = document.getElementById('Fan');
-    if (fanEl && data.Fan !== undefined) fanEl.style.backgroundColor = data.Fan;
-
     const setTempEl = document.getElementById('setTemp');
     if (setTempEl && data.setTemp !== undefined) {
       setTempEl.textContent = data.setTemp;
     }
 
-    const stopBadge = document.getElementById('stopBadge');
-    if (stopBadge) {
-      stopBadge.style.display = data.stopping ? 'inline' : 'none';
-    }
-
     const controlBtn = document.getElementById('controlBtn');
     const controlForm = document.getElementById('controlForm');
     if (controlBtn && controlForm) {
-      if (data.stopping) {
+      controlBtn.disabled = data.autoTuning === true;
+      if (data.autoTuning) {
+        controlBtn.textContent = 'AUTO-TUNING';
+        controlBtn.className = 'btn btn_round btn_muted';
+      } else if (data.stopping) {
         controlBtn.textContent = 'START';
         controlBtn.className = 'btn btn_round btn_green';
         controlForm.action = '/start';

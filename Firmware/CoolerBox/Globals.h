@@ -1,5 +1,3 @@
-#define FIRMWAREVERSION "3.2"
-
 // Default values
 #define DEFAULT_HYSTERESIS 0.05  // ±0.05 °C (0.10 °C total deadband span)
 #define DEFAULT_PID_KP 60.0        
