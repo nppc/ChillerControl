@@ -48,12 +48,8 @@
 <TD rowspan=2>Path suffix, for example /telemetry</TD></tr>
 <TR><TD colspan=3>&nbsp;</TD></TR>
 <tr class="values_header"><td colspan=4>Interval (s)</td></tr>
-<tr><td width=80px height=60px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'sendInterval')">&#171;</button></td>
-<td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
-<input type="number" name="sendInterval" id="sendInterval" class="input" min="10" max="86400" step="1" value="60"/></td>
-<td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'sendInterval')">&#187;</button></td>
-<TD rowspan=2>Interval of sending data in seconds.</TD></tr>
-<TR><TD colspan=3>&nbsp;</TD></TR>
+<tr><td colspan=3><input type="number" name="sendInterval" id="sendInterval" class="inputtext" min="10" max="86400" step="1" value="60"/></td>
+<TD>Interval of sending data in seconds.</TD></tr>
 </TABLE>
 <TABLE width="100%">
 <TR><TD><button type="submit" class="btn btn_round">Save Network Settings & Reboot</button></TD></TR>

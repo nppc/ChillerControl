@@ -21,7 +21,9 @@
 <div class="operation-label" id="operationLabel">Checking status</div>
 <div class="operation-detail" id="operationDetail">Reading controller state…</div>
 </div>
-<div class="operation-mode" id="operationMode">--</div>
+<form id="controlForm" action="/stop" method="get" class="operation-action">
+  <button type="submit" id="controlBtn" class="btn btn_round btn_red btn_small">STOP</button>
+</form>
 </section>
 <section class="temperature-card">
 <div class="temperature-reading">
@@ -30,11 +32,11 @@
 </div>
 <div class="target-reading">
 <div class="temperature-label">Target</div>
-<div class="target-value"><span id="setTemp">--</span>&deg;C</div>
-</div>
-<div class="dashboard-actions">
-<button type="button" class="btn btn_round" onclick="showhide()">Set temperature</button>
-<form id="controlForm" action="/stop" method="get"><button type="submit" id="controlBtn" class="btn btn_round btn_red">STOP</button></form>
+<div class="target-value" onclick="openTempModal()" style="cursor: pointer;" title="Click to set temperature"><span id="setTemp">--</span>&deg;C</div>
+<button type="button" class="btn btn_target_set" onclick="openTempModal()" aria-label="Set temperature">
+<svg viewBox="0 0 20 20" fill="currentColor" class="btn-icon" aria-hidden="true"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+Set
+</button>
 </div>
 </section>
 <section class="process-grid" aria-label="Process readings">
@@ -43,46 +45,72 @@
 <h2>Cooling</h2>
 <span class="process-state" id="coolingState">Inactive</span>
 </header>
-<dl class="process-readings">
-<div><dt>Cold-side voltage</dt><dd id="Voltage">--</dd></div>
-<div><dt>Cold-side current</dt><dd id="Current">--</dd></div>
-<div><dt>Hot-side temperature</dt><dd><span id="HotTemp">--</span>&deg;C</dd></div>
-<div><dt>Fan</dt><dd id="Fan">--</dd></div>
-</dl>
+<div class="process-row">
+<div class="process-item" title="Cold-side voltage">
+<svg class="process-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<path d="M13 2L4 13h7l-1 9 10-12h-8l1-8z"/>
+</svg>
+<span id="Voltage">--</span>
+</div>
+<div class="process-item" title="Cold-side current">
+<svg class="process-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<circle cx="12" cy="12" r="9"/>
+<path d="M8.5 16.5l3.5-9 3.5 9M9.8 13.5h4.4"/>
+</svg>
+<span id="Current">--</span>
+</div>
+<div class="process-item" title="Hot-side temperature and fan">
+<svg class="process-icon fan-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<circle cx="12" cy="12" r="2.5" fill="currentColor"/>
+<path d="M12 9.5c0-3.5 2-5.5 5-5.5 0 3.5-2 5.5-5 5.5z"/>
+<path d="M14.5 12c3.5 0 5.5 2 5.5 5 0-3.5-2-5.5-5.5-5.5z"/>
+<path d="M12 14.5c0 3.5-2 5.5-5 5.5 0-3.5 2-5.5 5-5.5z"/>
+<path d="M9.5 12c-3.5 0-5.5-2-5.5-5 0 3.5 2 5.5 5.5 5.5z"/>
+</svg>
+<span><span id="HotTemp">--</span>&deg;C</span>
+<span class="fan-badge" id="Fan">--</span>
+</div>
+</div>
 </article>
 <article class="process-card" id="heatingCard">
 <header class="process-card-header">
 <h2>Heating</h2>
 <span class="process-state" id="heatingState">Inactive</span>
 </header>
-<dl class="process-readings">
-<div><dt>Heater output</dt><dd id="setHotPWM">--</dd></div>
-</dl>
+<div class="process-row">
+<div class="process-item" title="Heater output">
+<svg class="process-icon heater-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<path d="M7 19c1.5-1.5 2-3.5 2-5.5s-2-3.5-2-5.5 1.5-3 2-4"/>
+<path d="M12 19c1.5-1.5 2-3.5 2-5.5s-2-3.5-2-5.5 1.5-3 2-4"/>
+<path d="M17 19c1.5-1.5 2-3.5 2-5.5s-2-3.5-2-5.5 1.5-3 2-4"/>
+</svg>
+<span id="setHotPWM">--</span>
+</div>
+</div>
 </article>
 </section>
-<div class="main-status">
-<div class="wifi-status signal-0" id="wifiStatus" aria-label="Wi-Fi disconnected">
-<svg class="wifi-icon" viewBox="0 0 32 32" aria-hidden="true">
-<path class="wifi-arc wifi-arc-outer" d="M3 11.5a19 19 0 0 1 26 0"/>
-<path class="wifi-arc wifi-arc-middle" d="M7.5 16a12.5 12.5 0 0 1 17 0"/>
-<path class="wifi-arc wifi-arc-inner" d="M12 20.5a6 6 0 0 1 8 0"/>
-<circle class="wifi-dot" cx="16" cy="25" r="2.2"/>
-</svg>
-<span id="rssiValue">-- dBm</span>
-</div>
-<div class="uptime-status">Uptime: <span id="CurTime">--</span></div>
-</div>
-<div id="settemperature" style="display:none;">
-<form id="setTempForm" action="/setTemp" method="get">
-<TABLE>
-<tr class="values_header"><td colspan=4>Set Temperature</td></tr>
-<tr><td width=80px><button type="button" class="btn btn_minus" onclick="NumberChange(-10,'Temp')">&#171;</button></td>
-<td width=80px, style="text-align: center; border-top: 1px solid #0ae;border-bottom: 1px solid #0ae">
-<input type="number" name="Temp" id="Temp" class="input" min="0.0" max="45.0" step="0.1" placeholder="(&deg;C)" value=""/></td>
-<td width=80px><button type="button" class="btn btn_plus" onclick="NumberChange(10,'Temp')">&#187;</button></td>
-<td width=100px><button type="submit" class="btn btn_round">Set</button></td></tr>
-</TABLE>
-</form>
+
+<div id="tempModalBackdrop" class="modal-backdrop" style="display:none;" onclick="closeTempModal(event)">
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="tempModalTitle" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="tempModalTitle">Set Temperature</h3>
+      <button type="button" class="modal-close" onclick="closeTempModal()" aria-label="Close dialog">&times;</button>
+    </div>
+    <form id="setTempForm" action="/setTemp" method="get">
+      <div class="modal-body">
+        <label for="Temp" class="modal-label">Target temperature</label>
+        <div class="modal-input-row">
+          <input type="number" name="Temp" id="Temp" class="modal-input" min="0.0" max="45.0" step="0.1" placeholder="19.0" required>
+          <span class="modal-unit">&deg;C</span>
+        </div>
+        <div class="modal-hint">Allowed range: 0.0 &ndash; 45.0 &deg;C</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn_muted modal-btn" onclick="closeTempModal()">Cancel</button>
+        <button type="submit" class="btn btn_round modal-btn">Set</button>
+      </div>
+    </form>
+  </div>
 </div>
 </div>
 </body>

@@ -36,7 +36,24 @@ function setupNavigation() {
   title.id = 'appTitle';
   title.textContent = caption ? caption.textContent.trim() : document.title;
   brandCopy.append(brandName, title);
-  header.append(menuButton, brandCopy);
+
+  const headerStatus = document.createElement('div');
+  headerStatus.className = 'header-status';
+  headerStatus.id = 'headerStatus';
+  headerStatus.innerHTML = `
+    <div class="wifi-status signal-0" id="wifiStatus" aria-label="Wi-Fi disconnected">
+      <svg class="wifi-icon" viewBox="0 0 32 32" aria-hidden="true">
+        <path class="wifi-arc wifi-arc-outer" d="M3 11.5a19 19 0 0 1 26 0"/>
+        <path class="wifi-arc wifi-arc-middle" d="M7.5 16a12.5 12.5 0 0 1 17 0"/>
+        <path class="wifi-arc wifi-arc-inner" d="M12 20.5a6 6 0 0 1 8 0"/>
+        <circle class="wifi-dot" cx="16" cy="25" r="2.2"/>
+      </svg>
+      <span id="rssiValue">-- dBm</span>
+    </div>
+    <div class="uptime-status"><span class="uptime-label">Up: </span><span id="CurTime">--</span></div>
+  `;
+
+  header.append(menuButton, brandCopy, headerStatus);
   container.insertBefore(header, container.firstChild);
 
   const menu = document.createElement('nav');
@@ -90,9 +107,16 @@ function setupNavigation() {
     if (event.target.closest('a')) closeMenu();
   });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && menu.classList.contains('open')) {
-      closeMenu();
-      menuButton.focus();
+    if (event.key === 'Escape') {
+      const modal = document.getElementById('tempModalBackdrop');
+      if (modal && modal.style.display !== 'none') {
+        closeTempModal();
+        return;
+      }
+      if (menu.classList.contains('open')) {
+        closeMenu();
+        menuButton.focus();
+      }
     }
   });
 
@@ -101,22 +125,74 @@ function setupNavigation() {
       title.textContent = caption.textContent.trim();
     }).observe(caption, { childList: true, characterData: true, subtree: true });
   }
+
+  fetch('/status')
+    .then(r => r.ok ? r.json() : null)
+    .then(data => { if (data) updateHeaderStatus(data); })
+    .catch(() => {});
+
+  if (!document.getElementById('boxTemp')) {
+    setInterval(() => {
+      if (!document.hidden) {
+        fetch('/status')
+          .then(r => r.ok ? r.json() : null)
+          .then(data => { if (data) updateHeaderStatus(data); })
+          .catch(() => {});
+      }
+    }, 5000);
+  }
+}
+
+function updateHeaderStatus(data) {
+  const curTime = document.getElementById('CurTime');
+  if (curTime && data.CurTime !== undefined) {
+    curTime.textContent = data.CurTime;
+  }
+  const wifiStatus = document.getElementById('wifiStatus');
+  const rssiValue = document.getElementById('rssiValue');
+  if (wifiStatus && rssiValue) {
+    const connected = data.wifiConnected === true && Number.isFinite(Number(data.rssi));
+    const rssi = connected ? Number(data.rssi) : null;
+    const signalLevel = !connected ? 0 : rssi >= -55 ? 4 : rssi >= -67 ? 3 : rssi >= -75 ? 2 : 1;
+    wifiStatus.className = `wifi-status signal-${signalLevel}`;
+    wifiStatus.setAttribute('aria-label', connected ? `Wi-Fi signal ${rssi} dBm` : 'Wi-Fi disconnected');
+    rssiValue.textContent = connected ? `${rssi} dBm` : (data.emergencyMode ? 'Emergency AP' : '-- dBm');
+  }
+}
+
+function openTempModal() {
+  const backdrop = document.getElementById('tempModalBackdrop');
+  if (!backdrop) return;
+  const tempInput = document.getElementById('Temp');
+  const setTempEl = document.getElementById('setTemp');
+  if (tempInput && setTempEl) {
+    const current = parseFloat(setTempEl.textContent);
+    if (!isNaN(current)) tempInput.value = current.toFixed(1);
+  }
+  backdrop.style.display = 'flex';
+  setTimeout(() => {
+    backdrop.classList.add('open');
+    if (tempInput) {
+      tempInput.focus();
+      tempInput.select();
+    }
+  }, 10);
+}
+
+function closeTempModal(event) {
+  if (event && event.target && event.target.id !== 'tempModalBackdrop' && !event.target.classList.contains('modal-close') && !event.target.classList.contains('modal-btn')) {
+    return;
+  }
+  const backdrop = document.getElementById('tempModalBackdrop');
+  if (!backdrop) return;
+  backdrop.classList.remove('open');
+  setTimeout(() => {
+    backdrop.style.display = 'none';
+  }, 180);
 }
 
 function showhide() {
-  const el = document.getElementById("settemperature");
-  if (!el) return;
-  const isHidden = (el.style.display === "none" || !el.style.display);
-  el.style.display = isHidden ? "block" : "none";
-  if (isHidden) {
-    const tempInput = document.getElementById("Temp");
-    const setTempEl = document.getElementById("setTemp");
-    if (tempInput && setTempEl) {
-      const current = parseFloat(setTempEl.textContent);
-      if (!isNaN(current)) tempInput.value = current.toFixed(1);
-      tempInput.focus();
-    }
-  }
+  openTempModal();
 }
 
 async function updateStatus() {
@@ -125,17 +201,17 @@ async function updateStatus() {
     if (!res.ok) return;
     const data = await res.json();
 
+    updateHeaderStatus(data);
+
     const setIf = (id, val) => {
       const el = document.getElementById(id);
       if (el && val !== undefined) el.textContent = val;
     };
 
     setIf('Caption', data.Caption);
-    setIf('CurTime', data.CurTime);
     setIf('operationLabel', data.activeProcess === 'cooling' ? 'Cooling' :
       data.activeProcess === 'heating' ? (data.autoTuning ? 'Heating tune' : 'Heating') : 'Stopped');
     setIf('operationDetail', `${data.controlMode} mode · ${data.processDetail}`);
-    setIf('operationMode', data.controlMode);
     const operationCard = document.getElementById('operationCard');
     if (operationCard) operationCard.className = `operation-card ${data.activeProcess || 'stopped'}`;
     const coolingCard = document.getElementById('coolingCard');
@@ -146,22 +222,21 @@ async function updateStatus() {
     if (heatingCard) heatingCard.classList.toggle('active', heatingActive);
     setIf('coolingState', coolingActive ? data.processDetail : 'Inactive');
     setIf('heatingState', heatingActive ? data.processDetail : 'Inactive');
-    const wifiStatus = document.getElementById('wifiStatus');
-    const rssiValue = document.getElementById('rssiValue');
-    if (wifiStatus && rssiValue) {
-      const connected = data.wifiConnected === true && Number.isFinite(Number(data.rssi));
-      const rssi = connected ? Number(data.rssi) : null;
-      const signalLevel = !connected ? 0 : rssi >= -55 ? 4 : rssi >= -67 ? 3 : rssi >= -75 ? 2 : 1;
-      wifiStatus.className = `wifi-status signal-${signalLevel}`;
-      wifiStatus.setAttribute('aria-label', connected ? `Wi-Fi signal ${rssi} dBm` : 'Wi-Fi disconnected');
-      rssiValue.textContent = connected ? `${rssi} dBm` : '-- dBm';
-    }
     setIf('I2CStatus', data.I2CStatus);
     setIf('HotTemp', data.HotTemp);
     setIf('boxTemp', data.boxTemp);
     setIf('setHotPWM', data.setHotPWM);
     setIf('Voltage', data.Voltage);
     setIf('Current', data.Current);
+
+    const fanEl = document.getElementById('Fan');
+    if (fanEl && data.Fan !== undefined) {
+      fanEl.textContent = data.Fan;
+      const isOn = data.Fan === 'On';
+      fanEl.classList.toggle('on', isOn);
+      const fanIcon = document.querySelector('.fan-icon');
+      if (fanIcon) fanIcon.classList.toggle('spinning', isOn);
+    }
 
     const setTempEl = document.getElementById('setTemp');
     if (setTempEl && data.setTemp !== undefined) {
@@ -173,20 +248,20 @@ async function updateStatus() {
     if (controlBtn && controlForm) {
       controlBtn.disabled = data.autoTuning === true;
       if (data.autoTuning) {
-        controlBtn.textContent = 'AUTO-TUNING';
-        controlBtn.className = 'btn btn_round btn_muted';
+        controlBtn.textContent = 'AUTOTUNE';
+        controlBtn.className = 'btn btn_round btn_muted btn_small';
       } else if (data.stopping) {
         controlBtn.textContent = 'START';
-        controlBtn.className = 'btn btn_round btn_green';
+        controlBtn.className = 'btn btn_round btn_green btn_small';
         controlForm.action = '/start';
       } else {
         controlBtn.textContent = 'STOP';
-        controlBtn.className = 'btn btn_round btn_red';
+        controlBtn.className = 'btn btn_round btn_red btn_small';
         controlForm.action = '/stop';
       }
     }
 
-    const setTempPanel = document.getElementById('settemperature');
+    const setTempPanel = document.getElementById('tempModalBackdrop');
     const isEditing = setTempPanel && setTempPanel.style.display !== 'none';
     const tempInput = document.getElementById('Temp');
     if (tempInput && data.rawSetTemp !== undefined && !isEditing && document.activeElement !== tempInput) {
@@ -221,8 +296,7 @@ function setupIndexPage() {
       try {
         const res = await fetch('/setTemp?Temp=' + encodeURIComponent(val.toFixed(1)));
         if (res.ok) {
-          const panel = document.getElementById('settemperature');
-          if (panel) panel.style.display = 'none';
+          closeTempModal();
         }
       } catch (err) {
       } finally {

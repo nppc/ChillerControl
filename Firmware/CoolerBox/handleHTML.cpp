@@ -485,6 +485,6 @@ void handleUpdateResult() {
 	}
 
 	httpServer.send(200, "text/plain", "Update successful. Restarting...");
-	delay(100);
+	delay(500);
 	ESP.restart();
 }
