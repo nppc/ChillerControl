@@ -102,7 +102,7 @@ void setup() {
 		WiFi.persistent(false); // don't write wifi settings to flash
 		WiFi.mode(WIFI_AP_STA);
 		WiFi.setSleepMode(WIFI_NONE_SLEEP); // Disable Wi-Fi modem sleep to improve weak signal (-85 dBm) stability
-		WiFi.setOutputPower(17.5f); // Start with standard transmit power
+		WiFi.setOutputPower(20.5f); // Always use maximum transmit power (+20.5 dBm)
 
 		if (apPassword[0] != '\0') {
 			Debug.addLine(String(F("Normal boot: starting secured AP '")) + apSSID + F("'"));
@@ -507,40 +507,12 @@ void loop() {
 				Debug.addLine(String(F("Wi-Fi connected: ")) + WiFi.localIP().toString());
 			}
 
-			// Adaptive Wi-Fi TX power based on RSSI (-80 dBm threshold with time debounce)
-			static float currentTxPower = 17.5f;
-			static unsigned long weakSignalStart = 0;
-			static unsigned long goodSignalStart = 0;
-			int rssi = WiFi.RSSI();
-
-			if (rssi < 0) { // Valid negative dBm
-				if (rssi <= -80) {
-					goodSignalStart = 0;
-					if (weakSignalStart == 0) {
-						weakSignalStart = millis();
-					} else if (millis() - weakSignalStart >= 15000UL) { // 15 seconds sustained weak signal
-						if (currentTxPower < 20.5f) {
-							currentTxPower = 20.5f;
-							WiFi.setOutputPower(currentTxPower);
-							Debug.addLine(String(F("Wi-Fi TX power boosted to 20.5 dBm (RSSI: ")) + rssi + F(" dBm)"));
-						}
-					}
-				} else if (rssi >= -75) {
-					weakSignalStart = 0;
-					if (goodSignalStart == 0) {
-						goodSignalStart = millis();
-					} else if (millis() - goodSignalStart >= 45000UL) { // 45 seconds sustained good signal
-						if (currentTxPower > 17.5f) {
-							currentTxPower = 17.5f;
-							WiFi.setOutputPower(currentTxPower);
-							Debug.addLine(String(F("Wi-Fi TX power reduced to 17.5 dBm (RSSI: ")) + rssi + F(" dBm)"));
-						}
-					}
-				} else {
-					// In deadband (-79 to -76 dBm): reset pending transitions
-					weakSignalStart = 0;
-					goodSignalStart = 0;
-				}
+			// Ensure TX power remains at maximum (+20.5 dBm)
+			static bool txPowerInitialized = false;
+			if (!txPowerInitialized) {
+				txPowerInitialized = true;
+				WiFi.setOutputPower(20.5f);
+				Debug.addLine(String(F("Wi-Fi TX power set to maximum (20.5 dBm), RSSI: ")) + WiFi.RSSI() + F(" dBm"));
 			}
 		}
 	}
