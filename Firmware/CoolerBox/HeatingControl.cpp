@@ -21,7 +21,7 @@ QuickPID hotPID(&pidInput, &pidOutput, &pidSetpoint,
 // Autotune state
 static AutoTuneState atState = AutoTuneState::IDLE;
 static float atTargetTemp = 20.0f;
-static float atTestPWM = 500.0f;
+static float atTestPWM = 300.0f;
 static float atNoiseBand = 0.25f;
 static int atTargetCycles = 4;
 static int atCycleCount = 0;
@@ -36,12 +36,39 @@ static float atCalcKp = 0.0f;
 static float atCalcKi = 0.0f;
 static float atCalcKd = 0.0f;
 static String atStatusMessage = "Idle";
+static float currentRampedPWM = 0.0f;
+
+static void applyHeaterPWM(float targetPWM, bool ramp = true) {
+	if (!ramp || targetPWM <= 0.0f) {
+		currentRampedPWM = targetPWM;
+		setHotPWM = targetPWM;
+		analogWrite(HEAT_WIRE, (int)round(targetPWM));
+		return;
+	}
+
+	// Soft-start ramp: limit PWM step per cycle to prevent current shock and voltage brownout
+	const float MAX_STEP_PER_CYCLE = 100.0f;
+	if (currentRampedPWM < targetPWM) {
+		currentRampedPWM += MAX_STEP_PER_CYCLE;
+		if (currentRampedPWM > targetPWM) {
+			currentRampedPWM = targetPWM;
+		}
+	} else if (currentRampedPWM > targetPWM) {
+		currentRampedPWM -= MAX_STEP_PER_CYCLE;
+		if (currentRampedPWM < targetPWM) {
+			currentRampedPWM = targetPWM;
+		}
+	}
+	setHotPWM = currentRampedPWM;
+	analogWrite(HEAT_WIRE, (int)round(currentRampedPWM));
+}
 
 void initHeating() {
 	pinMode(HEAT_WIRE, OUTPUT);
 	analogWriteFreq(100); // 100Hz PWM for heating wire
 	analogWrite(HEAT_WIRE, 0);
 	setHotPWM = 0.0f;
+	currentRampedPWM = 0.0f;
 
 	hotPID.SetOutputLimits(0, maxHotPWM);
 	hotPID.SetSampleTimeUs(PIDCOMPUTE_INTERVAL * 1000000UL); // 2000000 µs
@@ -59,6 +86,7 @@ void initHeating() {
 
 void resetHeatingPID() {
 	hotPID.Reset(); // Completely clears pTerm, iTerm, dTerm, and outputSum
+	currentRampedPWM = 0.0f;
 	setHotPWM = 0.0f;
 	pidOutput = 0.0f;
 	analogWrite(HEAT_WIRE, 0);
@@ -102,14 +130,12 @@ static void stepAutoTune(float currentTemp) {
 	}
 
 	if (atState == AutoTuneState::WARMING_UP) {
-		setHotPWM = atTestPWM;
-		analogWrite(HEAT_WIRE, (int)round(setHotPWM));
+		applyHeaterPWM(atTestPWM, true);
 
 		if (currentTemp >= atTargetTemp) {
 			atState = AutoTuneState::CYCLING;
 			atHeaterOn = false;
-			setHotPWM = 0.0f;
-			analogWrite(HEAT_WIRE, 0);
+			applyHeaterPWM(0.0f, false);
 			atCycleCount = 0;
 			atPeak = currentTemp;
 			atValley = currentTemp;
@@ -125,13 +151,14 @@ static void stepAutoTune(float currentTemp) {
 		if (currentTemp < atValley) atValley = currentTemp;
 
 		if (atHeaterOn) {
+			applyHeaterPWM(atTestPWM, true);
 			if (currentTemp >= (atTargetTemp + atNoiseBand)) {
 				atHeaterOn = false;
-				setHotPWM = 0.0f;
-				analogWrite(HEAT_WIRE, 0);
+				applyHeaterPWM(0.0f, false);
 				atStatusMessage = "Cycle " + String(atCycleCount + 1) + ": cooling to valley";
 			}
 		} else {
+			applyHeaterPWM(0.0f, false);
 			if (currentTemp <= (atTargetTemp - atNoiseBand)) {
 				unsigned long now = millis();
 				unsigned long cycleDurationMs = now - atCycleStartTime;
@@ -173,6 +200,7 @@ static void stepAutoTune(float currentTemp) {
 					// Ku = (4 * (atTestPWM / 2)) / (pi * (avgAmp / 2)) = (4 * atTestPWM) / (pi * avgAmp)
 					float Ku = (4.0f * atTestPWM) / (3.14159265f * avgAmp);
 					float Pu = avgPeriodSec;
+					if (Pu < 1.0f) Pu = 1.0f;
 
 					// Tyreus-Luyben tuning rules
 					atCalcKp = 0.45f * Ku;
@@ -185,8 +213,7 @@ static void stepAutoTune(float currentTemp) {
 					saveSettings();
 
 					atState = AutoTuneState::COMPLETED;
-					setHotPWM = 0.0f;
-					analogWrite(HEAT_WIRE, 0);
+					applyHeaterPWM(0.0f, false);
 					resetHeatingPID();
 					setCoolerStopped(true); // Maintain safe stopped state after tuning
 
@@ -200,8 +227,7 @@ static void stepAutoTune(float currentTemp) {
 				}
 
 				atHeaterOn = true;
-				setHotPWM = atTestPWM;
-				analogWrite(HEAT_WIRE, (int)round(setHotPWM));
+				applyHeaterPWM(atTestPWM, true);
 				atStatusMessage = "Cycle " + String(atCycleCount + 1) + " of " + String(atTargetCycles) + ": heating to peak";
 			}
 		}
@@ -210,6 +236,12 @@ static void stepAutoTune(float currentTemp) {
 
 void processHeating(float currentTemp, float targetTemp, bool enableHeating) {
 	if (isHeatingAutoTuning()) {
+		if (!enableHeating) {
+			applyHeaterPWM(0.0f, false);
+			float safePeltierThreshold = max(2.5f, minVoltage + 0.5f);
+			atStatusMessage = "Waiting for Peltier voltage to drop (" + String(measuredVoltage, 1) + "V >= " + String(safePeltierThreshold, 1) + "V)...";
+			return;
+		}
 		stepAutoTune(currentTemp);
 		return;
 	}
@@ -219,8 +251,10 @@ void processHeating(float currentTemp, float targetTemp, bool enableHeating) {
 		pidSetpoint = targetTemp;
 		hotPID.Compute();
 		setHotPWM = pidOutput;
+		currentRampedPWM = pidOutput;
 		analogWrite(HEAT_WIRE, (int)round(setHotPWM));
 	} else {
+		currentRampedPWM = 0.0f;
 		setHotPWM = 0.0f;
 		pidOutput = 0.0f;
 		analogWrite(HEAT_WIRE, 0);
@@ -250,6 +284,7 @@ bool startHeatingAutoTune(float targetTemp, float testPWM, float noiseBand, int 
 	atPeak = -999.0f;
 	atValley = 999.0f;
 	atHeaterOn = true;
+	currentRampedPWM = 0.0f;
 	atState = AutoTuneState::WARMING_UP;
 	atStatusMessage = F("Autotune started: warming up to target...");
 
@@ -264,8 +299,7 @@ void stopHeatingAutoTune(const char *reason) {
 		return;
 	}
 	atState = AutoTuneState::FAILED;
-	setHotPWM = 0.0f;
-	analogWrite(HEAT_WIRE, 0);
+	applyHeaterPWM(0.0f, false);
 	resetHeatingPID();
 	setCoolerStopped(true);
 	atStatusMessage = String(F("Autotune stopped: ")) + reason;
@@ -282,6 +316,7 @@ AutoTuneStatus getHeatingAutoTuneStatus() {
 	st.currentCycle = atCycleCount;
 	st.targetCycles = atTargetCycles;
 	st.targetTemp = atTargetTemp;
+	st.testPWM = atTestPWM;
 	st.currentTemp = boxTemp;
 	st.peakTemp = (atPeak > -900.0f) ? atPeak : boxTemp;
 	st.valleyTemp = (atValley < 900.0f) ? atValley : boxTemp;
@@ -302,6 +337,16 @@ float getHeatingAutoTuneTargetTemp() {
 void setHeatingAutoTuneTargetTemp(float target) {
 	if (target >= 5.0f && target <= 45.0f) {
 		atTargetTemp = target;
+	}
+}
+
+float getHeatingAutoTuneTestPWM() {
+	return atTestPWM;
+}
+
+void setHeatingAutoTuneTestPWM(float pwm) {
+	if (pwm >= 50.0f && pwm <= (float)maxHotPWM) {
+		atTestPWM = pwm;
 	}
 }
 

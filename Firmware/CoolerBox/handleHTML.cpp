@@ -245,7 +245,7 @@ void handleApiAutotune() {
 		String action = httpServer.arg("action");
 		if (action == "start") {
 			float target = httpServer.hasArg("targetTemp") ? httpServer.arg("targetTemp").toFloat() : getHeatingAutoTuneTargetTemp();
-			float pwm = httpServer.hasArg("testPWM") ? httpServer.arg("testPWM").toFloat() : 500.0f;
+			float pwm = httpServer.hasArg("testPWM") ? httpServer.arg("testPWM").toFloat() : getHeatingAutoTuneTestPWM();
 			float noise = httpServer.hasArg("noiseBand") ? httpServer.arg("noiseBand").toFloat() : 0.25f;
 			int cyc = httpServer.hasArg("cycles") ? httpServer.arg("cycles").toInt() : 4;
 			startHeatingAutoTune(target, pwm, noise, cyc);
@@ -270,6 +270,7 @@ void handleApiAutotune() {
 	doc["cycle"] = st.currentCycle;
 	doc["targetCycles"] = st.targetCycles;
 	doc["targetTemp"] = st.targetTemp;
+	doc["testPWM"] = st.testPWM;
 	doc["setTemp"] = setTemp;
 	doc["currentTemp"] = st.currentTemp;
 	doc["peakTemp"] = st.peakTemp;
@@ -289,7 +290,8 @@ void handleAutotune() {
 		String action = httpServer.arg("action");
 		if (action == "start") {
 			float target = httpServer.hasArg("targetTemp") ? httpServer.arg("targetTemp").toFloat() : setTemp;
-			startHeatingAutoTune(target);
+			float pwm = httpServer.hasArg("testPWM") ? httpServer.arg("testPWM").toFloat() : 300.0f;
+			startHeatingAutoTune(target, pwm);
 		} else if (action == "stop") {
 			stopHeatingAutoTune();
 		}

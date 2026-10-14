@@ -56,6 +56,7 @@ void setup() {
 	initCooling();
 
 	Debug.init();
+	Debug.addLine(String(F("Boot reset: ")) + ESP.getResetInfo());
 
 	drd.detectDoubleReset();
 	emergencyMode = drd.isDoubleResetDetected();
@@ -202,114 +203,116 @@ void processControl() {
 	// Autotune mode override
 	if (isHeatingAutoTuning()) {
 		processCooling(boxTemp, HotTemp, dynamicTemp, false); // cooling disabled
-		processHeating(boxTemp, dynamicTemp, true);
 		digitalWrite(HOT_FAN, LOW); // Fan is always OFF during heating autotune
-		return;
-	}
 
-	// Automatic switchover between cooling and heating in Dual Mode (boxMode == 1)
-	if (boxMode == 1) {
-		if (boxSubMode == 2) { // Currently Cooling
-			if (boxTemp < (dynamicTemp - 0.5f)) {
-				boxSubMode = 3;	// Switch to heating mode
-			}
-		} else { // Currently Heating
-			if (boxTemp > (dynamicTemp + 0.5f)) {
-				boxSubMode = 2;	// Switch to cooling mode
+		float safePeltierThreshold = max(2.5f, minVoltage + 0.5f);
+		bool peltierSafe = !I2C_PRESENT || (measuredVoltage < safePeltierThreshold);
+		processHeating(boxTemp, dynamicTemp, peltierSafe);
+	} else {
+		// Automatic switchover between cooling and heating in Dual Mode (boxMode == 1)
+		if (boxMode == 1) {
+			if (boxSubMode == 2) { // Currently Cooling
+				if (boxTemp < (dynamicTemp - 0.5f)) {
+					boxSubMode = 3;	// Switch to heating mode
+				}
+			} else { // Currently Heating
+				if (boxTemp > (dynamicTemp + 0.5f)) {
+					boxSubMode = 2;	// Switch to cooling mode
+				}
 			}
 		}
-	}
 
-	bool isStopped = isCoolerStopped();
-	bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
-	bool isCooling = !isHeating && !isStopped;
+		bool isStopped = isCoolerStopped();
+		bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
+		bool isCooling = !isHeating && !isStopped;
 
-	// Reset PID memory whenever transitioning into Heating mode to eliminate stale memory and prevent windups
-	static bool wasHeating = false;
-	static bool wasStopped = true;
-	static int lastSubMode = -1;
+		// Reset PID memory whenever transitioning into Heating mode to eliminate stale memory and prevent windups
+		static bool wasHeating = false;
+		static bool wasStopped = true;
+		static int lastSubMode = -1;
 
-	bool enteredHeating = (!wasHeating && isHeating && !isStopped) ||
-	                      (wasStopped && !isStopped && isHeating) ||
-	                      (boxSubMode == 3 && lastSubMode != 3 && !isStopped);
-	if (enteredHeating) {
-		resetHeatingPID();
-		Debug.addLine(F("Switched to Heating: PID memory fully reset"));
-	}
-	wasHeating = isHeating;
-	wasStopped = isStopped;
-	lastSubMode = boxSubMode;
+		bool enteredHeating = (!wasHeating && isHeating && !isStopped) ||
+		                      (wasStopped && !isStopped && isHeating) ||
+		                      (boxSubMode == 3 && lastSubMode != 3 && !isStopped);
+		if (enteredHeating) {
+			resetHeatingPID();
+			Debug.addLine(F("Switched to Heating: PID memory fully reset"));
+		}
+		wasHeating = isHeating;
+		wasStopped = isStopped;
+		lastSubMode = boxSubMode;
 
-	// Execute separated cooling logic
-	processCooling(boxTemp, HotTemp, dynamicTemp, isCooling);
+		// Execute separated cooling logic
+		processCooling(boxTemp, HotTemp, dynamicTemp, isCooling);
 
-	// Execute separated heating logic
-	// In heating mode or dual heating submode, wait for buck converter voltage to be safely below minVoltage + margin
-	float safePeltierThreshold = max(2.5f, minVoltage + 0.5f);
-	bool heatingAllowed = !isStopped && (measuredVoltage < safePeltierThreshold) && ((boxMode == 3) || (boxMode == 1 && boxSubMode == 3));
-	processHeating(boxTemp, dynamicTemp, isHeating && heatingAllowed);
+		// Execute separated heating logic
+		// In heating mode or dual heating submode, wait for buck converter voltage to be safely below minVoltage + margin
+		float safePeltierThreshold = max(2.5f, minVoltage + 0.5f);
+		bool heatingAllowed = !isStopped && (measuredVoltage < safePeltierThreshold) && ((boxMode == 3) || (boxMode == 1 && boxSubMode == 3));
+		processHeating(boxTemp, dynamicTemp, isHeating && heatingAllowed);
 
-	// Log control state changes
-	static int lastLoggedMode = -1;
-	static int lastLoggedSubMode = -1;
-	static bool lastLoggedStopState = false;
-	static bool lastLoggedDemand = false;
-	static float lastLoggedSetVoltage = -1.0f;
-	static bool lastLoggedHeating = false;
+		// Log control state changes
+		static int lastLoggedMode = -1;
+		static int lastLoggedSubMode = -1;
+		static bool lastLoggedStopState = false;
+		static bool lastLoggedDemand = false;
+		static float lastLoggedSetVoltage = -1.0f;
+		static bool lastLoggedHeating = false;
 
-	bool demand = isCoolingDemanded();
-	bool stateChanged = (boxMode != lastLoggedMode || boxSubMode != lastLoggedSubMode ||
-	                     isStopped != lastLoggedStopState || isHeating != lastLoggedHeating);
-	bool coolingChanged = (!isHeating && !isStopped && (demand != lastLoggedDemand || setVoltage != lastLoggedSetVoltage));
+		bool demand = isCoolingDemanded();
+		bool stateChanged = (boxMode != lastLoggedMode || boxSubMode != lastLoggedSubMode ||
+		                     isStopped != lastLoggedStopState || isHeating != lastLoggedHeating);
+		bool coolingChanged = (!isHeating && !isStopped && (demand != lastLoggedDemand || setVoltage != lastLoggedSetVoltage));
 
-	if (stateChanged || coolingChanged) {
-		String msg;
-		if (isStopped) {
-			msg = F("Cooler stopped: temp=");
-			msg += String(boxTemp, 2);
-			msg += F(" target=");
-			msg += String(dynamicTemp, 2);
-		} else if (isHeating) {
-			msg = F("Heating is on: temp=");
-			msg += String(boxTemp, 2);
-			msg += F(" target=");
-			msg += String(dynamicTemp, 2);
+		if (stateChanged || coolingChanged) {
+			String msg;
+			if (isStopped) {
+				msg = F("Cooler stopped: temp=");
+				msg += String(boxTemp, 2);
+				msg += F(" target=");
+				msg += String(dynamicTemp, 2);
+			} else if (isHeating) {
+				msg = F("Heating is on: temp=");
+				msg += String(boxTemp, 2);
+				msg += F(" target=");
+				msg += String(dynamicTemp, 2);
+			} else {
+				msg = F("Cooling: temp=");
+				msg += String(boxTemp, 2);
+				msg += F(" target=");
+				msg += String(dynamicTemp, 2);
+				msg += F(" requested=");
+				msg += String(setVoltage, 1);
+				msg += F("V");
+			}
+			Debug.addLine(msg);
+
+			lastLoggedMode = boxMode;
+			lastLoggedSubMode = boxSubMode;
+			lastLoggedStopState = isStopped;
+			lastLoggedDemand = demand;
+			lastLoggedSetVoltage = setVoltage;
+			lastLoggedHeating = isHeating;
+		}
+
+		// Control Fan
+		if (isHeating) {
+			digitalWrite(HOT_FAN, LOW); // Fan is always OFF when heating
+		} else if (HotSensorId == ColdSensorId || fanDynamic_checked == 0) {
+			digitalWrite(HOT_FAN, HIGH);
 		} else {
-			msg = F("Cooling: temp=");
-			msg += String(boxTemp, 2);
-			msg += F(" target=");
-			msg += String(dynamicTemp, 2);
-			msg += F(" requested=");
-			msg += String(setVoltage, 1);
-			msg += F("V");
+			if (HotTemp >= 32.0f && digitalRead(HOT_FAN) == LOW) {
+				digitalWrite(HOT_FAN, HIGH);
+			} else if (HotTemp <= 24.0f && digitalRead(HOT_FAN) == HIGH) {
+				digitalWrite(HOT_FAN, LOW);
+			}
 		}
-		Debug.addLine(msg);
-
-		lastLoggedMode = boxMode;
-		lastLoggedSubMode = boxSubMode;
-		lastLoggedStopState = isStopped;
-		lastLoggedDemand = demand;
-		lastLoggedSetVoltage = setVoltage;
-		lastLoggedHeating = isHeating;
 	}
 
 	// Send data to IoT
 	if (!emergencyMode && (millis() - millisSendDataInterval > static_cast<unsigned long>(sendInterval) * 1000UL)) {
 		millisSendDataInterval = millis();
 		sendTelemetry();
-	}
-
-	// Control Fan
-	if (isHeating) {
-		digitalWrite(HOT_FAN, LOW); // Fan is always OFF when heating
-	} else if (HotSensorId == ColdSensorId || fanDynamic_checked == 0) {
-		digitalWrite(HOT_FAN, HIGH);
-	} else {
-		if (HotTemp >= 32.0f && digitalRead(HOT_FAN) == LOW) {
-			digitalWrite(HOT_FAN, HIGH);
-		} else if (HotTemp <= 24.0f && digitalRead(HOT_FAN) == HIGH) {
-			digitalWrite(HOT_FAN, LOW);
-		}
 	}
 }
 

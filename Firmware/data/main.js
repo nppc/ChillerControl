@@ -206,6 +206,28 @@ function initAutotuneTarget(targetVal) {
   }
 }
 
+function initAutotunePwm(pwmVal) {
+  const pwmInput = document.getElementById('atTestPWM');
+  if (!pwmInput) return;
+  if (!pwmInput.dataset.userEdited) {
+    const saved = localStorage.getItem('autotune_pwm');
+    const val = saved ? parseInt(saved, 10) : (pwmVal || 300);
+    if (!isNaN(val)) {
+      pwmInput.value = val;
+    }
+  }
+  if (!pwmInput.dataset.listenerAttached) {
+    pwmInput.dataset.listenerAttached = 'true';
+    pwmInput.addEventListener('input', () => {
+      pwmInput.dataset.userEdited = 'true';
+      const v = parseInt(pwmInput.value, 10);
+      if (!isNaN(v) && v >= 100 && v <= 700) {
+        localStorage.setItem('autotune_pwm', v.toString());
+      }
+    });
+  }
+}
+
 async function pollAutotuneStatus() {
   try {
     const res = await fetch('/api/autotune');
@@ -216,6 +238,7 @@ async function pollAutotuneStatus() {
     const statusBox = document.getElementById('atStatusBox');
     const detailsBox = document.getElementById('atDetailsBox');
     const targetInput = document.getElementById('atTargetTemp');
+    const pwmInput = document.getElementById('atTestPWM');
 
     isAutotuning = data.active;
     if (btn) {
@@ -233,6 +256,14 @@ async function pollAutotuneStatus() {
         targetInput.value = parseFloat(data.targetTemp).toFixed(1);
       } else {
         initAutotuneTarget(data.targetTemp || data.setTemp);
+      }
+    }
+
+    if (pwmInput) {
+      if (data.active && data.testPWM !== undefined) {
+        pwmInput.value = parseInt(data.testPWM, 10);
+      } else {
+        initAutotunePwm(data.testPWM || 300);
       }
     }
 
@@ -265,6 +296,13 @@ async function toggleAutotune() {
   if (!isNaN(targetTemp)) {
     localStorage.setItem('autotune_target', targetTemp.toFixed(1));
   }
+
+  const pwmInput = document.getElementById('atTestPWM');
+  const testPwm = pwmInput && pwmInput.value ? parseInt(pwmInput.value, 10) : 300;
+  if (!isNaN(testPwm)) {
+    localStorage.setItem('autotune_pwm', testPwm.toString());
+  }
+
   const action = isAutotuning ? 'stop' : 'start';
 
   try {
@@ -272,6 +310,7 @@ async function toggleAutotune() {
     formData.append('action', action);
     if (action === 'start') {
       formData.append('targetTemp', isNaN(targetTemp) ? '20.0' : targetTemp.toString());
+      formData.append('testPWM', isNaN(testPwm) ? '300' : testPwm.toString());
     }
 
     const res = await fetch('/api/autotune', {
@@ -305,6 +344,7 @@ async function setupPidsPage() {
     setIf('hotPID_kD', data.hotPID_kD);
 
     initAutotuneTarget(data.targetTemp || data.setTemp);
+    initAutotunePwm(300);
 
     pollAutotuneStatus();
     if (!autotuneTimer) {

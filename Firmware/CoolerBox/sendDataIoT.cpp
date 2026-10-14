@@ -27,15 +27,23 @@ void sendTelemetry() {
 	}
 	url += endpointPath;
 
+	float targetVal = isHeatingAutoTuning() ? getHeatingAutoTuneTargetTemp() : setTemp;
+	float pwmPct = (maxHotPWM > 0) ? (setHotPWM * 100.0f / static_cast<float>(maxHotPWM)) : 0.0f;
+
 	JsonDocument doc;
 	doc["temperature"] = boxTemp;
-	doc["set_temperature"] = setTemp;
+	doc["set_temperature"] = targetVal;
+	doc["target"] = targetVal;
 	doc["hot_temperature"] = HotTemp;
 	doc["voltage"] = measuredVoltage;
 	doc["current"] = measuredCurrent;
-	doc["hot_pwm"] = setHotPWM * 100.0 / maxHotPWM;
+	doc["hot_pwm"] = pwmPct;
+	doc["pwm"] = pwmPct;
 	doc["ip_address"] = WiFi.localIP().toString();
 	doc["rssi"] = WiFi.RSSI();
+	if (isHeatingAutoTuning()) {
+		doc["autotune"] = 1;
+	}
 
 	String payload;
 	serializeJson(doc, payload);

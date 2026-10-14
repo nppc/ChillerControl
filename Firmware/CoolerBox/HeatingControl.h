@@ -18,6 +18,7 @@ struct AutoTuneStatus {
 	int currentCycle;
 	int targetCycles;
 	float targetTemp;
+	float testPWM;
 	float currentTemp;
 	float peakTemp;
 	float valleyTemp;
@@ -42,10 +43,12 @@ void pauseHeatingPWM();
 void resumeHeatingPWM();
 void processHeating(float currentTemp, float targetTemp, bool enableHeating);
 
-bool startHeatingAutoTune(float targetTemp, float testPWM = 500.0f, float noiseBand = 0.25f, int cycles = 4);
+bool startHeatingAutoTune(float targetTemp, float testPWM = 300.0f, float noiseBand = 0.25f, int cycles = 4);
 void stopHeatingAutoTune(const char *reason = "Aborted by user");
 bool isHeatingAutoTuning();
 AutoTuneStatus getHeatingAutoTuneStatus();
 float getHeatingAutoTuneTargetTemp();
 void setHeatingAutoTuneTargetTemp(float target);
+float getHeatingAutoTuneTestPWM();
+void setHeatingAutoTuneTestPWM(float pwm);
 
