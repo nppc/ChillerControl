@@ -65,7 +65,8 @@ void sendTelemetry() {
 	https.addHeader("Content-Type", "application/json");
 	int status = https.POST(payload);
 	if (status >= 200 && status < 300) {
-		Debug.addLine(String(F("HTTPS telemetry sent: ")) + status);
+		Debug.addLine(String(F("HTTPS telemetry sent: ")) + status +
+			F(" (Heap: ") + ESP.getFreeHeap() + F("B, NAT: ") + getNatPeakCount() + F("/") + NAT_TABLE_SIZE + F(")"));
 	} else if (status < 0) {
 		Debug.addLine(String(F("HTTPS POST failed: ")) + https.errorToString(status));
 	} else {

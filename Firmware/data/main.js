@@ -700,8 +700,32 @@ function setupDebugPage() {
   }
 }
 
+function setupPasswordToggles() {
+  document.querySelectorAll('.password-toggle').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const targetId = btn.getAttribute('aria-controls');
+      const input = targetId ? document.getElementById(targetId) : btn.closest('.password-wrapper')?.querySelector('input');
+      if (!input) return;
+      const isFocused = document.activeElement === input;
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      const willShow = input.type === 'password';
+      input.type = willShow ? 'text' : 'password';
+      const label = willShow ? 'Hide password' : 'Show password';
+      btn.setAttribute('aria-label', label);
+      btn.setAttribute('title', label);
+      btn.classList.toggle('is-visible', willShow);
+      if (isFocused && start !== null && end !== null) {
+        input.setSelectionRange(start, end);
+      }
+    });
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   setupNavigation();
+  setupPasswordToggles();
   if (document.getElementById('boxTemp')) {
     setupIndexPage();
   } else if (document.getElementById('VoltChange')) {

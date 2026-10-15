@@ -123,3 +123,6 @@ void handleCSS();
 void handleScript();
 void sendTelemetry();
 bool isWebClientAllowed();
+extern const uint16_t NAT_TABLE_SIZE;
+uint16_t getNatActiveCount();
+uint16_t getNatPeakCount();

@@ -1,6 +1,7 @@
 #include "CoolerBox.h"
 #include <lwip/err.h>
 #include <lwip/napt.h>
+#include <lwip/prot/ip.h>
 
 DebugHTML Debug;
 
@@ -52,8 +53,10 @@ int boxSubMode = 3; // 2-Cooling, 3-Heating
 // Define a web server at port 80 for HTTP
 ESP8266WebServer httpServer(80);
 
+const uint16_t NAT_TABLE_SIZE = 64;
+
 namespace {
-const uint16_t NAT_TABLE_SIZE = 8;
+const uint8_t NAT_PORTMAP_SIZE = 4;
 const unsigned long NAT_DISCONNECT_TIMEOUT_MS = 10000UL;
 const IPAddress AP_SUBNET_MASK(255, 255, 255, 0);
 volatile uint8_t pendingApEvent = 0;
@@ -66,6 +69,26 @@ bool natReady = false;
 bool natEnabled = false;
 bool apStarted = false;
 bool hasActiveNatClient = false;
+bool natDataTransferred = false;
+uint16_t peakNatEntries = 0;
+
+#ifndef NO_IDX
+#define NO_IDX ((u16_t)-1)
+#endif
+
+struct napt_data {
+	struct napt_table *table;
+	struct portmap_table *portmap_table;
+	int nr_active_tcp;
+	int nr_active_udp;
+	int nr_active_icmp;
+	u16_t list;
+	u16_t list_last;
+	u16_t free;
+	u16_t napt_max;
+	u8_t portmap_max;
+};
+extern "C" struct napt_data *napt_data;
 char activeNatMac[18] = "";
 IPAddress configuredApIP(0, 0, 0, 0);
 IPAddress configuredApDns(0, 0, 0, 0);
@@ -240,13 +263,39 @@ void setNatEnabled(bool enable) {
 	}
 	err_t result = ip_napt_enable_no(SOFTAP_IF, enable ? 1 : 0);
 	if (result != ERR_OK) {
-		Debug.addLine(String(F("Failed to ")) + (enable ? F("enable") : F("disable")) +
-			F(" AP NAPT, error ") + static_cast<int>(result));
 		return;
 	}
 	natEnabled = enable;
 	apNoClientSince = 0;
-	Debug.addLine(enable ? F("AP NAT enabled for IoT client") : F("AP NAT disabled"));
+}
+
+void checkNatDataTransfer() {
+	if (!hasActiveNatClient || natDataTransferred || !napt_data || !napt_data->table) {
+		return;
+	}
+	u16_t count = 0;
+	for (u16_t i = napt_data->list; i != NO_IDX && i < napt_data->napt_max && count < napt_data->napt_max; ++count) {
+		const struct napt_table &t = napt_data->table[i];
+		bool forwarded = false;
+		if (t.proto == IP_PROTO_TCP) {
+			// Established TCP session (synack received from external server) or connection completed/reset
+			if (t.synack || t.finack1 || t.finack2 || t.fin1 || t.fin2 || t.rst) {
+				forwarded = true;
+			}
+		} else if (t.proto == IP_PROTO_UDP) {
+			// Non-DNS UDP packet forwarded (port 53 is DNS)
+			if (lwip_ntohs(t.dport) != 53) {
+				forwarded = true;
+			}
+		}
+		if (forwarded) {
+			natDataTransferred = true;
+			Debug.addLine(String(F("IoT device ")) + activeNatMac + F(" transferred data (NAT: ") +
+				getNatActiveCount() + F("/") + NAT_TABLE_SIZE + F(", Heap: ") + ESP.getFreeHeap() + F("B)"));
+			break;
+		}
+		i = t.next;
+	}
 }
 
 void processApEvents() {
@@ -266,20 +315,20 @@ void processApEvents() {
 		if (suggestedIotMac[0] == '\0' && iotDeviceMac.isEmpty()) {
 			strncpy(suggestedIotMac, macText, sizeof(suggestedIotMac));
 			suggestedIotMac[sizeof(suggestedIotMac) - 1] = '\0';
-			Debug.addLine(String(F("First AP client MAC; configure as IoT device: ")) + suggestedIotMac);
 		}
 		const bool allowed = iotDeviceMac.isEmpty() || macMatches(iotDeviceMac.c_str(), mac);
 		if (allowed) {
 			strncpy(activeNatMac, macText, sizeof(activeNatMac));
 			activeNatMac[sizeof(activeNatMac) - 1] = '\0';
 			hasActiveNatClient = true;
+			natDataTransferred = false;
 			setNatEnabled(true);
 		} else {
-			Debug.addLine(String(F("NAT not opened for unconfigured AP client ")) + macText);
 			setNatEnabled(false);
 			hasActiveNatClient = false;
 		}
 	} else if (eventType == 2 && hasActiveNatClient && strcmp(activeNatMac, macText) == 0) {
+		checkNatDataTransfer();
 		setNatEnabled(false);
 		hasActiveNatClient = false;
 	}
@@ -287,6 +336,13 @@ void processApEvents() {
 
 void serviceNat() {
 	processApEvents();
+	uint16_t currentActive = getNatActiveCount();
+	if (currentActive > peakNatEntries) {
+		peakNatEntries = currentActive;
+	}
+	if (hasActiveNatClient && natEnabled) {
+		checkNatDataTransfer();
+	}
 	if (natEnabled && !hasActiveNatClient) {
 		setNatEnabled(false);
 		return;
@@ -301,7 +357,7 @@ void serviceNat() {
 	if (apNoClientSince == 0) {
 		apNoClientSince = millis();
 	} else if (millis() - apNoClientSince >= NAT_DISCONNECT_TIMEOUT_MS) {
-		Debug.addLine(F("AP client disconnect event missing; NAT safety timeout expired"));
+		checkNatDataTransfer();
 		setNatEnabled(false);
 		hasActiveNatClient = false;
 	}
@@ -316,6 +372,18 @@ ESP8266WebServer::THandlerFunction guardedHandler(ESP8266WebServer::THandlerFunc
 		handler();
 	};
 }
+}
+
+uint16_t getNatActiveCount() {
+	if (!napt_data) {
+		return 0;
+	}
+	int active = napt_data->nr_active_tcp + napt_data->nr_active_udp + napt_data->nr_active_icmp;
+	return active > 0 ? static_cast<uint16_t>(active) : 0;
+}
+
+uint16_t getNatPeakCount() {
+	return peakNatEntries;
 }
 
 bool isWebClientAllowed() {
@@ -424,12 +492,9 @@ void setup() {
 		if (!ensureNormalAp()) {
 			Debug.addLine(F("Normal AP unavailable until a safe subnet can be selected"));
 		}
-		err_t naptResult = ip_napt_init(NAT_TABLE_SIZE, 0);
+		err_t naptResult = ip_napt_init(NAT_TABLE_SIZE, NAT_PORTMAP_SIZE);
 		if (naptResult == ERR_OK) {
 			natReady = true;
-			Debug.addLine(F("NAPT initialized with an 8-entry table (disabled)"));
-		} else {
-			Debug.addLine(String(F("NAPT initialization failed, error ")) + static_cast<int>(naptResult));
 		}
 	}
 
