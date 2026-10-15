@@ -614,6 +614,7 @@ async function fetchDebug() {
     setIf('Caption', data.Caption);
     setIf('freeHeap', data.freeHeap);
     setIf('wifiRssi', data.wifiRssi);
+    setIf('wifiIp', data.wifiIp);
     setIf('lastWifiDrop', data.lastWifiDrop);
     setIf('i2cStatus', data.i2cStatus);
     setIf('resetReason', data.resetReason);

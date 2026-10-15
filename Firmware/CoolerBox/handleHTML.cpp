@@ -110,10 +110,16 @@ void handleApiDebug() {
 		char rssiBuf[48];
 		snprintf(rssiBuf, sizeof(rssiBuf), "%d dBm (%s)", rssi, WiFi.SSID().c_str());
 		doc["wifiRssi"] = rssiBuf;
+		IPAddress wifiIp = WiFi.localIP();
+		doc["wifiIp"] = wifiIp != IPAddress(0, 0, 0, 0)
+			? wifiIp.toString()
+			: "Unavailable";
 	} else if (emergencyMode) {
 		doc["wifiRssi"] = "Emergency AP mode";
+		doc["wifiIp"] = "Unavailable (Emergency AP mode)";
 	} else {
 		doc["wifiRssi"] = "Disconnected";
+		doc["wifiIp"] = "Disconnected";
 	}
 
 	char dropBuf[48];
