@@ -108,6 +108,11 @@ function setupNavigation() {
   });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
+      const stopModal = document.getElementById('stopModalBackdrop');
+      if (stopModal && stopModal.style.display !== 'none') {
+        closeStopModal();
+        return;
+      }
       const modal = document.getElementById('tempModalBackdrop');
       if (modal && modal.style.display !== 'none') {
         closeTempModal();
@@ -188,6 +193,31 @@ function closeTempModal(event) {
   backdrop.classList.remove('open');
   setTimeout(() => {
     backdrop.style.display = 'none';
+  }, 180);
+}
+
+function openStopModal() {
+  const backdrop = document.getElementById('stopModalBackdrop');
+  if (!backdrop) return;
+  backdrop.style.display = 'flex';
+  setTimeout(() => {
+    backdrop.classList.add('open');
+    const confirmButton = document.getElementById('confirmStopBtn');
+    if (confirmButton) confirmButton.focus();
+  }, 10);
+}
+
+function closeStopModal(event) {
+  if (event && event.target && event.target.id !== 'stopModalBackdrop' && !event.target.classList.contains('modal-close') && !event.target.classList.contains('modal-btn')) {
+    return;
+  }
+  const backdrop = document.getElementById('stopModalBackdrop');
+  if (!backdrop) return;
+  backdrop.classList.remove('open');
+  setTimeout(() => {
+    backdrop.style.display = 'none';
+    const controlBtn = document.getElementById('controlBtn');
+    if (controlBtn) controlBtn.focus();
   }, 180);
 }
 
@@ -347,11 +377,29 @@ function setupIndexPage() {
     controlForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const isStopping = (controlForm.action.indexOf('/stop') >= 0);
-      if (isStopping && !confirm('Stop?')) return;
+      if (isStopping) {
+        openStopModal();
+        return;
+      }
       try {
-        await fetch(isStopping ? '/stop' : '/start');
+        await fetch('/start');
         await updateStatus();
       } catch (err) {}
+    });
+  }
+
+  const confirmStopBtn = document.getElementById('confirmStopBtn');
+  if (confirmStopBtn) {
+    confirmStopBtn.addEventListener('click', async () => {
+      confirmStopBtn.disabled = true;
+      try {
+        const res = await fetch('/stop');
+        if (res.ok) closeStopModal();
+        await updateStatus();
+      } catch (err) {
+      } finally {
+        confirmStopBtn.disabled = false;
+      }
     });
   }
 }

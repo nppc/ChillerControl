@@ -740,6 +740,59 @@ textarea {
   text-align: left;
 }
 
+.network-form {
+  display: grid;
+  gap: 16px;
+}
+
+.network-section {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgba(20, 38, 60, 0.035);
+}
+
+.network-section h2 {
+  margin: 0 0 18px;
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.network-field + .network-field {
+  margin-top: 18px;
+}
+
+.network-field label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.network-field input {
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 14px;
+  font-size: 16px;
+}
+
+.network-field p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.network-save {
+  min-height: 56px;
+  padding: 10px 16px;
+  white-space: normal;
+}
+
 select {
   max-width: 100%;
 }
@@ -1103,6 +1156,14 @@ input[type="number"] {
   .container {
     width: min(100% - 20px, 960px);
     padding-top: 10px;
+  }
+
+  .network-form {
+    gap: 12px;
+  }
+
+  .network-section {
+    padding: 16px;
   }
 
   .app-header {

@@ -112,6 +112,21 @@ Set
     </form>
   </div>
 </div>
+<div id="stopModalBackdrop" class="modal-backdrop" style="display:none;" onclick="closeStopModal(event)">
+  <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="stopModalTitle" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="stopModalTitle">Stop Cooling/Heating?</h3>
+      <button type="button" class="modal-close" onclick="closeStopModal()" aria-label="Close dialog">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p>Temperature regulation will stop. You can start it again at any time.</p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn_muted modal-btn" onclick="closeStopModal()">Cancel</button>
+      <button type="button" id="confirmStopBtn" class="btn btn_round btn_red modal-btn">Stop</button>
+    </div>
+  </div>
+</div>
 </div>
 </body>
 </html>

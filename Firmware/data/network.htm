@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Cooler Box Controller</title>
 <link href="webpage.css" rel="stylesheet" type="text/css">
 <script src="main.js" defer></script>
@@ -16,44 +16,57 @@
 <div class="hdr_logo_text_long">Peltie Voltage Controller</div>
 </td></tr></table>
 <BR>
-<form action="/network_store" method="post">
-<TABLE class="values_table">
-<BR>
-<tr class="values_header"><td colspan=4>Access Point SSID</td></tr>
-<tr><td colspan=3><input type="text" name="apSSID" class="inputtext" maxlength="32" value=""/></td>
-<TD rowspan=2>SSID of the device Access Point</TD></tr>
-<TR><TD colspan=3>&nbsp;</TD></TR>
-<tr class="values_header"><td colspan=4>Access Point Password</td></tr>
-<tr><td colspan=3><input type="text" name="apPassword" class="inputtext" maxlength="63" value=""/></td>
-<TD rowspan=2>Password for device Access Point (at least 8 chars, or empty for open)</TD></tr>
-<TR><TD colspan=3>&nbsp;</TD></TR>
-<tr class="values_header"><td colspan=4>Internet WiFi SSID</td></tr>
-<tr><td colspan=3><input type="text" name="IntSSID" class="inputtext" value=""/></td>
-<TD rowspan=2>SSID of the Access Point that has connection to the Internet</TD></tr>
-<TR><TD colspan=3>&nbsp;</TD></TR>
-<tr class="values_header"><td colspan=4>Internet WiFi Password</td></tr>
-<tr><td colspan=3><input type="text" name="IntPASS" class="inputtext" value=""/></td>
-<TD rowspan=2>Password for SSID</TD></tr>
-<TR><TD colspan=3>&nbsp;</TD></TR>
-<tr class="values_header"><td colspan=4>Endpoint Address</td></tr>
-<tr><td colspan=3><input type="text" name="endpointAddress" class="inputtext" value=""/></td>
-<TD rowspan=2>HTTPS URL prefix, for example https://aa.ddnss.eu/api/v1</TD></tr>
-<TR><TD colspan=3>&nbsp;</TD></TR>
-<tr class="values_header"><td colspan=4>Access Token</td></tr>
-<tr><td colspan=3><input type="password" name="endpointAccessToken" class="inputtext" value=""/></td>
-<TD rowspan=2>Inserted as a path segment between the address and path.</TD></tr>
-<TR><TD colspan=3>&nbsp;</TD></TR>
-<tr class="values_header"><td colspan=4>Endpoint Path</td></tr>
-<tr><td colspan=3><input type="text" name="endpointPath" class="inputtext" value=""/></td>
-<TD rowspan=2>Path suffix, for example /telemetry</TD></tr>
-<TR><TD colspan=3>&nbsp;</TD></TR>
-<tr class="values_header"><td colspan=4>Interval (s)</td></tr>
-<tr><td colspan=3><input type="number" name="sendInterval" id="sendInterval" class="inputtext" min="10" max="86400" step="1" value="60"/></td>
-<TD>Interval of sending data in seconds.</TD></tr>
-</TABLE>
-<TABLE width="100%">
-<TR><TD><button type="submit" class="btn btn_round">Save Network Settings & Reboot</button></TD></TR>
-</TABLE>
+<form action="/network_store" method="post" class="network-form">
+<section class="network-section" aria-labelledby="apSettingsHeading">
+<h2 id="apSettingsHeading">Device Access Point</h2>
+<div class="network-field">
+<label for="apSSID">Access Point name (SSID)</label>
+<input type="text" id="apSSID" name="apSSID" maxlength="32" autocomplete="off" value=""/>
+<p>Name of the Wi-Fi network broadcast by this device.</p>
+</div>
+<div class="network-field">
+<label for="apPassword">Access Point password</label>
+<input type="password" id="apPassword" name="apPassword" maxlength="63" autocomplete="new-password" value=""/>
+<p>Use at least 8 characters, or leave empty for an open network.</p>
+</div>
+</section>
+<section class="network-section" aria-labelledby="wifiSettingsHeading">
+<h2 id="wifiSettingsHeading">External Wi-Fi</h2>
+<div class="network-field">
+<label for="IntSSID">Wi-Fi name (SSID)</label>
+<input type="text" id="IntSSID" name="IntSSID" maxlength="19" autocomplete="off" value=""/>
+<p>Name of the Wi-Fi network the device should connect to.</p>
+</div>
+<div class="network-field">
+<label for="IntPASS">Wi-Fi password</label>
+<input type="password" id="IntPASS" name="IntPASS" maxlength="19" autocomplete="new-password" value=""/>
+<p>Password for the external Wi-Fi network.</p>
+</div>
+</section>
+<section class="network-section" aria-labelledby="endpointSettingsHeading">
+<h2 id="endpointSettingsHeading">Telemetry Endpoint</h2>
+<div class="network-field">
+<label for="endpointAddress">Endpoint address</label>
+<input type="text" id="endpointAddress" name="endpointAddress" inputmode="url" autocomplete="url" placeholder="https://aa.ddnss.eu/api/v1" value=""/>
+<p>HTTPS URL prefix for your telemetry service.</p>
+</div>
+<div class="network-field">
+<label for="endpointAccessToken">Access token</label>
+<input type="password" id="endpointAccessToken" name="endpointAccessToken" autocomplete="new-password" value=""/>
+<p>Inserted as a path segment between the address and path.</p>
+</div>
+<div class="network-field">
+<label for="endpointPath">Endpoint path</label>
+<input type="text" id="endpointPath" name="endpointPath" autocomplete="off" placeholder="/telemetry" value=""/>
+<p>Path suffix appended to the endpoint address and token.</p>
+</div>
+<div class="network-field">
+<label for="sendInterval">Send interval (seconds)</label>
+<input type="number" name="sendInterval" id="sendInterval" min="10" max="86400" step="1" value="60"/>
+<p>How often data is sent to the endpoint.</p>
+</div>
+</section>
+<button type="submit" class="btn btn_round network-save">Save Network Settings &amp; Reboot</button>
 </form>
 </div>
 </body>
