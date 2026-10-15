@@ -1,31 +1,5 @@
 #include "CoolerBox.h"
 
-namespace {
-bool normalizeMacAddress(String value, String &normalized) {
-	value.trim();
-	if (value.isEmpty()) {
-		normalized = "";
-		return true;
-	}
-	if (value.length() != 17) {
-		return false;
-	}
-	for (uint8_t i = 0; i < value.length(); ++i) {
-		char c = value[i];
-		if (i % 3 == 2) {
-			if (c != ':' && c != '-') return false;
-			value.setCharAt(i, ':');
-		} else {
-			if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) {
-				return false;
-			}
-			value.setCharAt(i, static_cast<char>(toupper(c)));
-		}
-	}
-	normalized = value;
-	return true;
-}
-}
 
 void handleRoot() {
 	if (!handleFileRead("/index.htm")) {
@@ -68,6 +42,9 @@ void handleApiSettings() {
 	doc["maxVoltage"] = maxVoltage;
 	doc["fanDynamic_checked"] = fanDynamic_checked;
 	doc["boxMode"] = boxMode;
+	doc["useISpindelTemp"] = useISpindelTemp;
+	doc["cascadeMaxOffset"] = cascadeMaxOffset;
+	doc["cascadeGain"] = cascadeGain;
 	doc["ColdSensorId"] = ColdSensorId;
 	doc["HotSensorId"] = HotSensorId;
 
@@ -111,8 +88,6 @@ void handleApiNetwork() {
 	doc["apPassword"] = apPassword;
 	doc["apHidden"] = apHidden;
 	doc["allowApWeb"] = allowApWeb;
-	doc["iotDeviceMac"] = iotDeviceMac;
-	doc["suggestedIotMac"] = suggestedIotMac;
 	doc["IntSSID"] = IntSSID;
 	doc["IntPASS"] = IntPASS;
 	doc["endpointAddress"] = endpointAddress;
@@ -245,6 +220,17 @@ void handleSettingsStore() {
 			if (httpServer.argName(i) == "boxMode") {
 				boxMode = httpServer.arg(i).toInt();
 			}
+			if (httpServer.argName(i) == "useISpindel") {
+				useISpindelTemp = (httpServer.arg(i).toInt() != 0);
+			}
+			if (httpServer.argName(i) == "cascadeMaxOffset") {
+				float tmp = httpServer.arg(i).toFloat();
+				if (tmp >= 0.5f && tmp <= 10.0f) cascadeMaxOffset = tmp;
+			}
+			if (httpServer.argName(i) == "cascadeGain") {
+				float tmp = httpServer.arg(i).toFloat();
+				if (tmp >= 0.1f && tmp <= 5.0f) cascadeGain = tmp;
+			}
 		}
 	}
 	hotPID.SetOutputLimits(0, maxHotPWM);
@@ -342,11 +328,12 @@ void handleSetTemp() {
 		float tmpTemp = httpServer.arg("Temp").toFloat();
 		if (tmpTemp >= 0.0f && tmpTemp <= 45.0f) {
 			setTemp = tmpTemp;
-			dynamicTemp = tmpTemp;
+			updateCascadeTarget();
 			if (boxMode == 1) {
-				if (boxTemp < dynamicTemp) {
+				float cTemp = getControlTemp();
+				if (cTemp < setTemp) {
 					boxSubMode = 3; // Immediately switch to Heating
-				} else if (boxTemp > dynamicTemp) {
+				} else if (cTemp > setTemp) {
 					boxSubMode = 2; // Immediately switch to Cooling
 				}
 			}
@@ -438,14 +425,6 @@ void handleNetworkStore() {
 					sendInterval = requestedInterval;
 				} else {
 					Debug.addLine(F("Invalid telemetry interval"));
-				}
-			}
-			if (httpServer.argName(i) == "iotDeviceMac") {
-				String normalized;
-				if (normalizeMacAddress(s, normalized)) {
-					iotDeviceMac = normalized;
-				} else {
-					Debug.addLine(F("Invalid IoT device MAC address; keeping the previous value"));
 				}
 			}
 		}

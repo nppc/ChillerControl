@@ -90,7 +90,7 @@ void updateCoolingOutput(bool forceSend, bool sendLimits) {
 	if (stopCooler || isHeating) {
 		setVoltage = 0.0f;
 	} else {
-		bool demand = evaluateCoolingDemand(boxTemp, dynamicTemp, true);
+		bool demand = evaluateCoolingDemand(boxTemp, effectiveBoxTarget, true);
 		setVoltage = demand ? maxVoltage : (coolingZeroVoltage ? 0.0f : minVoltage);
 	}
 	sendI2Cdata(forceSend, sendLimits);

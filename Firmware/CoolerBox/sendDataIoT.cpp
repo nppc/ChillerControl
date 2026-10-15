@@ -34,6 +34,11 @@ void sendTelemetry() {
 
 	JsonDocument doc;
 	doc["temperature"] = boxTemp;
+	doc["box_temperature"] = boxTemp;
+	doc["box_target"] = effectiveBoxTarget;
+	doc["fermenter_temperature"] = getFermenterTemp();
+	doc["control_temperature"] = getFermenterTemp();
+	doc["control_source"] = isISpindelActive() ? "cascade_ispindel" : "box";
 	doc["state"] = currentState;
 	doc["set_temperature"] = targetVal;
 	doc["target"] = targetVal;
@@ -46,6 +51,19 @@ void sendTelemetry() {
 	doc["rssi"] = WiFi.RSSI();
 	if (isHeatingAutoTuning()) {
 		doc["autotune"] = 1;
+	}
+
+	if (hasNewISpindelData) {
+		JsonObjectConst obj = lastISpindelDoc.as<JsonObjectConst>();
+		for (JsonPairConst kv : obj) {
+			String key = kv.key().c_str();
+			key.toLowerCase();
+			if (!key.startsWith("ispindel")) {
+				key = "ispindel_" + key;
+			}
+			doc[key] = kv.value();
+		}
+		hasNewISpindelData = false;
 	}
 
 	String payload;
@@ -65,8 +83,7 @@ void sendTelemetry() {
 	https.addHeader("Content-Type", "application/json");
 	int status = https.POST(payload);
 	if (status >= 200 && status < 300) {
-		Debug.addLine(String(F("HTTPS telemetry sent: ")) + status +
-			F(" (Heap: ") + ESP.getFreeHeap() + F("B, NAT: ") + getNatPeakCount() + F("/") + NAT_TABLE_SIZE + F(")"));
+		Debug.addLine(String(F("HTTPS telemetry sent: ")) + status);
 	} else if (status < 0) {
 		Debug.addLine(String(F("HTTPS POST failed: ")) + https.errorToString(status));
 	} else {

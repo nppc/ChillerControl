@@ -32,7 +32,9 @@ void applySettings(JsonDocument &doc) {
 	}
 	apHidden = doc["apHidden"] | false;
 	allowApWeb = doc["allowApWeb"] | false;
-	iotDeviceMac = doc["iotDeviceMac"] | "";
+	useISpindelTemp = doc["useISpindelTemp"] | true;
+	cascadeMaxOffset = doc["cascadeMaxOffset"] | 4.0f;
+	cascadeGain = doc["cascadeGain"] | 1.5f;
 
 	String s = doc["IntSSID"].as<String>();s.toCharArray(IntSSID,20);
 	s = doc["IntPASS"].as<String>();s.toCharArray(IntPASS,20);
@@ -44,7 +46,6 @@ void applySettings(JsonDocument &doc) {
 		sendInterval = 60;
 	}
 	setTemp = doc["setTemp"];
-	dynamicTemp = setTemp;
 	hotPID_kP = doc["hotPID_kP"];
 	hotPID_kI = doc["hotPID_kI"];
 	hotPID_kD = doc["hotPID_kD"];
@@ -105,7 +106,9 @@ void initDefaultSettings() {
 	apPassword[0] = '\0';
 	apHidden = false;
 	allowApWeb = false;
-	iotDeviceMac = "";
+	useISpindelTemp = true;
+	cascadeMaxOffset = 4.0f;
+	cascadeGain = 1.5f;
 	IntSSID[0] = '\0';
 	IntPASS[0] = '\0';
 	endpointAddress = "";
@@ -113,7 +116,6 @@ void initDefaultSettings() {
 	endpointPath = "/telemetry";
 	sendInterval = 60;
 	setTemp = 19.0;
-	dynamicTemp = setTemp;
 	hotPID_kP = DEFAULT_PID_KP;
 	hotPID_kI = DEFAULT_PID_KI;
 	hotPID_kD = DEFAULT_PID_KD;
@@ -146,7 +148,9 @@ void saveSettings(){
 	doc["apPassword"] = String(apPassword);
 	doc["apHidden"] = apHidden;
 	doc["allowApWeb"] = allowApWeb;
-	doc["iotDeviceMac"] = iotDeviceMac;
+	doc["useISpindelTemp"] = useISpindelTemp;
+	doc["cascadeMaxOffset"] = cascadeMaxOffset;
+	doc["cascadeGain"] = cascadeGain;
 	doc["IntSSID"] = String(IntSSID);
 	doc["IntPASS"] = String(IntPASS);
 	doc["endpointAddress"] = endpointAddress;

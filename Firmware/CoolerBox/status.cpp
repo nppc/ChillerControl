@@ -34,6 +34,15 @@ void handleStatus() {
 	doc["I2CStatus"] = I2C_PRESENT ? "I2C connected" : "I2C connection failed";
 	doc["HotTemp"] = String(HotTemp, 1);
 	doc["boxTemp"] = String(boxTemp, 1);
+	doc["controlTemp"] = String(getFermenterTemp(), 1);
+	doc["effectiveBoxTarget"] = String(effectiveBoxTarget, 1);
+	doc["controlSource"] = isISpindelActive() ? "Cascade (iSpindel)" : "Box Sensor";
+	doc["iSpindelTemp"] = (iSpindelTemperature != 0.0f) ? String(iSpindelTemperature, 1) : "--";
+	doc["isISpindelActive"] = isISpindelActive();
+	doc["useISpindelTemp"] = useISpindelTemp;
+	doc["iSpindelInterval"] = iSpindelIntervalSec;
+	unsigned long ageSec = (lastISpindelMillis > 0) ? (millis() - lastISpindelMillis) / 1000UL : 0;
+	doc["iSpindelAgeSec"] = ageSec;
 	doc["setHotPWM"] = String((int)round(setHotPWM * 100.0f / (float)maxHotPWM)) + "%";
 	doc["setTemp"] = String(setTemp, 1);
 	doc["rawSetTemp"] = String(setTemp, 1);

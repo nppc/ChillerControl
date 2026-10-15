@@ -284,9 +284,36 @@ async function updateStatus() {
     setIf('I2CStatus', data.I2CStatus);
     setIf('HotTemp', data.HotTemp);
     setIf('boxTemp', data.boxTemp);
+    setIf('effectiveBoxTarget', data.effectiveBoxTarget);
     setIf('setHotPWM', data.setHotPWM);
     setIf('Voltage', data.Voltage);
     setIf('Current', data.Current);
+
+    const isISpindel = data.isISpindelActive === true;
+    const primaryLabel = document.getElementById('primaryTempLabel');
+    const primaryVal = document.getElementById('primaryTemp');
+    const primarySub = document.getElementById('primaryTempSub');
+    const cascadeBar = document.getElementById('cascadeBar');
+
+    if (isISpindel) {
+      if (primaryLabel) primaryLabel.textContent = 'Fermenter (iSpindel)';
+      if (primaryVal) primaryVal.textContent = data.iSpindelTemp;
+      if (primarySub) {
+        const ageMin = Math.floor((data.iSpindelAgeSec || 0) / 60);
+        const intMin = Math.round((data.iSpindelInterval || 0) / 60);
+        primarySub.textContent = `Updated ${ageMin}m ago \u00b7 Interval: ${intMin}m`;
+      }
+      if (cascadeBar) cascadeBar.style.display = 'flex';
+    } else {
+      if (primaryLabel) primaryLabel.textContent = 'Box Temperature';
+      if (primaryVal) primaryVal.textContent = data.boxTemp;
+      if (primarySub) {
+        primarySub.textContent = data.useISpindelTemp
+          ? 'iSpindel offline \u00b7 Controlling by box'
+          : 'Direct box control';
+      }
+      if (cascadeBar) cascadeBar.style.display = 'none';
+    }
 
     const fanEl = document.getElementById('Fan');
     if (fanEl && data.Fan !== undefined) {
@@ -429,6 +456,15 @@ async function setupSettingsPage() {
       const radio = document.querySelector(`input[name="boxMode"][value="${data.boxMode}"]`);
       if (radio) radio.checked = true;
     }
+
+    if (data.useISpindelTemp !== undefined) {
+      const val = data.useISpindelTemp ? "1" : "0";
+      const radio = document.querySelector(`input[name="useISpindel"][value="${val}"]`);
+      if (radio) radio.checked = true;
+    }
+
+    setIf('cascadeMaxOffset', data.cascadeMaxOffset);
+    setIf('cascadeGain', data.cascadeGain);
 
     const populateSensors = (selectId, selectedId) => {
       const sel = document.getElementById(selectId);
@@ -649,12 +685,6 @@ async function setupNetworkPage() {
     if (hidden) hidden.checked = data.apHidden === true;
     const allowLocalWeb = document.getElementById('allowApWeb');
     if (allowLocalWeb) allowLocalWeb.checked = data.allowApWeb === true;
-    const macInput = document.getElementById('iotDeviceMac');
-    if (macInput) macInput.value = data.iotDeviceMac || '';
-    const suggestion = document.getElementById('iotMacSuggestion');
-    if (suggestion && data.suggestedIotMac && !data.iotDeviceMac) {
-      suggestion.textContent = `First AP client observed: ${data.suggestedIotMac}. Enter this address above to restrict NAT to this device.`;
-    }
   } catch (e) {}
 }
 

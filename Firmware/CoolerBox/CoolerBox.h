@@ -16,6 +16,7 @@
 #include "Globals.h"
 #include "HeatingControl.h"
 #include "CoolingControl.h"
+#include "TemperatureControl.h"
 #include "DebugHTML.h"
 #include "DoubleResetDetector.h"
 
@@ -34,11 +35,8 @@ extern uint8_t i2c_data[I2C_DATALEN];
 extern float boxTemp;
 extern float HotTemp;
 extern float setTemp;
-extern float dynamicTemp;
-#if ENABLE_ISPINDEL_DYNAMIC_TEMP
+extern bool useISpindelTemp;
 extern float iSpindelTemperature;
-extern float dynamicTempDiffCoeff;
-#endif
 extern byte i2c_PWM_value;
 extern float measuredVoltage;
 extern float measuredCurrent;
@@ -62,8 +60,6 @@ extern char apSSID[33];
 extern char apPassword[65];
 extern bool apHidden;
 extern bool allowApWeb;
-extern String iotDeviceMac;
-extern char suggestedIotMac[18];
 extern bool emergencyMode;
 extern const char *ssid;
 extern const char *password;
@@ -123,6 +119,7 @@ void handleCSS();
 void handleScript();
 void sendTelemetry();
 bool isWebClientAllowed();
-extern const uint16_t NAT_TABLE_SIZE;
-uint16_t getNatActiveCount();
-uint16_t getNatPeakCount();
+extern JsonDocument lastISpindelDoc;
+extern bool hasNewISpindelData;
+extern unsigned long lastISpindelMillis;
+void handleISpindel();

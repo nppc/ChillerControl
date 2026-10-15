@@ -54,26 +54,3 @@ The Settings page reloads its saved values from EEPROM and scans the OneWire
 bus directly, validating DS18B20 family codes and address CRCs before rendering
 the temperature sensor selectors. This avoids relying on DallasTemperature's
 cached device count for discovery.
-
-The normal AP provides an IP-level lwIP NAPT bridge to the external Wi-Fi
-connection. It does not proxy or inspect traffic: an IoT device's HTTPS
-connection remains end-to-end with its server. NAPT starts disabled and is
-enabled only while an AP station is connected and passes the configured MAC
-filter (an empty filter allows any AP station). The NAT table is limited to
-eight entries. AP DHCP advertises the external network's DNS server. The AP
-subnet is moved to a non-overlapping private /24 when necessary; if the
-external network overlaps the default `192.168.4.0/24`, the change is logged.
-
-The Network page can hide the AP SSID, opt in to serving web pages from the
-local AP, and restrict NAT to one configured IoT MAC. With no configured MAC,
-the first observed AP station is shown as a suggestion but is not persisted or
-used as a restriction. Web requests from the AP are rejected by default;
-web pages are still available from the external Wi-Fi. Double-reset recovery
-temporarily starts an open, visible `Cooler` AP and permits local web access;
-that mode is not saved and ends on reboot.
-
-NAPT requires the ESP8266 Arduino lwIP v2 variant with `LWIP_FEATURES=1` and
-IPv6 disabled. This project selects PlatformIO's
-`PIO_FRAMEWORK_ARDUINO_LWIP2_LOW_MEMORY` build flag in `platformio.ini` (the
-default low-memory v2 variant, with NAPT enabled). In Arduino IDE, select
-Tools > lwIP Variant > `v2 Lower Memory` (not a `Low Memory Low Flash` variant).
