@@ -645,6 +645,16 @@ async function setupNetworkPage() {
     setIf('endpointAccessToken', data.endpointAccessToken);
     setIf('endpointPath', data.endpointPath);
     setIf('sendInterval', data.sendInterval);
+    const hidden = document.getElementById('apHidden');
+    if (hidden) hidden.checked = data.apHidden === true;
+    const allowLocalWeb = document.getElementById('allowApWeb');
+    if (allowLocalWeb) allowLocalWeb.checked = data.allowApWeb === true;
+    const macInput = document.getElementById('iotDeviceMac');
+    if (macInput) macInput.value = data.iotDeviceMac || '';
+    const suggestion = document.getElementById('iotMacSuggestion');
+    if (suggestion && data.suggestedIotMac && !data.iotDeviceMac) {
+      suggestion.textContent = `First AP client observed: ${data.suggestedIotMac}. Enter this address above to restrict NAT to this device.`;
+    }
   } catch (e) {}
 }
 

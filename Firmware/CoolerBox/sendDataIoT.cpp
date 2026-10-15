@@ -29,9 +29,12 @@ void sendTelemetry() {
 
 	float targetVal = isHeatingAutoTuning() ? getHeatingAutoTuneTargetTemp() : setTemp;
 	float pwmPct = (maxHotPWM > 0) ? (setHotPWM * 100.0f / static_cast<float>(maxHotPWM)) : 0.0f;
+	const char *currentState = setHotPWM > 0.0f ? "heating" :
+		(!isCoolerStopped() && isCoolingDemanded() ? "cooling" : "nothing");
 
 	JsonDocument doc;
 	doc["temperature"] = boxTemp;
+	doc["state"] = currentState;
 	doc["set_temperature"] = targetVal;
 	doc["target"] = targetVal;
 	doc["hot_temperature"] = HotTemp;

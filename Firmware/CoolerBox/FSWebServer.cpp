@@ -33,6 +33,10 @@ bool handleFileRead(String path) {
 
 void handleFSWebServer() {
 	httpServer.onNotFound([]() {
+		if (!isWebClientAllowed()) {
+			httpServer.send(403, "text/plain", "Web access from the local AP is disabled");
+			return;
+		}
 		if (!handleFileRead(httpServer.uri())) {
 			httpServer.send(404, "text/plain", "FileNotFound");
 		}

@@ -772,12 +772,150 @@ textarea {
   font-weight: 600;
 }
 
+.network-ssid-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.network-field .network-ssid-row > input {
+  min-width: 0;
+}
+
+.network-field .network-inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+  margin: 0;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.network-inline-toggle input[type="checkbox"],
+.network-option-card input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  margin: 0;
+  padding: 0;
+  min-height: auto;
+  cursor: pointer;
+}
+
+.network-field .network-option-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 76px;
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-muted);
+  cursor: pointer;
+}
+
+.network-option-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.network-option-title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.network-option-description {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
 .network-field input {
   display: block;
   width: 100%;
   min-height: 52px;
   padding: 12px 14px;
   font-size: 16px;
+}
+
+.network-field select {
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 16px;
+}
+
+.settings-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.settings-fields .network-field + .network-field {
+  margin-top: 0;
+}
+
+.settings-voltage-fields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.settings-section-description {
+  margin: -8px 0 14px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.settings-mode-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.settings-mode-options .settings-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-muted);
+  cursor: pointer;
+}
+
+.settings-choice input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  margin: 0;
+  padding: 0;
+  min-height: auto;
+  cursor: pointer;
+}
+
+.settings-mode-options .settings-choice span {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .network-field p {
@@ -1164,6 +1302,31 @@ input[type="number"] {
 
   .network-section {
     padding: 16px;
+  }
+
+  .network-ssid-row {
+    gap: 8px;
+  }
+
+  .network-field .network-inline-toggle {
+    gap: 6px;
+    padding: 0 10px;
+  }
+
+  .network-field .network-option-card {
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .settings-fields,
+  .settings-voltage-fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .settings-mode-options {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
   }
 
   .app-header {

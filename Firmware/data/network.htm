@@ -19,15 +19,30 @@
 <form action="/network_store" method="post" class="network-form">
 <section class="network-section" aria-labelledby="apSettingsHeading">
 <h2 id="apSettingsHeading">Device Access Point</h2>
-<div class="network-field">
+<div class="network-field network-ssid-field">
 <label for="apSSID">Access Point name (SSID)</label>
+<div class="network-ssid-row">
 <input type="text" id="apSSID" name="apSSID" maxlength="32" autocomplete="off" value=""/>
+<label class="network-inline-toggle" for="apHidden">
+<input type="checkbox" id="apHidden" name="apHidden" value="1"/>
+<span>Hidden</span>
+</label>
+</div>
 <p>Name of the Wi-Fi network broadcast by this device.</p>
 </div>
 <div class="network-field">
 <label for="apPassword">Access Point password</label>
 <input type="password" id="apPassword" name="apPassword" maxlength="63" autocomplete="new-password" value=""/>
 <p>Use at least 8 characters, or leave empty for an open network.</p>
+</div>
+<div class="network-field network-option-field">
+<label class="network-option-card" for="allowApWeb">
+<span class="network-option-copy">
+<span class="network-option-title">Allow web pages on the local access point</span>
+<span class="network-option-description">Off by default. Web pages remain available through the external Wi-Fi connection.</span>
+</span>
+<input type="checkbox" id="allowApWeb" name="allowApWeb" value="1"/>
+</label>
 </div>
 </section>
 <section class="network-section" aria-labelledby="wifiSettingsHeading">
@@ -64,6 +79,14 @@
 <label for="sendInterval">Send interval (seconds)</label>
 <input type="number" name="sendInterval" id="sendInterval" min="10" max="86400" step="1" value="60"/>
 <p>How often data is sent to the endpoint.</p>
+</div>
+</section>
+<section class="network-section" aria-labelledby="natSettingsHeading">
+<h2 id="natSettingsHeading">IoT NAT Bridge</h2>
+<div class="network-field">
+<label for="iotDeviceMac">IoT device MAC address</label>
+<input type="text" id="iotDeviceMac" name="iotDeviceMac" maxlength="17" pattern="([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}" autocomplete="off" placeholder="AA:BB:CC:DD:EE:FF" value=""/>
+<p id="iotMacSuggestion">Leave blank to allow any AP client to use NAT. The first AP client MAC is suggested here when available.</p>
 </div>
 </section>
 <button type="submit" class="btn btn_round network-save">Save Network Settings &amp; Reboot</button>

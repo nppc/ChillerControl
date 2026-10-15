@@ -1,4 +1,6 @@
 #include "CoolerBox.h"
+#include <lwip/err.h>
+#include <lwip/napt.h>
 
 DebugHTML Debug;
 
@@ -24,9 +26,13 @@ bool wifiWasConnected = false;
 int ColdSensorId = 0;
 int HotSensorId = 0; 
 
-// Default IP in AP mode is 192.168.4.1
+// Recovery AP defaults to 192.168.4.1; normal operation selects a safe subnet.
 char apSSID[33] = "Cooler";
 char apPassword[65] = "";
+bool apHidden = false;
+bool allowApWeb = false;
+String iotDeviceMac;
+char suggestedIotMac[18] = "";
 bool emergencyMode = false;
 const char *ssid = apSSID;
 const char *password = apPassword;
@@ -45,6 +51,288 @@ int boxSubMode = 3; // 2-Cooling, 3-Heating
 
 // Define a web server at port 80 for HTTP
 ESP8266WebServer httpServer(80);
+
+namespace {
+const uint16_t NAT_TABLE_SIZE = 8;
+const unsigned long NAT_DISCONNECT_TIMEOUT_MS = 10000UL;
+const IPAddress AP_SUBNET_MASK(255, 255, 255, 0);
+volatile uint8_t pendingApEvent = 0;
+volatile uint8_t pendingApMac[6] = {};
+volatile bool pendingUpstreamIp = false;
+WiFiEventHandler apConnectHandler;
+WiFiEventHandler apDisconnectHandler;
+WiFiEventHandler staGotIpHandler;
+bool natReady = false;
+bool natEnabled = false;
+bool apStarted = false;
+bool hasActiveNatClient = false;
+char activeNatMac[18] = "";
+IPAddress configuredApIP(0, 0, 0, 0);
+IPAddress configuredApDns(0, 0, 0, 0);
+unsigned long apNoClientSince = 0;
+
+bool parseMac(const char *text, uint8_t mac[6]) {
+	if (text == nullptr || strlen(text) != 17) {
+		return false;
+	}
+
+	for (uint8_t i = 0; i < 6; ++i) {
+		const uint8_t offset = i * 3;
+		auto hexValue = [](char value) -> int {
+			if (value >= '0' && value <= '9') return value - '0';
+			if (value >= 'A' && value <= 'F') return value - 'A' + 10;
+			if (value >= 'a' && value <= 'f') return value - 'a' + 10;
+			return -1;
+		};
+		const int high = hexValue(text[offset]);
+		const int low = hexValue(text[offset + 1]);
+		if (i < 5 && text[offset + 2] != ':' && text[offset + 2] != '-') {
+			return false;
+		}
+		if (high < 0 || low < 0) {
+			return false;
+		}
+		mac[i] = static_cast<uint8_t>((high << 4) | low);
+	}
+	return true;
+}
+
+void formatMac(const uint8_t mac[6], char text[18]) {
+	snprintf(text, 18, "%02X:%02X:%02X:%02X:%02X:%02X",
+		mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
+bool macMatches(const char *text, const uint8_t mac[6]) {
+	uint8_t configured[6];
+	return parseMac(text, configured) && memcmp(configured, mac, sizeof(configured)) == 0;
+}
+
+bool overlapsUpstream(IPAddress candidate, IPAddress upstream, IPAddress upstreamMask) {
+	for (uint8_t i = 0; i < 4; ++i) {
+		const uint8_t commonMask = AP_SUBNET_MASK[i] & upstreamMask[i];
+		if ((candidate[i] & commonMask) != (upstream[i] & commonMask)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+bool findSafeApAddress(IPAddress &address) {
+	const bool upstreamAvailable = WiFi.status() == WL_CONNECTED &&
+		WiFi.localIP() != IPAddress(0, 0, 0, 0);
+	if (!upstreamAvailable) {
+		address = configuredApIP == IPAddress(0, 0, 0, 0)
+			? IPAddress(192, 168, 4, 1)
+			: configuredApIP;
+		return true;
+	}
+
+	const IPAddress upstream = WiFi.localIP();
+	const IPAddress upstreamMask = WiFi.subnetMask();
+	for (uint16_t third = 4; third <= 254; ++third) {
+		address = IPAddress(192, 168, static_cast<uint8_t>(third), 1);
+		if (!overlapsUpstream(address, upstream, upstreamMask)) {
+			return true;
+		}
+	}
+	for (uint8_t second = 16; second <= 31; ++second) {
+		for (uint16_t third = 0; third <= 255; ++third) {
+			address = IPAddress(172, second, static_cast<uint8_t>(third), 1);
+			if (!overlapsUpstream(address, upstream, upstreamMask)) {
+				return true;
+			}
+		}
+	}
+	for (uint16_t second = 0; second <= 255; ++second) {
+		for (uint16_t third = 0; third <= 255; ++third) {
+			address = IPAddress(10, static_cast<uint8_t>(second), static_cast<uint8_t>(third), 1);
+			if (!overlapsUpstream(address, upstream, upstreamMask)) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+void updateApDns() {
+	if (!apStarted || WiFi.status() != WL_CONNECTED) {
+		return;
+	}
+	IPAddress dns = WiFi.dnsIP(0);
+	if (dns == IPAddress(0, 0, 0, 0)) {
+		dns = WiFi.dnsIP(1);
+	}
+	if (dns != IPAddress(0, 0, 0, 0) && dns != configuredApDns) {
+		WiFi.softAPDhcpServer().setDns(dns);
+		configuredApDns = dns;
+		Debug.addLine(String(F("AP DHCP DNS set to upstream server ")) + dns.toString());
+	}
+}
+
+bool ensureNormalAp() {
+	IPAddress safeAddress;
+	if (!findSafeApAddress(safeAddress)) {
+		Debug.addLine(F("No non-overlapping private subnet available; AP not started"));
+		if (apStarted) {
+			WiFi.softAPdisconnect(false);
+			apStarted = false;
+			configuredApIP = IPAddress(0, 0, 0, 0);
+		}
+		return false;
+	}
+	if (safeAddress != configuredApIP) {
+		if (!WiFi.softAPConfig(safeAddress, safeAddress, AP_SUBNET_MASK)) {
+			Debug.addLine(F("Failed to configure a non-overlapping AP subnet"));
+			if (apStarted) {
+				WiFi.softAPdisconnect(false);
+				apStarted = false;
+				configuredApIP = IPAddress(0, 0, 0, 0);
+			}
+			return false;
+		}
+		configuredApIP = safeAddress;
+		configuredApDns = IPAddress(0, 0, 0, 0);
+		Debug.addLine(String(F("AP subnet configured: ")) + safeAddress.toString());
+		if (WiFi.status() == WL_CONNECTED && safeAddress != IPAddress(192, 168, 4, 1)) {
+			Debug.addLine(F("Warning: upstream subnet overlaps the default AP subnet; the AP was moved"));
+		}
+	}
+	if (!apStarted) {
+		bool started;
+		if (apPassword[0] != '\0') {
+			started = WiFi.softAP(apSSID, apPassword, 1, apHidden ? 1 : 0, 1);
+		} else {
+			started = WiFi.softAP(apSSID, nullptr, 1, apHidden ? 1 : 0, 1);
+		}
+		if (!started) {
+			Debug.addLine(F("Failed to start configured AP"));
+			return false;
+		}
+		apStarted = true;
+		Serial.print(F("AP IP address: "));
+		Serial.println(WiFi.softAPIP());
+	}
+	updateApDns();
+	return true;
+}
+
+void onApStationConnected(const WiFiEventSoftAPModeStationConnected &event) {
+	for (uint8_t i = 0; i < 6; ++i) {
+		pendingApMac[i] = event.mac[i];
+	}
+	pendingApEvent = 1;
+}
+
+void onApStationDisconnected(const WiFiEventSoftAPModeStationDisconnected &event) {
+	for (uint8_t i = 0; i < 6; ++i) {
+		pendingApMac[i] = event.mac[i];
+	}
+	pendingApEvent = 2;
+}
+
+void onStationGotIp(const WiFiEventStationModeGotIP &) {
+	pendingUpstreamIp = true;
+}
+
+void setNatEnabled(bool enable) {
+	if (!natReady || natEnabled == enable) {
+		return;
+	}
+	err_t result = ip_napt_enable_no(SOFTAP_IF, enable ? 1 : 0);
+	if (result != ERR_OK) {
+		Debug.addLine(String(F("Failed to ")) + (enable ? F("enable") : F("disable")) +
+			F(" AP NAPT, error ") + static_cast<int>(result));
+		return;
+	}
+	natEnabled = enable;
+	apNoClientSince = 0;
+	Debug.addLine(enable ? F("AP NAT enabled for IoT client") : F("AP NAT disabled"));
+}
+
+void processApEvents() {
+	const uint8_t eventType = pendingApEvent;
+	if (eventType == 0) {
+		return;
+	}
+	pendingApEvent = 0;
+	uint8_t mac[6];
+	for (uint8_t i = 0; i < 6; ++i) {
+		mac[i] = pendingApMac[i];
+	}
+
+	char macText[18];
+	formatMac(mac, macText);
+	if (eventType == 1) {
+		if (suggestedIotMac[0] == '\0' && iotDeviceMac.isEmpty()) {
+			strncpy(suggestedIotMac, macText, sizeof(suggestedIotMac));
+			suggestedIotMac[sizeof(suggestedIotMac) - 1] = '\0';
+			Debug.addLine(String(F("First AP client MAC; configure as IoT device: ")) + suggestedIotMac);
+		}
+		const bool allowed = iotDeviceMac.isEmpty() || macMatches(iotDeviceMac.c_str(), mac);
+		if (allowed) {
+			strncpy(activeNatMac, macText, sizeof(activeNatMac));
+			activeNatMac[sizeof(activeNatMac) - 1] = '\0';
+			hasActiveNatClient = true;
+			setNatEnabled(true);
+		} else {
+			Debug.addLine(String(F("NAT not opened for unconfigured AP client ")) + macText);
+			setNatEnabled(false);
+			hasActiveNatClient = false;
+		}
+	} else if (eventType == 2 && hasActiveNatClient && strcmp(activeNatMac, macText) == 0) {
+		setNatEnabled(false);
+		hasActiveNatClient = false;
+	}
+}
+
+void serviceNat() {
+	processApEvents();
+	if (natEnabled && !hasActiveNatClient) {
+		setNatEnabled(false);
+		return;
+	}
+	if (!natEnabled || !hasActiveNatClient) {
+		return;
+	}
+	if (WiFi.softAPgetStationNum() != 0) {
+		apNoClientSince = 0;
+		return;
+	}
+	if (apNoClientSince == 0) {
+		apNoClientSince = millis();
+	} else if (millis() - apNoClientSince >= NAT_DISCONNECT_TIMEOUT_MS) {
+		Debug.addLine(F("AP client disconnect event missing; NAT safety timeout expired"));
+		setNatEnabled(false);
+		hasActiveNatClient = false;
+	}
+}
+
+ESP8266WebServer::THandlerFunction guardedHandler(ESP8266WebServer::THandlerFunction handler) {
+	return [handler]() {
+		if (!isWebClientAllowed()) {
+			httpServer.send(403, "text/plain", "Web access from the local AP is disabled");
+			return;
+		}
+		handler();
+	};
+}
+}
+
+bool isWebClientAllowed() {
+	if (emergencyMode || allowApWeb) {
+		return true;
+	}
+	if (!apStarted || configuredApIP == IPAddress(0, 0, 0, 0)) {
+		return true;
+	}
+	const IPAddress remote = httpServer.client().remoteIP();
+	for (uint8_t i = 0; i < 4; ++i) {
+		if ((remote[i] & AP_SUBNET_MASK[i]) != (configuredApIP[i] & AP_SUBNET_MASK[i])) {
+			return true;
+		}
+	}
+	return false;
+}
 
 void setup() {
 	pinMode(HOT_FAN, OUTPUT);
@@ -82,14 +370,17 @@ void setup() {
 	initI2C();	// Detect I2C slave, sync initial voltage limits, and read initial telemetry
   	
 	Serial.println();
+	WiFi.persistent(false);
+	WiFi.setSleepMode(WIFI_NONE_SLEEP);
 	if (emergencyMode) {
 		Serial.println("Double reset detected! Starting unsecured AP 'Cooler'...");
 		Debug.addLine(F("Double reset detected: started unsecured AP 'Cooler'"));
 
-		WiFi.persistent(false);
 		WiFi.mode(WIFI_AP);
-		WiFi.setSleepMode(WIFI_NONE_SLEEP);
-		WiFi.softAP("Cooler");
+		WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), AP_SUBNET_MASK);
+		WiFi.softAP("Cooler", nullptr, 1, 0, 4);
+		apStarted = true;
+		configuredApIP = WiFi.softAPIP();
 
 		IPAddress myIP = WiFi.softAPIP();
 		Serial.print("AP IP address: ");
@@ -97,30 +388,13 @@ void setup() {
 
 		primeDS18B20();
 	} else {
-		Serial.println("Configuring access point...");
-
-		WiFi.persistent(false); // don't write wifi settings to flash
+		Serial.println("Connecting to external Wi-Fi...");
 		WiFi.mode(WIFI_AP_STA);
-		WiFi.setSleepMode(WIFI_NONE_SLEEP); // Disable Wi-Fi modem sleep to improve weak signal (-85 dBm) stability
 		WiFi.setOutputPower(20.5f); // Always use maximum transmit power (+20.5 dBm)
-
-		if (apPassword[0] != '\0') {
-			Debug.addLine(String(F("Normal boot: starting secured AP '")) + apSSID + F("'"));
-			WiFi.softAP(apSSID, apPassword);
-		} else {
-			Debug.addLine(String(F("Normal boot: starting unsecured AP '")) + apSSID + F("'"));
-			WiFi.softAP(apSSID);
-		}
-
-		IPAddress myIP = WiFi.softAPIP();
-		Serial.print("AP IP address: ");
-		Serial.println(myIP);
-
-		Serial.println();
-		Serial.println("Connecting to Internet...");
 
 		WiFi.setAutoConnect(false);
 		WiFi.setAutoReconnect(true);
+		staGotIpHandler = WiFi.onStationModeGotIP(onStationGotIp);
 		WiFi.begin(IntSSID, IntPASS);
 
 		primeDS18B20();
@@ -144,34 +418,47 @@ void setup() {
 			Serial.println(WiFi.status());
 			Debug.addLine(String(F("Internet connection failed, status: ")) + WiFi.status());
 		}
+
+		apConnectHandler = WiFi.onSoftAPModeStationConnected(onApStationConnected);
+		apDisconnectHandler = WiFi.onSoftAPModeStationDisconnected(onApStationDisconnected);
+		if (!ensureNormalAp()) {
+			Debug.addLine(F("Normal AP unavailable until a safe subnet can be selected"));
+		}
+		err_t naptResult = ip_napt_init(NAT_TABLE_SIZE, 0);
+		if (naptResult == ERR_OK) {
+			natReady = true;
+			Debug.addLine(F("NAPT initialized with an 8-entry table (disabled)"));
+		} else {
+			Debug.addLine(String(F("NAPT initialization failed, error ")) + static_cast<int>(naptResult));
+		}
 	}
 
 
-	httpServer.on ( "/", handleRoot );
-	httpServer.on("/main.js", handleScript);
+	httpServer.on("/", guardedHandler(handleRoot));
+	httpServer.on("/main.js", guardedHandler(handleScript));
   //httpServer.serveStatic("main.js", LittleFS, "/main.js");
-	httpServer.on("/setTemp", handleSetTemp);
-	httpServer.on("/settings", handleSettings);
-	httpServer.on("/settings_store", handleSettingsStore);
-	httpServer.on("/pids", handlePIDs);
-	httpServer.on("/pids_store", handlePIDsStore);
-	httpServer.on("/stop", handleStop);
-	httpServer.on("/start", handleStart);
-	httpServer.on("/network", handleNetwork);
-	httpServer.on("/debug", handleDebug);
-	httpServer.on("/webpage.css", handleCSS);
+	httpServer.on("/setTemp", guardedHandler(handleSetTemp));
+	httpServer.on("/settings", guardedHandler(handleSettings));
+	httpServer.on("/settings_store", guardedHandler(handleSettingsStore));
+	httpServer.on("/pids", guardedHandler(handlePIDs));
+	httpServer.on("/pids_store", guardedHandler(handlePIDsStore));
+	httpServer.on("/stop", guardedHandler(handleStop));
+	httpServer.on("/start", guardedHandler(handleStart));
+	httpServer.on("/network", guardedHandler(handleNetwork));
+	httpServer.on("/debug", guardedHandler(handleDebug));
+	httpServer.on("/webpage.css", guardedHandler(handleCSS));
 	//httpServer.serveStatic("webpage.css", LittleFS, "/webpage.css");
-	httpServer.on("/network_store", handleNetworkStore);
-	httpServer.on("/status", handleStatus);
-	httpServer.on("/ajax", handleStatus);
-	httpServer.on("/api/settings", HTTP_GET, handleApiSettings);
-	httpServer.on("/api/pids", HTTP_GET, handleApiPIDs);
-	httpServer.on("/api/network", HTTP_GET, handleApiNetwork);
-	httpServer.on("/api/debug", HTTP_GET, handleApiDebug);
-	httpServer.on("/autotune", HTTP_GET, handleAutotune);
-	httpServer.on("/autotune", HTTP_POST, handleAutotune);
-	httpServer.on("/api/autotune", HTTP_GET, handleApiAutotune);
-	httpServer.on("/api/autotune", HTTP_POST, handleApiAutotune);
+	httpServer.on("/network_store", guardedHandler(handleNetworkStore));
+	httpServer.on("/status", guardedHandler(handleStatus));
+	httpServer.on("/ajax", guardedHandler(handleStatus));
+	httpServer.on("/api/settings", HTTP_GET, guardedHandler(handleApiSettings));
+	httpServer.on("/api/pids", HTTP_GET, guardedHandler(handleApiPIDs));
+	httpServer.on("/api/network", HTTP_GET, guardedHandler(handleApiNetwork));
+	httpServer.on("/api/debug", HTTP_GET, guardedHandler(handleApiDebug));
+	httpServer.on("/autotune", HTTP_GET, guardedHandler(handleAutotune));
+	httpServer.on("/autotune", HTTP_POST, guardedHandler(handleAutotune));
+	httpServer.on("/api/autotune", HTTP_GET, guardedHandler(handleApiAutotune));
+	httpServer.on("/api/autotune", HTTP_POST, guardedHandler(handleApiAutotune));
   
 	handleFSWebServer();
 
@@ -180,8 +467,8 @@ void setup() {
 //    httpServer.send ( 200, "text/plain", "this works as well" );
 //  } );
 	
-	httpServer.on("/update", HTTP_GET, handleUpdate);
-	httpServer.on("/update", HTTP_POST, handleUpdateResult, handleUpdateUpload);
+	httpServer.on("/update", HTTP_GET, guardedHandler(handleUpdate));
+	httpServer.on("/update", HTTP_POST, guardedHandler(handleUpdateResult), guardedHandler(handleUpdateUpload));
 	httpServer.begin();
 	Serial.println("HTTP server started");
 
@@ -484,10 +771,21 @@ void loop() {
 
 	drd.loop();
 
+	serviceNat();
+	if (pendingUpstreamIp) {
+		pendingUpstreamIp = false;
+		if (!emergencyMode) {
+			ensureNormalAp();
+		}
+	}
+
 	// Monitor Wi-Fi connection state and reconnect if dropped
 	if (!emergencyMode && (millis() - millisWIFIcheckInterval >= 3000UL)) {
 		millisWIFIcheckInterval = millis();
 		bool isConnected = (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0));
+		if (!emergencyMode) {
+			ensureNormalAp();
+		}
 		if (!isConnected) {
 			if (wifiWasConnected) {
 				wifiWasConnected = false;

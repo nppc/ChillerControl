@@ -30,6 +30,9 @@ void applySettings(JsonDocument &doc) {
 	} else {
 		apPassword[0] = '\0';
 	}
+	apHidden = doc["apHidden"] | false;
+	allowApWeb = doc["allowApWeb"] | false;
+	iotDeviceMac = doc["iotDeviceMac"] | "";
 
 	String s = doc["IntSSID"].as<String>();s.toCharArray(IntSSID,20);
 	s = doc["IntPASS"].as<String>();s.toCharArray(IntPASS,20);
@@ -100,6 +103,9 @@ void initDefaultSettings() {
 	strncpy(apSSID, "Cooler", sizeof(apSSID));
 	apSSID[sizeof(apSSID) - 1] = '\0';
 	apPassword[0] = '\0';
+	apHidden = false;
+	allowApWeb = false;
+	iotDeviceMac = "";
 	IntSSID[0] = '\0';
 	IntPASS[0] = '\0';
 	endpointAddress = "";
@@ -138,6 +144,9 @@ void saveSettings(){
 	JsonDocument doc;
 	doc["apSSID"] = String(apSSID);
 	doc["apPassword"] = String(apPassword);
+	doc["apHidden"] = apHidden;
+	doc["allowApWeb"] = allowApWeb;
+	doc["iotDeviceMac"] = iotDeviceMac;
 	doc["IntSSID"] = String(IntSSID);
 	doc["IntPASS"] = String(IntPASS);
 	doc["endpointAddress"] = endpointAddress;
@@ -177,4 +186,3 @@ void saveSettings(){
 	}
 	Debug.addLine(F("Settings saved to EEPROM"));
 }
-

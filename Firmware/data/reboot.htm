@@ -1,25 +1,96 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-<meta http-equiv="refresh" content="6;url=/">
-<title>Cooler Box Controller</title>
+<title>Cooler Box Controller - Rebooting</title>
 <link href="webpage.css" rel="stylesheet" type="text/css">
 </head>
 <body>
 <div class="container">
-<table class="hdr_table">
-<tr><td class="hdr_caption">Rebooting</td>
-<td class="hdr_logo">
-<div class="hdr_logo_text_short">COOLER</div>
-<div class="hdr_logo_text_long">Peltie Voltage Controller</div>
-</td></tr></table>
-<BR>
-<table class="values_table">
-<tr class="values_header"><td>Network Settings</td></tr>
-<tr><td style="padding:20px;">Settings saved successfully.<BR><BR>Rebooting device, please wait...</td></tr>
-</table>
+<header class="app-header">
+<div class="brand-copy">
+<div class="brand-name">COOLER BOX</div>
+<h1>Rebooting...</h1>
 </div>
+</header>
+
+<div class="reboot-card">
+  <div class="reboot-icon-wrap">
+    <div class="reboot-spinner"></div>
+    <div class="reboot-pulse-ring"></div>
+  </div>
+  <h2 class="reboot-title">Device is Rebooting</h2>
+  <p class="reboot-subtitle" id="rebootMsg">Settings saved successfully. The controller is restarting and reconnecting to Wi-Fi.</p>
+
+  <div class="reboot-countdown-box">
+    <div class="reboot-countdown-label">Reconnecting in</div>
+    <div class="reboot-countdown-val"><span id="countdown">15</span><span class="reboot-sec">s</span></div>
+    <div class="reboot-track">
+      <div id="rebootBar" class="reboot-bar"></div>
+    </div>
+  </div>
+
+  <div class="reboot-actions">
+    <a href="/" id="reconnectBtn" class="btn btn_round reboot-btn">Reconnect now</a>
+  </div>
+</div>
+</div>
+
+<script>
+(() => {
+  const totalSeconds = 15;
+  let remaining = totalSeconds;
+  let redirected = false;
+  const countdown = document.getElementById('countdown');
+  const rebootBar = document.getElementById('rebootBar');
+  const rebootMsg = document.getElementById('rebootMsg');
+
+  const checkOnline = () => {
+    fetch('/status', { cache: 'no-store' })
+      .then(response => {
+        if (response.ok && !redirected) {
+          redirected = true;
+          rebootMsg.textContent = 'Device is online! Redirecting...';
+          rebootBar.style.width = '0%';
+          setTimeout(() => { window.location.href = '/'; }, 500);
+        }
+      })
+      .catch(() => {});
+  };
+
+  const timer = setInterval(() => {
+    remaining--;
+    countdown.textContent = Math.max(0, remaining);
+    rebootBar.style.width = Math.max(0, (remaining / totalSeconds) * 100) + '%';
+
+    if (remaining <= 5 && remaining > 0) {
+      checkOnline();
+    }
+
+    if (remaining <= 0) {
+      clearInterval(timer);
+      rebootMsg.textContent = 'Connecting to controller...';
+      let attempts = 0;
+      const pollTimer = setInterval(() => {
+        attempts++;
+        fetch('/status', { cache: 'no-store' })
+          .then(response => {
+            if (response.ok && !redirected) {
+              redirected = true;
+              clearInterval(pollTimer);
+              window.location.href = '/';
+            }
+          })
+          .catch(() => {});
+        if (attempts >= 12) {
+          clearInterval(pollTimer);
+          if (!redirected) window.location.href = '/';
+        }
+      }, 1500);
+    }
+  }, 1000);
+})();
+</script>
 </body>
 </html>
-

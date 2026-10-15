@@ -1,5 +1,32 @@
 #include "CoolerBox.h"
 
+namespace {
+bool normalizeMacAddress(String value, String &normalized) {
+	value.trim();
+	if (value.isEmpty()) {
+		normalized = "";
+		return true;
+	}
+	if (value.length() != 17) {
+		return false;
+	}
+	for (uint8_t i = 0; i < value.length(); ++i) {
+		char c = value[i];
+		if (i % 3 == 2) {
+			if (c != ':' && c != '-') return false;
+			value.setCharAt(i, ':');
+		} else {
+			if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) {
+				return false;
+			}
+			value.setCharAt(i, static_cast<char>(toupper(c)));
+		}
+	}
+	normalized = value;
+	return true;
+}
+}
+
 void handleRoot() {
 	if (!handleFileRead("/index.htm")) {
 		httpServer.send(404, "text/plain", "index.htm not found");
@@ -82,6 +109,10 @@ void handleApiNetwork() {
 	doc["emergencyMode"] = emergencyMode;
 	doc["apSSID"] = apSSID;
 	doc["apPassword"] = apPassword;
+	doc["apHidden"] = apHidden;
+	doc["allowApWeb"] = allowApWeb;
+	doc["iotDeviceMac"] = iotDeviceMac;
+	doc["suggestedIotMac"] = suggestedIotMac;
 	doc["IntSSID"] = IntSSID;
 	doc["IntPASS"] = IntPASS;
 	doc["endpointAddress"] = endpointAddress;
@@ -364,6 +395,8 @@ void handleNotFound() {
 }
 
 void handleNetworkStore() {
+	apHidden = httpServer.hasArg("apHidden");
+	allowApWeb = httpServer.hasArg("allowApWeb");
 	if (httpServer.args() > 0) {
 		for (uint8_t i = 0; i < httpServer.args(); i++) {
 			String s = httpServer.arg(i);
@@ -405,6 +438,14 @@ void handleNetworkStore() {
 					sendInterval = requestedInterval;
 				} else {
 					Debug.addLine(F("Invalid telemetry interval"));
+				}
+			}
+			if (httpServer.argName(i) == "iotDeviceMac") {
+				String normalized;
+				if (normalizeMacAddress(s, normalized)) {
+					iotDeviceMac = normalized;
+				} else {
+					Debug.addLine(F("Invalid IoT device MAC address; keeping the previous value"));
 				}
 			}
 		}

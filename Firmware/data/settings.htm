@@ -16,58 +16,77 @@
 <div class="hdr_logo_text_long">Peltie Voltage Controller</div>
 </td></tr></table>
 <BR>
-<form action="/settings_store" method="get">
-<TABLE class="values_table">
-<TR class="values_header"><TD colspan=2>Temperature Sensors</TD></TR>
-<TR><TD>Cold Sensor </TD><TD><select name="SelColdSensor" id="SelColdSensor"><option value='' disabled selected>Loading...</option></select></TD></TR>
-<TR><TD>Hot Sensor </TD><TD><select name="SelHotSensor" id="SelHotSensor"><option value='' disabled selected>Loading...</option></select></TD></TR>
-</TABLE>
-<BR>
-<TABLE class="values_table">
-<tr class="values_header"><td colspan=2>Cooling/Heating</td></tr>
-<tr><TD width=240px, style="line-height: 2;text-align: left">
-    <input name="boxMode" type="radio" value="1"> Cooling/Heating<BR>
-    <input name="boxMode" type="radio" value="2"> Cooling<BR>
-    <input name="boxMode" type="radio" value="3"> Heating<BR>
-</TD>
-<TD rowspan=2>To adjust temperature inside, device can cool or heat air, just cool, or just heat. </TD></tr>
-<TR><TD>&nbsp;</TD><TR>
-</TABLE>
-<BR>
-<TABLE class="values_table">
-<tr class="values_header"><td colspan=2>Voltage change (V/S)</td></tr>
-<tr>
-  <td style="padding: 12px; width: 130px; text-align: center;">
-    <input type="number" name="VoltChange" id="VoltChange" class="inputtext" style="width: 100px; text-align: center;" min="0.4" max="25.0" step="0.1" placeholder="V" value="0.4"/>
-  </td>
-  <td style="padding: 12px;">How fast voltage allowed to change inside DC/DC Buck converter. For example, with value 1.0 voltage will rise from 0V to 5V within 5 seconds.</td>
-</tr>
-<tr class="values_header"><td colspan=2>Minimum Voltage (V)</td></tr>
-<tr>
-  <td style="padding: 12px; width: 130px; text-align: center;">
-    <input type="number" name="VoltMin" id="VoltMin" class="inputtext" style="width: 100px; text-align: center;" min="1.0" max="12.0" step="0.1" placeholder="V" value="2.0"/>
-  </td>
-  <td style="padding: 12px;">Minimum voltage that is allowed for the DC/DC to be during temperature regulation. 0 Also allowed, meaning DC/DC is off.</td>
-</tr>
-<tr class="values_header"><td colspan=2>Maximum Voltage (V)</td></tr>
-<tr>
-  <td style="padding: 12px; width: 130px; text-align: center;">
-    <input type="number" name="VoltMax" id="VoltMax" class="inputtext" style="width: 100px; text-align: center;" min="1.0" max="12.0" step="0.1" placeholder="V" value="12.0"/>
-  </td>
-  <td style="padding: 12px;">Maximum voltage that is allowed for the DC/DC to be during temperature regulation.</td>
-</tr>
-</TABLE>
-<BR>
-<TABLE class="values_table">
-<tr class="values_header"><td colspan=2>Dynamic Fan Control</td></tr>
-<tr><TD width=240px, style="line-height: 2;text-align: left">
-<input type="checkbox" name="fanDynamic" id="fanDynamic"><label for="fanDynamic"> Enable Dynamic control</label>
-</TD>
-<TD rowspan=2>Cooling fan on the top of the fridge can be turned off automatically if radiator is not hot.</TD></tr>
-<TR><TD>&nbsp;</TD><TR>
-</TABLE>
-<BR>
-<button type="submit" class="btn btn_round">Save Settings</button>
+<form action="/settings_store" method="get" class="network-form">
+<section class="network-section" aria-labelledby="sensorSettingsHeading">
+<h2 id="sensorSettingsHeading">Temperature Sensors</h2>
+<div class="settings-fields">
+<div class="network-field">
+<label for="SelColdSensor">Cold Sensor</label>
+<select name="SelColdSensor" id="SelColdSensor">
+<option value="" disabled selected>Loading...</option>
+</select>
+</div>
+<div class="network-field">
+<label for="SelHotSensor">Hot Sensor</label>
+<select name="SelHotSensor" id="SelHotSensor">
+<option value="" disabled selected>Loading...</option>
+</select>
+</div>
+</div>
+</section>
+
+<section class="network-section" aria-labelledby="modeSettingsHeading">
+<h2 id="modeSettingsHeading">Cooling/Heating</h2>
+<p class="settings-section-description">Choose whether the device can cool, heat, or both.</p>
+<div class="settings-mode-options">
+<label class="settings-choice" for="boxModeBoth">
+<input id="boxModeBoth" name="boxMode" type="radio" value="1">
+<span>Cooling/Heating</span>
+</label>
+<label class="settings-choice" for="boxModeCooling">
+<input id="boxModeCooling" name="boxMode" type="radio" value="2">
+<span>Cooling</span>
+</label>
+<label class="settings-choice" for="boxModeHeating">
+<input id="boxModeHeating" name="boxMode" type="radio" value="3">
+<span>Heating</span>
+</label>
+</div>
+</section>
+
+<section class="network-section" aria-labelledby="voltageSettingsHeading">
+<h2 id="voltageSettingsHeading">Voltage Change</h2>
+<div class="settings-fields settings-voltage-fields">
+<div class="network-field">
+<label for="VoltChange">Voltage change rate (V/s)</label>
+<input type="number" name="VoltChange" id="VoltChange" min="0.4" max="25.0" step="0.1" placeholder="V" value="0.4"/>
+<p>Maximum allowed voltage change per second for the DC/DC converter.</p>
+</div>
+<div class="network-field">
+<label for="VoltMin">Minimum Voltage (V)</label>
+<input type="number" name="VoltMin" id="VoltMin" min="1.0" max="12.0" step="0.1" placeholder="V" value="2.0"/>
+<p>Minimum voltage during temperature regulation. Set to 0 to turn the converter off.</p>
+</div>
+<div class="network-field">
+<label for="VoltMax">Maximum Voltage (V)</label>
+<input type="number" name="VoltMax" id="VoltMax" min="1.0" max="12.0" step="0.1" placeholder="V" value="12.0"/>
+<p>Maximum voltage allowed during temperature regulation.</p>
+</div>
+</div>
+</section>
+
+<section class="network-section" aria-labelledby="fanSettingsHeading">
+<h2 id="fanSettingsHeading">Dynamic Fan Control</h2>
+<label class="network-option-card" for="fanDynamic">
+<span class="network-option-copy">
+<span class="network-option-title">Enable dynamic control</span>
+<span class="network-option-description">Automatically turn the cooling fan off when the radiator is not hot.</span>
+</span>
+<input type="checkbox" name="fanDynamic" id="fanDynamic">
+</label>
+</section>
+
+<button type="submit" class="btn btn_round network-save">Save Settings</button>
 </form>
 </div>
 </body>
