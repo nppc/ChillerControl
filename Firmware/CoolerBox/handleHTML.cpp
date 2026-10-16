@@ -40,7 +40,6 @@ void handleApiSettings() {
 	doc["changeVoltageSpeed"] = changeVoltageSpeed;
 	doc["minVoltage"] = minVoltage;
 	doc["maxVoltage"] = maxVoltage;
-	doc["fanDynamic_checked"] = fanDynamic_checked;
 	doc["boxMode"] = boxMode;
 	doc["useISpindelTemp"] = useISpindelTemp;
 	doc["ColdSensorId"] = ColdSensorId;
@@ -185,7 +184,6 @@ void handleApiDebug() {
 
 void handleSettingsStore() {
 	if (httpServer.args() > 0) {
-		fanDynamic_checked = 0;
 		for (uint8_t i = 0; i < httpServer.args(); i++) {
 			if (httpServer.argName(i) == "VoltChange") {
 				float tmpVolt = httpServer.arg(i).toFloat();
@@ -211,9 +209,6 @@ void handleSettingsStore() {
 			}
 			if (httpServer.argName(i) == "SelHotSensor") {
 				HotSensorId = httpServer.arg(i).toInt();
-			}
-			if (httpServer.argName(i) == "fanDynamic") {
-				fanDynamic_checked = 1;
 			}
 			if (httpServer.argName(i) == "boxMode") {
 				boxMode = httpServer.arg(i).toInt();

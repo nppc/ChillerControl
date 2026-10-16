@@ -42,7 +42,6 @@ String endpointAddress;
 String endpointAccessToken;
 String endpointPath;
 int sendInterval = 60;  // Interval in seconds for sending data to the endpoint
-int fanDynamic_checked = 0;
 int boxMode = 0; // 1-Cooling/Heating, 2-Cooling, 3-Heating
 int boxSubMode = 3; // 2-Cooling, 3-Heating
 

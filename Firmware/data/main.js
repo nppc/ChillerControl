@@ -483,9 +483,6 @@ async function setupSettingsPage() {
     setIf('VoltMin', data.minVoltage);
     setIf('VoltMax', data.maxVoltage);
 
-    const fanDyn = document.getElementById('fanDynamic');
-    if (fanDyn) fanDyn.checked = (data.fanDynamic_checked !== 0);
-
     if (data.boxMode) {
       const radio = document.querySelector(`input[name="boxMode"][value="${data.boxMode}"]`);
       if (radio) radio.checked = true;

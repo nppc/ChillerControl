@@ -110,11 +110,17 @@ $$\text{effectiveBoxTarget} = \text{setTemp} + K_{\text{direction}} \times (\tex
 ### 3. Slave Loop (Box Air $\rightarrow$ Physical Actuators)
 The slave loop runs on a fast, deterministic 2-second cycle (`PIDCOMPUTE_INTERVAL`):
 - Regulates the physical box air temperature (`boxTemp`) toward `effectiveBoxTarget`.
-- **Heating**: Driven by QuickPID modulating PWM to the heating wire (up to `MAXIMUM_PWM_HOT_WIRE`).
 - **Cooling**: Modulates the Peltier thermoelectric cooler via I2C DC/DC buck converter voltage.
-- **Dual-Mode Tendency Switcher**: Employs a 5-minute sliding observation window
-  (`MODE_SWITCH_WINDOW_SEC`) and a deadband ($\pm 0.05^\circ\text{C}$) to prevent rapid
-  toggling between heating and cooling near the setpoint.
+  Aggressive cooling action with cut to 0.0V when `boxTemp` is at or below `effectiveBoxTarget`.
+- **Heating**: Driven by QuickPID modulating PWM to the heating wire (up to `MAXIMUM_PWM_HOT_WIRE`).
+  Gentle action, strictly locked out while the fermenter liquid is at or above target temperature
+  ($T_{\text{liquid}} \ge \text{setTemp}$), preventing the powerful heater from firing while the beer is hot.
+- **Asymmetric Mode Switcher**: In Automatic mode, the primary control temperature governs the active
+  regime with hysteresis ($\pm 0.05^\circ\text{C}$). Cooling is maintained while the liquid is above target;
+  heating engages only when liquid drops below target.
+- **Automatic Fan Control**: The hot-side radiator fan stays on during cooling and turns off
+  only when the hot temperature drops to or below box temperature ($T_{\text{hot}} \le T_{\text{box}}$),
+  preventing heat soak back into the chamber (runs continuously if only a single sensor is configured).
 
 ### 4. Automatic Fallback & Safety
 - **Dynamic Packet Timeout**: The firmware extracts the `interval` field (in seconds)

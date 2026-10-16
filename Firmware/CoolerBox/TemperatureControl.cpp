@@ -189,128 +189,41 @@ void processControl() {
 		processHeating(boxTemp, getHeatingAutoTuneTargetTemp(), peltierSafe);
 	} else {
 		/*
-		 * Tendency-Based Dual Mode Switchover (5-Minute Window)
+		 * Asymmetric Mode Switching & Cascade Safety Interlock
 		 * ======================================================
-		 * Evaluates the slave loop (box air temperature) against effectiveBoxTarget.
+		 * For outdoor balcony setups where ambient is cool and heating is 95% more powerful:
+		 * - While fermenter >= target: cooling is active; heating is strictly locked out.
+		 * - When fermenter drops below (target - hysteresis): gentle heating is engaged.
+		 * - Dynamic fan stays ON until hot-side radiator drops to or below box temperature.
 		 */
-		static unsigned long heatingIdleStartTime = 0;
-		static float heatingPeakTemp = -999.0f;
-
-		static unsigned long coolingZeroStartTime = 0;
-		static float coolingTroughTemp = 999.0f;
-
-		static float lastTargetTemp = -999.0f;
-		if (lastTargetTemp < -900.0f) {
-			lastTargetTemp = effectiveBoxTarget;
-		}
-
-		// If dynamic box target changed significantly (>0.2°C), decide sub-mode immediately
-		if (fabs(effectiveBoxTarget - lastTargetTemp) >= 0.2f) {
-			if (boxMode == 1) {
-				if (boxTemp < effectiveBoxTarget) {
-					boxSubMode = 3; // Switch to Heating
-					Debug.addLine(String(F("Target changed to ")) + String(effectiveBoxTarget, 1) +
-					              F("°C: immediate switch to Heating (boxTemp=") + String(boxTemp, 2) + F("°C)"));
-				} else if (boxTemp > effectiveBoxTarget) {
-					boxSubMode = 2; // Switch to Cooling
-					Debug.addLine(String(F("Target changed to ")) + String(effectiveBoxTarget, 1) +
-					              F("°C: immediate switch to Cooling (boxTemp=") + String(boxTemp, 2) + F("°C)"));
-				}
-			}
-			heatingIdleStartTime = 0;
-			heatingPeakTemp = -999.0f;
-			coolingZeroStartTime = 0;
-			coolingTroughTemp = 999.0f;
-			coolingZeroVoltage = false;
-			lastTargetTemp = effectiveBoxTarget;
-		}
-
 		bool isStopped = isCoolerStopped();
+		float controlTemp = getFermenterTemp();
 
 		if (boxMode == 1 && !isStopped) {
-			if (boxSubMode == 2) { // Currently in Cooling sub-mode
-				heatingIdleStartTime = 0;
-				heatingPeakTemp = -999.0f;
-
-				// In cooling mode, demand turns off at effectiveBoxTarget - DEFAULT_HYSTERESIS
-				if (boxTemp >= (effectiveBoxTarget - DEFAULT_HYSTERESIS)) {
-					coolingZeroVoltage = false;
-					coolingZeroStartTime = 0;
-					coolingTroughTemp = 999.0f;
-				} else {
-					// Stage 1: Cut Peltier voltage to 0.0V to eliminate idle bias
-					coolingZeroVoltage = true;
-
-					if (coolingZeroStartTime == 0) {
-						coolingZeroStartTime = millis();
-						coolingTroughTemp = boxTemp;
-						Debug.addLine(String(F("Cooling idle: temp below target (")) + String(boxTemp, 2) +
-						              F("°C). Cutting Peltier to 0.0V. Observing tendency (5m)..."));
-					} else {
-						// Track minimum temperature reached
-						if (boxTemp < coolingTroughTemp) {
-							coolingTroughTemp = boxTemp;
-						}
-
-						// Stage 2: Check tendency over time
-						if (boxTemp >= (coolingTroughTemp + 0.05f)) {
-							coolingTroughTemp = boxTemp;
-							coolingZeroStartTime = millis();
-						} else if (millis() - coolingZeroStartTime >= (MODE_SWITCH_WINDOW_SEC * 1000UL)) {
-							if (boxTemp < effectiveBoxTarget) {
-								boxSubMode = 3; // Switch to Heating mode
-								coolingZeroVoltage = false;
-								coolingZeroStartTime = 0;
-								coolingTroughTemp = 999.0f;
-								Debug.addLine(String(F("Switching Cooling -> Heating: 5m at 0.0V, temp still dropping (")) +
-								              String(boxTemp, 2) + F("°C)"));
-							}
-						}
-					}
+			if (boxSubMode == 3) { // Currently in Heating sub-mode
+				// Switch to Cooling as soon as control temperature reaches or exceeds target
+				if (controlTemp >= (setTemp + (isISpindelActive() ? 0.0f : DEFAULT_HYSTERESIS))) {
+					boxSubMode = 2; // Switch to Cooling
+					Debug.addLine(String(F("Control temp (")) + String(controlTemp, 2) +
+					              F("°C) >= target (") + String(setTemp, 1) + F("°C): switch to Cooling"));
 				}
-			} else { // Currently in Heating sub-mode (boxSubMode == 3)
-				coolingZeroVoltage = false;
-				coolingZeroStartTime = 0;
-				coolingTroughTemp = 999.0f;
-
-				// Heater is idle when PID output is 0 and temperature is above target
-				bool heatingIdle = (setHotPWM <= 0.0f) && (boxTemp > effectiveBoxTarget);
-
-				if (!heatingIdle) {
-					heatingIdleStartTime = 0;
-					heatingPeakTemp = -999.0f;
-				} else {
-					if (heatingIdleStartTime == 0) {
-						heatingIdleStartTime = millis();
-						heatingPeakTemp = boxTemp;
-						Debug.addLine(String(F("Heating idle: heater at 0%, temp above target (")) + String(boxTemp, 2) +
-						              F("°C). Observing tendency (5m)..."));
-					} else {
-						if (boxTemp > heatingPeakTemp) {
-							heatingPeakTemp = boxTemp;
-						}
-
-						// If temperature has started cooling down (-0.05°C), renew window
-						if (boxTemp <= (heatingPeakTemp - 0.05f)) {
-							heatingPeakTemp = boxTemp;
-							heatingIdleStartTime = millis();
-						} else if (millis() - heatingIdleStartTime >= (MODE_SWITCH_WINDOW_SEC * 1000UL)) {
-							if (boxTemp > effectiveBoxTarget) {
-								boxSubMode = 2; // Switch to Cooling mode
-								heatingIdleStartTime = 0;
-								heatingPeakTemp = -999.0f;
-								Debug.addLine(String(F("Switching Heating -> Cooling: 5m at 0% PWM, temp still rising (")) +
-								              String(boxTemp, 2) + F("°C)"));
-							}
-						}
-					}
+			} else { // Currently in Cooling sub-mode (boxSubMode == 2)
+				// Switch to Heating ONLY when control temperature drops below target by hysteresis.
+				// Heating is NEVER turned on while fermenter is at or above target!
+				if (controlTemp < (setTemp - DEFAULT_HYSTERESIS)) {
+					boxSubMode = 3; // Switch to Heating
+					Debug.addLine(String(F("Control temp (")) + String(controlTemp, 2) +
+					              F("°C) < target (") + String(setTemp, 1) + F("°C): switch to Heating"));
 				}
 			}
+
+			// In cooling sub-mode, cut Peltier voltage to 0.0V when boxTemp is at or below target
+			if (boxSubMode == 2) {
+				coolingZeroVoltage = (boxTemp < (effectiveBoxTarget - DEFAULT_HYSTERESIS));
+			} else {
+				coolingZeroVoltage = false;
+			}
 		} else {
-			heatingIdleStartTime = 0;
-			heatingPeakTemp = -999.0f;
-			coolingZeroStartTime = 0;
-			coolingTroughTemp = 999.0f;
 			if (boxMode == 2 && !isStopped) {
 				coolingZeroVoltage = (boxTemp < (effectiveBoxTarget - DEFAULT_HYSTERESIS));
 			} else {
@@ -319,7 +232,9 @@ void processControl() {
 		}
 
 		bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
-		bool isCooling = !isHeating && !isStopped;
+		bool fermenterNeedsHeating = !isISpindelActive() || (iSpindelTemperature < setTemp);
+		bool fermenterNeedsCooling = !isISpindelActive() || (iSpindelTemperature > (setTemp - DEFAULT_HYSTERESIS));
+		bool isCooling = !isHeating && !isStopped && fermenterNeedsCooling;
 
 		// Reset PID memory whenever transitioning into Heating mode
 		static bool wasHeating = false;
@@ -340,10 +255,10 @@ void processControl() {
 		// Execute separated cooling logic (slave loop drives boxTemp to effectiveBoxTarget)
 		processCooling(boxTemp, HotTemp, effectiveBoxTarget, isCooling);
 
-		// Execute separated heating logic
+		// Execute separated heating logic (strictly locked out while fermenter is at/above target)
 		float safePeltierThreshold = max(2.5f, minVoltage + 0.5f);
-		bool heatingAllowed = !isStopped && (measuredVoltage < safePeltierThreshold) && ((boxMode == 3) || (boxMode == 1 && boxSubMode == 3));
-		processHeating(boxTemp, effectiveBoxTarget, isHeating && heatingAllowed);
+		bool heatingAllowed = !isStopped && fermenterNeedsHeating && (measuredVoltage < safePeltierThreshold) && isHeating;
+		processHeating(boxTemp, effectiveBoxTarget, heatingAllowed);
 
 		// Log control state changes
 		static int lastLoggedMode = -1;
@@ -392,15 +307,14 @@ void processControl() {
 			lastLoggedHeating = isHeating;
 		}
 
-		// Control Fan
-		if (isHeating) {
-			digitalWrite(HOT_FAN, LOW); // Fan is always OFF when heating
-		} else if (HotSensorId == ColdSensorId || fanDynamic_checked == 0) {
+		// Control Fan: turn off ONLY when hot temperature gets equal or below box temperature
+		if (HotSensorId == ColdSensorId) {
 			digitalWrite(HOT_FAN, HIGH);
 		} else {
-			if (HotTemp >= 32.0f && digitalRead(HOT_FAN) == LOW) {
+			bool coolingActive = !isHeating && !isStopped && (isCoolingDemanded() || setVoltage > 0.0f);
+			if (coolingActive || HotTemp > (boxTemp + 0.5f)) {
 				digitalWrite(HOT_FAN, HIGH);
-			} else if (HotTemp <= 24.0f && digitalRead(HOT_FAN) == HIGH) {
+			} else if (HotTemp <= boxTemp) {
 				digitalWrite(HOT_FAN, LOW);
 			}
 		}

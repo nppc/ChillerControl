@@ -52,7 +52,6 @@ void applySettings(JsonDocument &doc) {
 	setHeatingTunings(hotPID_kP, hotPID_kI, hotPID_kD);
 	ColdSensorId = doc["ColdSensorId"];
 	HotSensorId = doc["HotSensorId"];
-	fanDynamic_checked = doc["fanDynamic_checked"];
 	boxMode = doc["boxMode"];
 	minVoltage = doc["i2cDCDC_minVoltage"];
 	maxVoltage = doc["i2cDCDC_maxVoltage"];
@@ -122,7 +121,6 @@ void initDefaultSettings() {
 	setHeatingTunings(hotPID_kP, hotPID_kI, hotPID_kD);
 	ColdSensorId = 0;
 	HotSensorId = 0;
-	fanDynamic_checked = 0;
 	boxMode = 2; // 2-Cooling
 	minVoltage = 2.0f;
 	maxVoltage = 12.0f;
@@ -163,7 +161,6 @@ void saveSettings(){
 	doc["hotPID_kD"] = hotPID_kD;
 	doc["ColdSensorId"] = ColdSensorId;
 	doc["HotSensorId"] = HotSensorId;
-	doc["fanDynamic_checked"] = fanDynamic_checked;
 	doc["boxMode"] = boxMode;
 	// store settings for i2c DC/DC converter
 	doc["i2cDCDC_minVoltage"] = minVoltage;

@@ -69,7 +69,6 @@ extern String endpointAddress;
 extern String endpointAccessToken;
 extern String endpointPath;
 extern int sendInterval;
-extern int fanDynamic_checked;
 extern int boxMode;
 extern int boxSubMode;
 extern ESP8266WebServer httpServer;
