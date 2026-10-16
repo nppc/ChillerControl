@@ -22,7 +22,18 @@
 <div class="fermenter-card" id="fermenterCard">
 <div class="temperature-main-row">
 <div class="temperature-reading">
+<div class="temperature-header-row">
 <div class="temperature-label" id="primaryTempLabel">Box Temperature</div>
+<div class="wifi-status signal-0 ispindel-badge" id="ispindelWifiStatus" aria-label="iSpindel offline" title="iSpindel Wi-Fi" style="display:none;">
+<svg class="wifi-icon" viewBox="0 0 32 32" aria-hidden="true">
+<path class="wifi-arc wifi-arc-outer" d="M3 11.5a19 19 0 0 1 26 0"/>
+<path class="wifi-arc wifi-arc-middle" d="M7.5 16a12.5 12.5 0 0 1 17 0"/>
+<path class="wifi-arc wifi-arc-inner" d="M12 20.5a6 6 0 0 1 8 0"/>
+<circle class="wifi-dot" cx="16" cy="25" r="2.2"/>
+</svg>
+<span id="ispindelRssiValue">-- dBm</span>
+</div>
+</div>
 <div class="temperature-value"><span id="primaryTemp">--</span><span class="temperature-unit">&deg;C</span></div>
 <div class="temperature-sublabel" id="primaryTempSub">Direct control</div>
 </div>
@@ -36,7 +47,8 @@ Set
 </div>
 </div>
 </div>
-<div class="box-control-row" id="boxControlRow">
+<div class="box-mode-card" id="boxModeCard">
+<div class="box-mode-left">
 <div class="box-mode-pill" id="boxModePill">
 <span class="mode-dot"></span>
 <span id="operationLabel">Checking</span>
@@ -46,8 +58,9 @@ Set
 <span class="box-arrow">&rarr;</span>
 <div class="box-reading-item"><span class="box-reading-label">Box Target:</span> <span class="box-target-val highlighted"><span id="effectiveBoxTarget">--</span>&deg;C</span></div>
 </div>
+</div>
 <form id="controlForm" action="/stop" method="get" class="box-action-form">
-  <button type="submit" id="controlBtn" class="btn btn_round btn_red btn_small">STOP</button>
+  <button type="submit" id="controlBtn" class="btn btn_action_control btn_red">STOP</button>
 </form>
 </div>
 </section>

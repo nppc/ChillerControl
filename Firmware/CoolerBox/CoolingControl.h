@@ -20,3 +20,9 @@ bool evaluateCoolingDemand(float currentTemp, float targetTemp, bool enableCooli
 void processCooling(float boxTemp, float hotTemp, float targetTemp, bool enableCooling);
 void updateCoolingOutput(bool forceSend = false, bool sendLimits = false);
 
+void initBootAutoStartState(bool useISpindel);
+void cancelBootAutoStart();
+void checkBootAutoStartTimeout();
+bool isBootAutoStartPending();
+unsigned long getBootAutoStartRemainingSec();
+

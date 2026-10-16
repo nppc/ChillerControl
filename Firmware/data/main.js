@@ -51,15 +51,6 @@ function setupNavigation() {
         </svg>
         <span class="wifi-label">Box:</span><span id="rssiValue">-- dBm</span>
       </div>
-      <div class="wifi-status signal-0" id="ispindelWifiStatus" aria-label="iSpindel offline" title="iSpindel Wi-Fi" style="display:none;">
-        <svg class="wifi-icon" viewBox="0 0 32 32" aria-hidden="true">
-          <path class="wifi-arc wifi-arc-outer" d="M3 11.5a19 19 0 0 1 26 0"/>
-          <path class="wifi-arc wifi-arc-middle" d="M7.5 16a12.5 12.5 0 0 1 17 0"/>
-          <path class="wifi-arc wifi-arc-inner" d="M12 20.5a6 6 0 0 1 8 0"/>
-          <circle class="wifi-dot" cx="16" cy="25" r="2.2"/>
-        </svg>
-        <span class="wifi-label">iSpindel:</span><span id="ispindelRssiValue">-- dBm</span>
-      </div>
     </div>
     <div class="uptime-status"><span class="uptime-label">Up: </span><span id="CurTime">--</span></div>
   `;
@@ -178,19 +169,19 @@ function updateHeaderStatus(data) {
   const ispindelStatus = document.getElementById('ispindelWifiStatus');
   const ispindelRssiValue = document.getElementById('ispindelRssiValue');
   if (ispindelStatus && ispindelRssiValue) {
-    if (data.useISpindelTemp) {
+    if (data.useISpindelTemp && data.isISpindelActive) {
       ispindelStatus.style.display = 'inline-flex';
-      const hasRssi = data.isISpindelActive === true && Number.isFinite(Number(data.iSpindelRssi)) && Number(data.iSpindelRssi) !== 0;
+      const hasRssi = Number.isFinite(Number(data.iSpindelRssi)) && Number(data.iSpindelRssi) !== 0;
       if (hasRssi) {
         const iRssi = Number(data.iSpindelRssi);
         const iLevel = iRssi >= -55 ? 4 : iRssi >= -67 ? 3 : iRssi >= -75 ? 2 : 1;
-        ispindelStatus.className = `wifi-status signal-${iLevel}`;
+        ispindelStatus.className = `wifi-status signal-${iLevel} ispindel-badge`;
         ispindelStatus.setAttribute('aria-label', `iSpindel Wi-Fi signal ${iRssi} dBm`);
         ispindelRssiValue.textContent = `${iRssi} dBm`;
       } else {
-        ispindelStatus.className = 'wifi-status signal-0';
+        ispindelStatus.className = 'wifi-status signal-0 ispindel-badge';
         ispindelStatus.setAttribute('aria-label', 'iSpindel offline');
-        ispindelRssiValue.textContent = data.isISpindelActive ? 'online' : 'offline';
+        ispindelRssiValue.textContent = 'online';
       }
     } else {
       ispindelStatus.style.display = 'none';
@@ -304,8 +295,8 @@ async function updateStatus() {
     const activeProcess = data.activeProcess || 'stopped';
     setIf('operationLabel', data.activeProcess === 'cooling' ? 'Cooling' :
       data.activeProcess === 'heating' ? (data.autoTuning ? 'Heating tune' : 'Heating') : 'Stopped');
-    const boxEnclosure = document.getElementById('boxEnclosure');
-    if (boxEnclosure) boxEnclosure.className = `box-enclosure ${activeProcess}`;
+    const boxModeCard = document.getElementById('boxModeCard');
+    if (boxModeCard) boxModeCard.className = `box-mode-card ${activeProcess}`;
     const boxModePill = document.getElementById('boxModePill');
     if (boxModePill) boxModePill.className = `box-mode-pill ${activeProcess}`;
     const coolingCard = document.getElementById('coolingCard');
@@ -353,6 +344,11 @@ async function updateStatus() {
       if (cascadeBar) cascadeBar.style.display = 'none';
     }
 
+    if (data.pendingBootAutoStart && primarySub) {
+      const waitMins = Math.max(1, Math.ceil((data.bootAutoStartSec || 0) / 60));
+      primarySub.textContent = `Waiting for iSpindel \u00b7 Auto-starts in ${waitMins}m`;
+    }
+
     const fanEl = document.getElementById('Fan');
     if (fanEl && data.Fan !== undefined) {
       fanEl.textContent = data.Fan;
@@ -373,14 +369,14 @@ async function updateStatus() {
       controlBtn.disabled = data.autoTuning === true;
       if (data.autoTuning) {
         controlBtn.textContent = 'AUTOTUNE';
-        controlBtn.className = 'btn btn_round btn_muted btn_small';
+        controlBtn.className = 'btn btn_action_control btn_muted';
       } else if (data.stopping) {
         controlBtn.textContent = 'START';
-        controlBtn.className = 'btn btn_round btn_green btn_small';
+        controlBtn.className = 'btn btn_action_control btn_green';
         controlForm.action = '/start';
       } else {
         controlBtn.textContent = 'STOP';
-        controlBtn.className = 'btn btn_round btn_red btn_small';
+        controlBtn.className = 'btn btn_action_control btn_red';
         controlForm.action = '/stop';
       }
     }
@@ -500,9 +496,6 @@ async function setupSettingsPage() {
       const radio = document.querySelector(`input[name="useISpindel"][value="${val}"]`);
       if (radio) radio.checked = true;
     }
-
-    setIf('cascadeMaxOffset', data.cascadeMaxOffset);
-    setIf('cascadeGain', data.cascadeGain);
 
     const populateSensors = (selectId, selectedId) => {
       const sel = document.getElementById(selectId);

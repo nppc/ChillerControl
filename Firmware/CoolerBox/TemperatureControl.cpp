@@ -9,8 +9,9 @@ const float CASCADE_COOLING_GAIN_MULTIPLIER = 2.0f;
 const float CASCADE_ADAPT_DEADBAND = 0.15f;
 const uint8_t CASCADE_ADAPT_READINGS = 3;
 
-float heatingCascadeGain = 1.5f;
-float coolingCascadeGain = 3.0f;
+const float DEFAULT_CASCADE_GAIN = 2.0f;
+float heatingCascadeGain = DEFAULT_CASCADE_GAIN;
+float coolingCascadeGain = DEFAULT_CASCADE_GAIN * CASCADE_COOLING_GAIN_MULTIPLIER;
 float lastAdaptedLiquidError = 0.0f;
 uint8_t nonImprovingReadings = 0;
 int8_t adaptationDirection = 0;
@@ -19,14 +20,14 @@ float lastConfiguredCascadeGain = -1.0f;
 float lastAdaptedSetTemp = 0.0f;
 
 void resetCascadeAdaptation() {
-	heatingCascadeGain = constrain(cascadeGain, CASCADE_GAIN_MIN, CASCADE_GAIN_MAX);
-	coolingCascadeGain = constrain(cascadeGain * CASCADE_COOLING_GAIN_MULTIPLIER,
+	heatingCascadeGain = constrain(DEFAULT_CASCADE_GAIN, CASCADE_GAIN_MIN, CASCADE_GAIN_MAX);
+	coolingCascadeGain = constrain(DEFAULT_CASCADE_GAIN * CASCADE_COOLING_GAIN_MULTIPLIER,
 	                               CASCADE_GAIN_MIN, CASCADE_GAIN_MAX);
 	lastAdaptedLiquidError = 0.0f;
 	nonImprovingReadings = 0;
 	adaptationDirection = 0;
 	lastAdaptedISpindelMillis = lastISpindelMillis;
-	lastConfiguredCascadeGain = cascadeGain;
+	lastConfiguredCascadeGain = DEFAULT_CASCADE_GAIN;
 	lastAdaptedSetTemp = setTemp;
 }
 
@@ -110,8 +111,9 @@ void adaptCascadeGain() {
 }
 }
 
-float cascadeMaxOffset = 4.0f;  // Maximum offset (°C) box air is allowed to depart from setTemp
-float cascadeGain = 1.5f;       // Multiplier for liquid error
+const float CASCADE_MAX_OFFSET = 4.0f;  // Maximum offset (°C) box air is allowed to depart from setTemp
+float cascadeMaxOffset = CASCADE_MAX_OFFSET;
+float cascadeGain = DEFAULT_CASCADE_GAIN;
 float effectiveBoxTarget = 19.0f;
 int iSpindelIntervalSec = 900;  // 15 minutes default
 

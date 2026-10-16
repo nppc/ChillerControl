@@ -33,8 +33,8 @@ void applySettings(JsonDocument &doc) {
 	apHidden = doc["apHidden"] | false;
 	allowApWeb = doc["allowApWeb"] | false;
 	useISpindelTemp = doc["useISpindelTemp"] | true;
-	cascadeMaxOffset = doc["cascadeMaxOffset"] | 4.0f;
-	cascadeGain = constrain(doc["cascadeGain"] | 1.5f, 0.5f, 5.0f);
+	cascadeMaxOffset = CASCADE_MAX_OFFSET;
+	cascadeGain = 2.0f;
 
 	String s = doc["IntSSID"].as<String>();s.toCharArray(IntSSID,20);
 	s = doc["IntPASS"].as<String>();s.toCharArray(IntPASS,20);
@@ -107,8 +107,8 @@ void initDefaultSettings() {
 	apHidden = false;
 	allowApWeb = false;
 	useISpindelTemp = true;
-	cascadeMaxOffset = 4.0f;
-	cascadeGain = 1.5f;
+	cascadeMaxOffset = CASCADE_MAX_OFFSET;
+	cascadeGain = 2.0f;
 	IntSSID[0] = '\0';
 	IntPASS[0] = '\0';
 	endpointAddress = "";

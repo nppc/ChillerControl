@@ -4,6 +4,7 @@
 #include "Globals.h"
 
 // Cascade tuning parameters
+extern const float CASCADE_MAX_OFFSET;
 extern float cascadeMaxOffset;  // Max temperature offset (°C) box is allowed to depart from setTemp (e.g. 4.0)
 extern float cascadeGain;       // Configured base cascade gain (e.g. 1.5)
 extern float effectiveBoxTarget;// Current computed target setpoint for the box air loop

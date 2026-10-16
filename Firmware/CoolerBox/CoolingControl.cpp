@@ -20,6 +20,10 @@ void initCooling() {
 	coolingZeroVoltage = false;
 }
 
+static bool pendingBootAutoStart = false;
+static unsigned long bootAutoStartDeadline = 0;
+const unsigned long BOOT_AUTOSTART_TIMEOUT_MS = 15UL * 60UL * 1000UL;
+
 void setCoolerStopped(bool stopped) {
 	if (stopCooler == stopped) {
 		return;
@@ -31,6 +35,51 @@ void setCoolerStopped(bool stopped) {
 
 bool isCoolerStopped() {
 	return stopCooler;
+}
+
+void initBootAutoStartState(bool useISpindel) {
+	if (useISpindel) {
+		stopCooler = HIGH;
+		pendingBootAutoStart = true;
+		bootAutoStartDeadline = millis() + BOOT_AUTOSTART_TIMEOUT_MS;
+		updateCoolingOutput();
+		Debug.addLine(F("Boot: Stopped. Waiting for iSpindel data or 15m timeout to start."));
+	} else {
+		stopCooler = LOW;
+		pendingBootAutoStart = false;
+		bootAutoStartDeadline = 0;
+		updateCoolingOutput();
+		Debug.addLine(F("Boot: Direct box control active. Process started."));
+	}
+}
+
+void cancelBootAutoStart() {
+	if (pendingBootAutoStart) {
+		pendingBootAutoStart = false;
+		bootAutoStartDeadline = 0;
+		Debug.addLine(F("Boot auto-start cancelled."));
+	}
+}
+
+void checkBootAutoStartTimeout() {
+	if (pendingBootAutoStart && (millis() >= bootAutoStartDeadline)) {
+		pendingBootAutoStart = false;
+		bootAutoStartDeadline = 0;
+		setCoolerStopped(LOW);
+		Debug.addLine(F("Boot auto-start: 15m elapsed without iSpindel data. Process started in direct box mode."));
+	}
+}
+
+bool isBootAutoStartPending() {
+	return pendingBootAutoStart;
+}
+
+unsigned long getBootAutoStartRemainingSec() {
+	if (!pendingBootAutoStart) {
+		return 0;
+	}
+	long diff = (long)(bootAutoStartDeadline - millis());
+	return diff > 0 ? (unsigned long)(diff / 1000L) : 0;
 }
 
 bool isCoolingDemanded() {

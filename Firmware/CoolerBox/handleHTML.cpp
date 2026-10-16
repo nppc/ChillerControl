@@ -43,8 +43,6 @@ void handleApiSettings() {
 	doc["fanDynamic_checked"] = fanDynamic_checked;
 	doc["boxMode"] = boxMode;
 	doc["useISpindelTemp"] = useISpindelTemp;
-	doc["cascadeMaxOffset"] = cascadeMaxOffset;
-	doc["cascadeGain"] = cascadeGain;
 	doc["ColdSensorId"] = ColdSensorId;
 	doc["HotSensorId"] = HotSensorId;
 
@@ -223,15 +221,11 @@ void handleSettingsStore() {
 			if (httpServer.argName(i) == "useISpindel") {
 				useISpindelTemp = (httpServer.arg(i).toInt() != 0);
 			}
-			if (httpServer.argName(i) == "cascadeMaxOffset") {
-				float tmp = httpServer.arg(i).toFloat();
-				if (tmp >= 0.5f && tmp <= 10.0f) cascadeMaxOffset = tmp;
-			}
-			if (httpServer.argName(i) == "cascadeGain") {
-				float tmp = httpServer.arg(i).toFloat();
-				if (tmp >= 0.5f && tmp <= 5.0f) cascadeGain = tmp;
-			}
 		}
+	}
+	if (!useISpindelTemp && isBootAutoStartPending()) {
+		cancelBootAutoStart();
+		setCoolerStopped(LOW);
 	}
 	hotPID.SetOutputLimits(0, maxHotPWM);
 	delay(50);
@@ -353,11 +347,13 @@ void handleSetTemp() {
 }
 
 void handleStop() {
+	cancelBootAutoStart();
 	setCoolerStopped(HIGH);
 	httpServer.send(200, "application/json", "{\"status\":\"stopped\"}");
 }
 
 void handleStart() {
+	cancelBootAutoStart();
 	setCoolerStopped(LOW);
 	httpServer.send(200, "application/json", "{\"status\":\"started\"}");
 }

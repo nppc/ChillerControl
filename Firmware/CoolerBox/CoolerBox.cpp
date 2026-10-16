@@ -207,6 +207,11 @@ void handleISpindel() {
 		}
 	}
 	hasNewISpindelData = true;
+	if (isBootAutoStartPending()) {
+		cancelBootAutoStart();
+		setCoolerStopped(LOW);
+		Debug.addLine(F("Boot auto-start: First iSpindel data received. Process started in cascade mode."));
+	}
 	updateCascadeTarget();
 	httpServer.send(200, "text/plain", "OK");
 
@@ -284,6 +289,7 @@ void setup() {
 
 	restoreSettings();	// restore PID, boxMode, and voltage limits first
 	maxVoltage_backup = maxVoltage; // update backup
+	initBootAutoStartState(useISpindelTemp);
 
 	initI2C();	// Detect I2C slave, sync initial voltage limits, and read initial telemetry
   	
@@ -392,6 +398,7 @@ void setup() {
 }
 
 void handleTemperatureControl() {
+	checkBootAutoStartTimeout();
 	if (updateDS18B20()) {
 		processControl();
 	}
