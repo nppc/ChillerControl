@@ -1,6 +1,115 @@
 #include "TemperatureControl.h"
 #include "CoolerBox.h"
 
+namespace {
+const float CASCADE_GAIN_MIN = 0.5f;
+const float CASCADE_GAIN_MAX = 5.0f;
+const float CASCADE_GAIN_STEP = 0.1f;
+const float CASCADE_COOLING_GAIN_MULTIPLIER = 2.0f;
+const float CASCADE_ADAPT_DEADBAND = 0.15f;
+const uint8_t CASCADE_ADAPT_READINGS = 3;
+
+float heatingCascadeGain = 1.5f;
+float coolingCascadeGain = 3.0f;
+float lastAdaptedLiquidError = 0.0f;
+uint8_t nonImprovingReadings = 0;
+int8_t adaptationDirection = 0;
+unsigned long lastAdaptedISpindelMillis = 0;
+float lastConfiguredCascadeGain = -1.0f;
+float lastAdaptedSetTemp = 0.0f;
+
+void resetCascadeAdaptation() {
+	heatingCascadeGain = constrain(cascadeGain, CASCADE_GAIN_MIN, CASCADE_GAIN_MAX);
+	coolingCascadeGain = constrain(cascadeGain * CASCADE_COOLING_GAIN_MULTIPLIER,
+	                               CASCADE_GAIN_MIN, CASCADE_GAIN_MAX);
+	lastAdaptedLiquidError = 0.0f;
+	nonImprovingReadings = 0;
+	adaptationDirection = 0;
+	lastAdaptedISpindelMillis = lastISpindelMillis;
+	lastConfiguredCascadeGain = cascadeGain;
+	lastAdaptedSetTemp = setTemp;
+}
+
+float &gainForDirection(int8_t direction) {
+	return direction > 0 ? heatingCascadeGain : coolingCascadeGain;
+}
+
+bool isDirectionAvailable(int8_t direction) {
+	if (isCoolerStopped()) {
+		return false;
+	}
+	if (boxMode == 1) {
+		return direction > 0 ? boxSubMode == 3 : boxSubMode == 2;
+	}
+	return direction > 0 ? boxMode == 3 : boxMode == 2;
+}
+
+void adjustCascadeGain(int8_t direction, float adjustment, const char *reason) {
+	float &gain = gainForDirection(direction);
+	float adjustedGain = constrain(gain + adjustment, CASCADE_GAIN_MIN, CASCADE_GAIN_MAX);
+	if (adjustedGain == gain) {
+		return;
+	}
+	gain = adjustedGain;
+	Debug.addLine(String(F("Cascade ")) + (direction > 0 ? F("heating") : F("cooling")) +
+	              F(" gain ") + String(gain, 1) + F(": ") + reason);
+}
+
+void adaptCascadeGain() {
+	if (!isISpindelActive() || lastISpindelMillis == lastAdaptedISpindelMillis) {
+		return;
+	}
+	unsigned long sampleGap = lastISpindelMillis - lastAdaptedISpindelMillis;
+	unsigned long maximumSampleGap = max(45UL * 60UL * 1000UL,
+	                                    static_cast<unsigned long>(iSpindelIntervalSec) * 2500UL);
+	lastAdaptedISpindelMillis = lastISpindelMillis;
+	if (sampleGap >= maximumSampleGap || fabs(setTemp - lastAdaptedSetTemp) >= 0.01f) {
+		nonImprovingReadings = 0;
+		adaptationDirection = 0;
+		lastAdaptedSetTemp = setTemp;
+	}
+
+	float liquidError = setTemp - iSpindelTemperature;
+	if (fabs(liquidError) < CASCADE_ADAPT_DEADBAND) {
+		nonImprovingReadings = 0;
+		return;
+	}
+
+	int8_t direction = liquidError > 0.0f ? 1 : -1;
+	if (adaptationDirection != 0 && direction != adaptationDirection) {
+		adjustCascadeGain(adaptationDirection, -CASCADE_GAIN_STEP, "liquid temperature crossed setpoint");
+		nonImprovingReadings = 0;
+		adaptationDirection = direction;
+		lastAdaptedLiquidError = liquidError;
+		return;
+	}
+
+	if (!isDirectionAvailable(direction)) {
+		nonImprovingReadings = 0;
+		adaptationDirection = 0;
+		lastAdaptedLiquidError = liquidError;
+		return;
+	}
+
+	adaptationDirection = direction;
+	bool errorNotImproving = nonImprovingReadings > 0 &&
+	                         fabs(liquidError) >= fabs(lastAdaptedLiquidError);
+	nonImprovingReadings = errorNotImproving
+		? static_cast<uint8_t>(nonImprovingReadings + 1)
+		: 1;
+	lastAdaptedLiquidError = liquidError;
+
+	if (nonImprovingReadings >= CASCADE_ADAPT_READINGS) {
+		float rawOffset = liquidError * gainForDirection(direction);
+		bool offsetSaturated = fabs(rawOffset) >= cascadeMaxOffset;
+		if (!offsetSaturated) {
+			adjustCascadeGain(direction, CASCADE_GAIN_STEP, "liquid error not improving across 3 reports");
+		}
+		nonImprovingReadings = 0;
+	}
+}
+}
+
 float cascadeMaxOffset = 4.0f;  // Maximum offset (°C) box air is allowed to depart from setTemp
 float cascadeGain = 1.5f;       // Multiplier for liquid error
 float effectiveBoxTarget = 19.0f;
@@ -8,6 +117,7 @@ int iSpindelIntervalSec = 900;  // 15 minutes default
 
 void initTemperatureControl() {
 	effectiveBoxTarget = setTemp;
+	resetCascadeAdaptation();
 }
 
 bool isISpindelActive() {
@@ -28,11 +138,24 @@ float getEffectiveBoxTarget() {
 	return effectiveBoxTarget;
 }
 
+float getHeatingCascadeGain() {
+	return heatingCascadeGain;
+}
+
+float getCoolingCascadeGain() {
+	return coolingCascadeGain;
+}
+
 void updateCascadeTarget() {
+	if (fabs(cascadeGain - lastConfiguredCascadeGain) >= 0.001f) {
+		resetCascadeAdaptation();
+	}
 	if (isISpindelActive()) {
-		// Master cascade loop: BoxTarget = Setpoint + Gain * (Setpoint - LiquidTemp)
+		adaptCascadeGain();
+		// Use separate learned gains because heating and cooling capacity differ.
 		float error = setTemp - iSpindelTemperature;
-		float offset = constrain(error * cascadeGain, -cascadeMaxOffset, cascadeMaxOffset);
+		float gain = error >= 0.0f ? heatingCascadeGain : coolingCascadeGain;
+		float offset = constrain(error * gain, -cascadeMaxOffset, cascadeMaxOffset);
 		effectiveBoxTarget = setTemp + offset;
 	} else {
 		effectiveBoxTarget = setTemp;
@@ -287,4 +410,3 @@ void processControl() {
 		sendTelemetry();
 	}
 }
-

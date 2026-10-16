@@ -229,7 +229,7 @@ void handleSettingsStore() {
 			}
 			if (httpServer.argName(i) == "cascadeGain") {
 				float tmp = httpServer.arg(i).toFloat();
-				if (tmp >= 0.1f && tmp <= 5.0f) cascadeGain = tmp;
+				if (tmp >= 0.5f && tmp <= 5.0f) cascadeGain = tmp;
 			}
 		}
 	}

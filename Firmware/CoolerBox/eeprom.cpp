@@ -34,7 +34,7 @@ void applySettings(JsonDocument &doc) {
 	allowApWeb = doc["allowApWeb"] | false;
 	useISpindelTemp = doc["useISpindelTemp"] | true;
 	cascadeMaxOffset = doc["cascadeMaxOffset"] | 4.0f;
-	cascadeGain = doc["cascadeGain"] | 1.5f;
+	cascadeGain = constrain(doc["cascadeGain"] | 1.5f, 0.5f, 5.0f);
 
 	String s = doc["IntSSID"].as<String>();s.toCharArray(IntSSID,20);
 	s = doc["IntPASS"].as<String>();s.toCharArray(IntPASS,20);

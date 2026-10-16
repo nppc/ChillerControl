@@ -36,6 +36,8 @@ void handleStatus() {
 	doc["boxTemp"] = String(boxTemp, 1);
 	doc["controlTemp"] = String(getFermenterTemp(), 1);
 	doc["effectiveBoxTarget"] = String(effectiveBoxTarget, 1);
+	doc["cascadeHeatingGain"] = getHeatingCascadeGain();
+	doc["cascadeCoolingGain"] = getCoolingCascadeGain();
 	doc["controlSource"] = isISpindelActive() ? "Cascade (iSpindel)" : "Box Sensor";
 	doc["iSpindelTemp"] = (iSpindelTemperature != 0.0f) ? String(iSpindelTemperature, 1) : "--";
 	doc["isISpindelActive"] = isISpindelActive();

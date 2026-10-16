@@ -53,7 +53,7 @@ infrequent telemetry updates from wireless hydrometers (iSpindel).
 ```
                       +---------------------------------------+
                       |          iSpindel Hydrometer          |
-                      |   (Sends T_liquid every 10-15 min)    |
+                      |     (Sends T_liquid every 5 min)      |
                       +-------------------+-------------------+
                                           |
                                           v  HTTP POST /ispindel
@@ -79,19 +79,28 @@ infrequent telemetry updates from wireless hydrometers (iSpindel).
 Fermenting beer (typically 20–30 L) has high heat capacity and reacts very slowly
 to changes in surrounding ambient air temperature. Wireless hydrometers like the
 iSpindel sleep between transmissions to conserve battery, reporting temperature
-only once every 10–15 minutes. Feeding this slow, infrequent reading directly into a
+only once every 5 - 10 minutes. Feeding this slow, infrequent reading directly into a
 2-second PID loop causes severe overshooting, oscillations, or integral windup.
 
 ### 2. Master Loop (Liquid Error $\rightarrow$ Dynamic Box Air Setpoint)
 When an iSpindel packet arrives via `POST /ispindel` or `POST /api/ispindel`, or when
 the user changes the target temperature, the master loop executes:
 
-$$\text{effectiveBoxTarget} = \text{setTemp} + \text{cascadeGain} \times (\text{setTemp} - T_{\text{liquid}})$$
+$$\text{effectiveBoxTarget} = \text{setTemp} + K_{\text{direction}} \times (\text{setTemp} - T_{\text{liquid}})$$
 
-- **`cascadeGain`** (default `1.5`, adjustable in Settings `0.5`–`5.0`): Controls how
-  aggressively the box air leads the liquid. If the beer is $0.5^\circ\text{C}$ too warm
-  at an $18.0^\circ\text{C}$ target with gain $1.5$, the box target becomes:
-  $$18.0 + 1.5 \times (18.0 - 18.5) = 17.25^\circ\text{C}$$
+- **`cascadeGain`** (default `1.5`, adjustable in Settings `0.5`–`5.0`): Sets the
+  base heating gain. Heating starts at this value; cooling starts at twice this value
+  (capped at `5.0`) to account for the much lower cooling capacity. The two active
+  gains adapt independently within `0.5`–`5.0`.
+- **Online gain adaptation**: Uses only new, active iSpindel readings. If the liquid
+  error is at least `0.15°C` and is not improving over three consecutive readings,
+  the gain for the active direction increases by `0.1`. If the liquid crosses the
+  setpoint, the previous direction's gain decreases by `0.1`. Adaptation is skipped
+  when that direction is not available in the selected control mode or its requested
+  box target has already reached the configured offset limit. Learned gains are
+  runtime-only and restart from the configured base gain after reboot.
+- Example: with an `18.0°C` target and liquid at `18.5°C`, cooling starts with gain
+  `3.0`, giving a box target of `16.5°C` before the safety clamp is applied.
 - **`cascadeMaxOffset`** (default $\pm 4.0^\circ\text{C}$, adjustable `1.0`–`10.0`):
   Enforces a strict safety envelope around `setTemp`:
   $$\text{effectiveBoxTarget} \in [\text{setTemp} - \text{cascadeMaxOffset},\, \text{setTemp} + \text{cascadeMaxOffset}]$$
@@ -123,16 +132,3 @@ The heating autotune feature (`/autotune`) operates strictly on the fast slave l
 (air $\rightarrow$ heating wire). It bypasses cascade setpoint calculation, allowing
 heating PID constants ($K_p, K_i, K_d$) to calibrate within 5–10 minutes without
 being distorted by liquid thermal inertia.
-
-
-The firmware serves its main pages from LittleFS templates. Settings are
-stored in emulated EEPROM, separate from the LittleFS partition, so uploading a
-LittleFS image does not replace them. The ESP8266 LittleFS mount may format the
-filesystem if it cannot mount it, erasing files managed through the File
-Browser; back those files up before migrating from SPIFFS or before uploading
-a filesystem image. PlatformIO is configured to build LittleFS images for
-`uploadfs`.
-The Settings page reloads its saved values from EEPROM and scans the OneWire
-bus directly, validating DS18B20 family codes and address CRCs before rendering
-the temperature sensor selectors. This avoids relying on DallasTemperature's
-cached device count for discovery.
