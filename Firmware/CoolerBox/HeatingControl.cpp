@@ -250,14 +250,10 @@ void processHeating(float currentTemp, float targetTemp, bool enableHeating) {
 		pidInput = currentTemp;
 		pidSetpoint = targetTemp;
 		hotPID.Compute();
-		setHotPWM = pidOutput;
-		currentRampedPWM = pidOutput;
-		analogWrite(HEAT_WIRE, (int)round(setHotPWM));
+		applyHeaterPWM(pidOutput, true);
 	} else {
-		currentRampedPWM = 0.0f;
-		setHotPWM = 0.0f;
+		applyHeaterPWM(0.0f, false);
 		pidOutput = 0.0f;
-		analogWrite(HEAT_WIRE, 0);
 	}
 }
 

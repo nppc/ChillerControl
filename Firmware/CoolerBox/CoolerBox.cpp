@@ -10,6 +10,7 @@ float iSpindelTemperature = 0.0f;
 JsonDocument lastISpindelDoc;
 bool hasNewISpindelData = false;
 unsigned long lastISpindelMillis = 0;
+int iSpindelRssi = 0;
 float measuredVoltage = 0.0f; 
 float measuredCurrent = 0.0f; 
 
@@ -194,6 +195,11 @@ void handleISpindel() {
 		iSpindelTemperature = lastISpindelDoc["temperature"].as<float>();
 		lastISpindelMillis = millis();
 	}
+	if (lastISpindelDoc["RSSI"].is<int>()) {
+		iSpindelRssi = lastISpindelDoc["RSSI"].as<int>();
+	} else if (lastISpindelDoc["rssi"].is<int>()) {
+		iSpindelRssi = lastISpindelDoc["rssi"].as<int>();
+	}
 	if (lastISpindelDoc["interval"].is<int>()) {
 		int repInterval = lastISpindelDoc["interval"].as<int>();
 		if (repInterval >= 30 && repInterval <= 86400) {
@@ -215,6 +221,11 @@ void handleISpindel() {
 		logMsg += F(", batt=");
 		logMsg += String(lastISpindelDoc["battery"].as<float>(), 2);
 		logMsg += F("V");
+	}
+	if (iSpindelRssi != 0) {
+		logMsg += F(", rssi=");
+		logMsg += String(iSpindelRssi);
+		logMsg += F("dBm");
 	}
 	logMsg += F(", int=");
 	logMsg += String(iSpindelIntervalSec);

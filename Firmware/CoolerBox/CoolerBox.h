@@ -122,4 +122,5 @@ bool isWebClientAllowed();
 extern JsonDocument lastISpindelDoc;
 extern bool hasNewISpindelData;
 extern unsigned long lastISpindelMillis;
+extern int iSpindelRssi;
 void handleISpindel();

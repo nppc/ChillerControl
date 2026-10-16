@@ -43,6 +43,7 @@ void handleStatus() {
 	doc["isISpindelActive"] = isISpindelActive();
 	doc["useISpindelTemp"] = useISpindelTemp;
 	doc["iSpindelInterval"] = iSpindelIntervalSec;
+	doc["iSpindelRssi"] = (isISpindelActive() && iSpindelRssi != 0) ? iSpindelRssi : 0;
 	unsigned long ageSec = (lastISpindelMillis > 0) ? (millis() - lastISpindelMillis) / 1000UL : 0;
 	doc["iSpindelAgeSec"] = ageSec;
 	doc["setHotPWM"] = String((int)round(setHotPWM * 100.0f / (float)maxHotPWM)) + "%";

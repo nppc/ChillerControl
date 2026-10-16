@@ -41,14 +41,25 @@ function setupNavigation() {
   headerStatus.className = 'header-status';
   headerStatus.id = 'headerStatus';
   headerStatus.innerHTML = `
-    <div class="wifi-status signal-0" id="wifiStatus" aria-label="Wi-Fi disconnected">
-      <svg class="wifi-icon" viewBox="0 0 32 32" aria-hidden="true">
-        <path class="wifi-arc wifi-arc-outer" d="M3 11.5a19 19 0 0 1 26 0"/>
-        <path class="wifi-arc wifi-arc-middle" d="M7.5 16a12.5 12.5 0 0 1 17 0"/>
-        <path class="wifi-arc wifi-arc-inner" d="M12 20.5a6 6 0 0 1 8 0"/>
-        <circle class="wifi-dot" cx="16" cy="25" r="2.2"/>
-      </svg>
-      <span id="rssiValue">-- dBm</span>
+    <div class="wifi-indicators">
+      <div class="wifi-status signal-0" id="wifiStatus" aria-label="Box Wi-Fi disconnected" title="Box Wi-Fi">
+        <svg class="wifi-icon" viewBox="0 0 32 32" aria-hidden="true">
+          <path class="wifi-arc wifi-arc-outer" d="M3 11.5a19 19 0 0 1 26 0"/>
+          <path class="wifi-arc wifi-arc-middle" d="M7.5 16a12.5 12.5 0 0 1 17 0"/>
+          <path class="wifi-arc wifi-arc-inner" d="M12 20.5a6 6 0 0 1 8 0"/>
+          <circle class="wifi-dot" cx="16" cy="25" r="2.2"/>
+        </svg>
+        <span class="wifi-label">Box:</span><span id="rssiValue">-- dBm</span>
+      </div>
+      <div class="wifi-status signal-0" id="ispindelWifiStatus" aria-label="iSpindel offline" title="iSpindel Wi-Fi" style="display:none;">
+        <svg class="wifi-icon" viewBox="0 0 32 32" aria-hidden="true">
+          <path class="wifi-arc wifi-arc-outer" d="M3 11.5a19 19 0 0 1 26 0"/>
+          <path class="wifi-arc wifi-arc-middle" d="M7.5 16a12.5 12.5 0 0 1 17 0"/>
+          <path class="wifi-arc wifi-arc-inner" d="M12 20.5a6 6 0 0 1 8 0"/>
+          <circle class="wifi-dot" cx="16" cy="25" r="2.2"/>
+        </svg>
+        <span class="wifi-label">iSpindel:</span><span id="ispindelRssiValue">-- dBm</span>
+      </div>
     </div>
     <div class="uptime-status"><span class="uptime-label">Up: </span><span id="CurTime">--</span></div>
   `;
@@ -160,8 +171,30 @@ function updateHeaderStatus(data) {
     const rssi = connected ? Number(data.rssi) : null;
     const signalLevel = !connected ? 0 : rssi >= -55 ? 4 : rssi >= -67 ? 3 : rssi >= -75 ? 2 : 1;
     wifiStatus.className = `wifi-status signal-${signalLevel}`;
-    wifiStatus.setAttribute('aria-label', connected ? `Wi-Fi signal ${rssi} dBm` : 'Wi-Fi disconnected');
+    wifiStatus.setAttribute('aria-label', connected ? `Box Wi-Fi signal ${rssi} dBm` : 'Box Wi-Fi disconnected');
     rssiValue.textContent = connected ? `${rssi} dBm` : (data.emergencyMode ? 'Emergency AP' : '-- dBm');
+  }
+
+  const ispindelStatus = document.getElementById('ispindelWifiStatus');
+  const ispindelRssiValue = document.getElementById('ispindelRssiValue');
+  if (ispindelStatus && ispindelRssiValue) {
+    if (data.useISpindelTemp) {
+      ispindelStatus.style.display = 'inline-flex';
+      const hasRssi = data.isISpindelActive === true && Number.isFinite(Number(data.iSpindelRssi)) && Number(data.iSpindelRssi) !== 0;
+      if (hasRssi) {
+        const iRssi = Number(data.iSpindelRssi);
+        const iLevel = iRssi >= -55 ? 4 : iRssi >= -67 ? 3 : iRssi >= -75 ? 2 : 1;
+        ispindelStatus.className = `wifi-status signal-${iLevel}`;
+        ispindelStatus.setAttribute('aria-label', `iSpindel Wi-Fi signal ${iRssi} dBm`);
+        ispindelRssiValue.textContent = `${iRssi} dBm`;
+      } else {
+        ispindelStatus.className = 'wifi-status signal-0';
+        ispindelStatus.setAttribute('aria-label', 'iSpindel offline');
+        ispindelRssiValue.textContent = data.isISpindelActive ? 'online' : 'offline';
+      }
+    } else {
+      ispindelStatus.style.display = 'none';
+    }
   }
 }
 
