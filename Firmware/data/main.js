@@ -301,11 +301,13 @@ async function updateStatus() {
     };
 
     setIf('Caption', data.Caption);
+    const activeProcess = data.activeProcess || 'stopped';
     setIf('operationLabel', data.activeProcess === 'cooling' ? 'Cooling' :
       data.activeProcess === 'heating' ? (data.autoTuning ? 'Heating tune' : 'Heating') : 'Stopped');
-    setIf('operationDetail', `${data.controlMode} mode · ${data.processDetail}`);
-    const operationCard = document.getElementById('operationCard');
-    if (operationCard) operationCard.className = `operation-card ${data.activeProcess || 'stopped'}`;
+    const boxEnclosure = document.getElementById('boxEnclosure');
+    if (boxEnclosure) boxEnclosure.className = `box-enclosure ${activeProcess}`;
+    const boxModePill = document.getElementById('boxModePill');
+    if (boxModePill) boxModePill.className = `box-mode-pill ${activeProcess}`;
     const coolingCard = document.getElementById('coolingCard');
     const heatingCard = document.getElementById('heatingCard');
     const coolingActive = data.activeProcess === 'cooling';
@@ -326,11 +328,13 @@ async function updateStatus() {
     const primaryLabel = document.getElementById('primaryTempLabel');
     const primaryVal = document.getElementById('primaryTemp');
     const primarySub = document.getElementById('primaryTempSub');
+    const targetLabel = document.getElementById('targetTempLabel');
     const cascadeBar = document.getElementById('cascadeBar');
 
     if (isISpindel) {
       if (primaryLabel) primaryLabel.textContent = 'Fermenter (iSpindel)';
       if (primaryVal) primaryVal.textContent = data.iSpindelTemp;
+      if (targetLabel) targetLabel.textContent = 'Fermenter Target';
       if (primarySub) {
         const ageMin = Math.floor((data.iSpindelAgeSec || 0) / 60);
         const intMin = Math.round((data.iSpindelInterval || 0) / 60);
@@ -340,6 +344,7 @@ async function updateStatus() {
     } else {
       if (primaryLabel) primaryLabel.textContent = 'Box Temperature';
       if (primaryVal) primaryVal.textContent = data.boxTemp;
+      if (targetLabel) targetLabel.textContent = 'Target';
       if (primarySub) {
         primarySub.textContent = data.useISpindelTemp
           ? 'iSpindel offline \u00b7 Controlling by box'
