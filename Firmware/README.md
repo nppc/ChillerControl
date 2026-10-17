@@ -86,8 +86,14 @@ only once every 5 - 10 minutes. Feeding this slow, infrequent reading directly i
 When an iSpindel packet arrives via `POST /ispindel` or `POST /api/ispindel`, or when
 the user changes the target temperature, the master loop executes:
 
-$$\text{effectiveBoxTarget} = \text{setTemp} + K_{\text{direction}} \times (\text{setTemp} - T_{\text{liquid}})$$
+$$\text{effectiveBoxTarget} = T_{\text{baseline}} + K_{\text{direction}} \times (\text{setTemp} - T_{\text{liquid}})$$
 
+- **Thermal Equilibrium Baseline ($T_{\text{baseline}}$)**: In real-world environments (such as a cooler
+  box on a cold balcony), the natural passive air temperature settles between the fermenter and ambient
+  (for example, ~16.7°C when ambient is 14°C and wort is 18.0°C). Rather than hardcoding the air target baseline
+  to `setTemp` (which would demand 18°C air and trigger violent heating bursts when wort drops to 17.9°C), the master
+  loop smoothly adapts $T_{\text{baseline}}$ toward the steady-state box temperature when holding near target.
+  The cascade offset then adjusts gently relative to this true thermal balance point.
 - **`cascadeGain`** (default `1.5`, adjustable in Settings `0.5`–`5.0`): Sets the
   base heating gain. Heating starts at this value; cooling starts at twice this value
   (capped at `5.0`) to account for the much lower cooling capacity. The two active

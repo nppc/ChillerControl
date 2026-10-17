@@ -19,3 +19,4 @@ inline float getControlTemp() { return getFermenterTemp(); }
 float getEffectiveBoxTarget();
 float getHeatingCascadeGain();
 float getCoolingCascadeGain();
+float getCascadeBoxBaseline();

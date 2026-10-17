@@ -18,6 +18,9 @@ int8_t adaptationDirection = 0;
 unsigned long lastAdaptedISpindelMillis = 0;
 float lastConfiguredCascadeGain = -1.0f;
 float lastAdaptedSetTemp = 0.0f;
+float cascadeBoxBaseline = 18.0f;
+bool cascadeBaselineInitialized = false;
+unsigned long lastBaselineISpindelMillis = 0;
 
 void resetCascadeAdaptation() {
 	heatingCascadeGain = constrain(DEFAULT_CASCADE_GAIN, CASCADE_GAIN_MIN, CASCADE_GAIN_MAX);
@@ -29,6 +32,9 @@ void resetCascadeAdaptation() {
 	lastAdaptedISpindelMillis = lastISpindelMillis;
 	lastConfiguredCascadeGain = DEFAULT_CASCADE_GAIN;
 	lastAdaptedSetTemp = setTemp;
+	cascadeBoxBaseline = (boxTemp > -50.0f && boxTemp < 100.0f && boxTemp != 0.0f) ? boxTemp : setTemp;
+	cascadeBaselineInitialized = true;
+	lastBaselineISpindelMillis = lastISpindelMillis;
 }
 
 float &gainForDirection(int8_t direction) {
@@ -148,19 +154,49 @@ float getCoolingCascadeGain() {
 	return coolingCascadeGain;
 }
 
+float getCascadeBoxBaseline() {
+	return cascadeBoxBaseline;
+}
+
 void updateCascadeTarget() {
 	if (fabs(cascadeGain - lastConfiguredCascadeGain) >= 0.001f) {
 		resetCascadeAdaptation();
 	}
+	if (fabs(setTemp - lastAdaptedSetTemp) >= 0.01f) {
+		lastAdaptedSetTemp = setTemp;
+		cascadeBoxBaseline = (boxTemp > -50.0f && boxTemp < 100.0f && boxTemp != 0.0f) ? boxTemp : setTemp;
+		cascadeBaselineInitialized = true;
+	}
 	if (isISpindelActive()) {
 		adaptCascadeGain();
-		// Use separate learned gains because heating and cooling capacity differ.
+
 		float error = setTemp - iSpindelTemperature;
+
+		// Adapt thermal baseline when liquid is holding near target (|error| <= CASCADE_ADAPT_DEADBAND)
+		// and a new iSpindel report has arrived.
+		if (lastISpindelMillis != lastBaselineISpindelMillis) {
+			lastBaselineISpindelMillis = lastISpindelMillis;
+			if (fabs(error) <= CASCADE_ADAPT_DEADBAND && boxTemp > -50.0f && boxTemp < 100.0f && boxTemp != 0.0f) {
+				if (!cascadeBaselineInitialized) {
+					cascadeBoxBaseline = boxTemp;
+					cascadeBaselineInitialized = true;
+				} else {
+					// Smoothly adapt baseline toward current steady box air temperature (15% per report)
+					cascadeBoxBaseline = 0.85f * cascadeBoxBaseline + 0.15f * boxTemp;
+				}
+				cascadeBoxBaseline = constrain(cascadeBoxBaseline, setTemp - cascadeMaxOffset, setTemp + cascadeMaxOffset);
+			}
+		}
+
+		// Use separate learned gains because heating and cooling capacity differ.
 		float gain = error >= 0.0f ? heatingCascadeGain : coolingCascadeGain;
 		float offset = constrain(error * gain, -cascadeMaxOffset, cascadeMaxOffset);
-		effectiveBoxTarget = setTemp + offset;
+
+		// Box target is anchored at the thermal equilibrium baseline instead of hardcoded setTemp
+		effectiveBoxTarget = constrain(cascadeBoxBaseline + offset, setTemp - cascadeMaxOffset, setTemp + cascadeMaxOffset);
 	} else {
 		effectiveBoxTarget = setTemp;
+		cascadeBoxBaseline = setTemp;
 	}
 }
 
@@ -201,11 +237,11 @@ void processControl() {
 
 		if (boxMode == 1 && !isStopped) {
 			if (boxSubMode == 3) { // Currently in Heating sub-mode
-				// Switch to Cooling as soon as control temperature reaches or exceeds target
-				if (controlTemp >= (setTemp + (isISpindelActive() ? 0.0f : DEFAULT_HYSTERESIS))) {
+				// Switch to Cooling only when control temperature rises above target by hysteresis
+				if (controlTemp >= (setTemp + DEFAULT_HYSTERESIS)) {
 					boxSubMode = 2; // Switch to Cooling
 					Debug.addLine(String(F("Control temp (")) + String(controlTemp, 2) +
-					              F("°C) >= target (") + String(setTemp, 1) + F("°C): switch to Cooling"));
+					              F("°C) >= target (") + String(setTemp + DEFAULT_HYSTERESIS, 2) + F("°C): switch to Cooling"));
 				}
 			} else { // Currently in Cooling sub-mode (boxSubMode == 2)
 				// Switch to Heating ONLY when control temperature drops below target by hysteresis.
@@ -213,7 +249,7 @@ void processControl() {
 				if (controlTemp < (setTemp - DEFAULT_HYSTERESIS)) {
 					boxSubMode = 3; // Switch to Heating
 					Debug.addLine(String(F("Control temp (")) + String(controlTemp, 2) +
-					              F("°C) < target (") + String(setTemp, 1) + F("°C): switch to Heating"));
+					              F("°C) < target (") + String(setTemp - DEFAULT_HYSTERESIS, 2) + F("°C): switch to Heating"));
 				}
 			}
 
@@ -232,7 +268,7 @@ void processControl() {
 		}
 
 		bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
-		bool fermenterNeedsHeating = !isISpindelActive() || (iSpindelTemperature < setTemp);
+		bool fermenterNeedsHeating = !isISpindelActive() || (iSpindelTemperature <= (setTemp + DEFAULT_HYSTERESIS));
 		bool fermenterNeedsCooling = !isISpindelActive() || (iSpindelTemperature > (setTemp - DEFAULT_HYSTERESIS));
 		bool isCooling = !isHeating && !isStopped && fermenterNeedsCooling;
 
