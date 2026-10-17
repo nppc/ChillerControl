@@ -756,6 +756,46 @@ function setupDebugPage() {
       fetchDebug();
     });
   }
+
+  const copyBtn = document.getElementById('copyDebugBtn');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const debugLog = document.getElementById('debugLog');
+      const text = debugLog ? (debugLog.innerText || debugLog.textContent || '') : '';
+      if (!text) return;
+
+      let copied = false;
+      if (navigator.clipboard && window.isSecureContext) {
+        try {
+          await navigator.clipboard.writeText(text);
+          copied = true;
+        } catch (err) {}
+      }
+
+      if (!copied) {
+        try {
+          const textArea = document.createElement('textarea');
+          textArea.value = text;
+          textArea.style.position = 'fixed';
+          textArea.style.left = '-999999px';
+          textArea.style.top = '-999999px';
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+          copied = document.execCommand('copy');
+          textArea.remove();
+        } catch (err) {}
+      }
+
+      if (copied) {
+        copyBtn.classList.add('copied');
+        setTimeout(() => {
+          copyBtn.classList.remove('copied');
+        }, 1800);
+      }
+    });
+  }
 }
 
 function setupPasswordToggles() {

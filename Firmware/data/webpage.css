@@ -838,6 +838,49 @@ button.btn_target_set:active,
   padding: 12px 14px;
 }
 
+.debug-header-cell {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+  line-height: 1;
+}
+
+.copy-btn:hover {
+  background: var(--surface-muted);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.copy-btn .copy-feedback {
+  display: none;
+  color: var(--success);
+  font-weight: 600;
+}
+
+.copy-btn.copied .copy-icon {
+  display: none;
+}
+
+.copy-btn.copied .copy-feedback {
+  display: inline;
+}
+
 .values_table th {
   padding: 10px;
   background: var(--surface-muted);

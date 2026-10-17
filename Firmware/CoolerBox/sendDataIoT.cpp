@@ -82,11 +82,9 @@ void sendTelemetry() {
 	}
 	https.addHeader("Content-Type", "application/json");
 	int status = https.POST(payload);
-	if (status >= 200 && status < 300) {
-		Debug.addLine(String(F("HTTPS telemetry sent: ")) + status);
-	} else if (status < 0) {
+	if (status < 0) {
 		Debug.addLine(String(F("HTTPS POST failed: ")) + https.errorToString(status));
-	} else {
+	} else if (status < 200 || status >= 300) {
 		Debug.addLine(String(F("HTTPS endpoint returned: ")) + status);
 	}
 	https.end();
