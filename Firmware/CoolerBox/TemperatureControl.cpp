@@ -22,6 +22,10 @@ float cascadeBoxBaseline = 18.0f;
 bool cascadeBaselineInitialized = false;
 unsigned long lastBaselineISpindelMillis = 0;
 
+static inline bool isBoxTempValid() {
+	return (boxTemp > -50.0f && boxTemp < 100.0f && boxTemp != 0.0f);
+}
+
 void resetCascadeAdaptation() {
 	heatingCascadeGain = constrain(DEFAULT_CASCADE_GAIN, CASCADE_GAIN_MIN, CASCADE_GAIN_MAX);
 	coolingCascadeGain = constrain(DEFAULT_CASCADE_GAIN * CASCADE_COOLING_GAIN_MULTIPLIER,
@@ -32,8 +36,13 @@ void resetCascadeAdaptation() {
 	lastAdaptedISpindelMillis = lastISpindelMillis;
 	lastConfiguredCascadeGain = DEFAULT_CASCADE_GAIN;
 	lastAdaptedSetTemp = setTemp;
-	cascadeBoxBaseline = (boxTemp > -50.0f && boxTemp < 100.0f && boxTemp != 0.0f) ? boxTemp : setTemp;
-	cascadeBaselineInitialized = true;
+	if (isBoxTempValid()) {
+		cascadeBoxBaseline = boxTemp;
+		cascadeBaselineInitialized = true;
+	} else {
+		cascadeBoxBaseline = setTemp;
+		cascadeBaselineInitialized = false;
+	}
 	lastBaselineISpindelMillis = lastISpindelMillis;
 }
 
@@ -124,6 +133,7 @@ float effectiveBoxTarget = 19.0f;
 int iSpindelIntervalSec = 900;  // 15 minutes default
 
 void initTemperatureControl() {
+	cascadeBaselineInitialized = false;
 	effectiveBoxTarget = setTemp;
 	resetCascadeAdaptation();
 }
@@ -139,7 +149,15 @@ bool isISpindelActive() {
 }
 
 float getFermenterTemp() {
-	return isISpindelActive() ? iSpindelTemperature : boxTemp;
+	if (isISpindelActive()) {
+		return iSpindelTemperature;
+	}
+	if (useISpindelTemp && lastISpindelMillis == 0) {
+		// Waiting for the first iSpindel report after boot:
+		// Assume setTemp to avoid premature heating/cooling before actual liquid telemetry is known
+		return setTemp;
+	}
+	return boxTemp;
 }
 
 float getEffectiveBoxTarget() {
@@ -164,9 +182,21 @@ void updateCascadeTarget() {
 	}
 	if (fabs(setTemp - lastAdaptedSetTemp) >= 0.01f) {
 		lastAdaptedSetTemp = setTemp;
-		cascadeBoxBaseline = (boxTemp > -50.0f && boxTemp < 100.0f && boxTemp != 0.0f) ? boxTemp : setTemp;
+		if (isBoxTempValid()) {
+			cascadeBoxBaseline = boxTemp;
+			cascadeBaselineInitialized = true;
+		} else {
+			cascadeBoxBaseline = setTemp;
+			cascadeBaselineInitialized = false;
+		}
+	}
+
+	// Latch real box temperature as initial baseline as soon as sensor reading becomes valid
+	if (!cascadeBaselineInitialized && isBoxTempValid()) {
+		cascadeBoxBaseline = boxTemp;
 		cascadeBaselineInitialized = true;
 	}
+
 	if (isISpindelActive()) {
 		adaptCascadeGain();
 
@@ -176,11 +206,11 @@ void updateCascadeTarget() {
 		// and a new iSpindel report has arrived.
 		if (lastISpindelMillis != lastBaselineISpindelMillis) {
 			lastBaselineISpindelMillis = lastISpindelMillis;
-			if (fabs(error) <= CASCADE_ADAPT_DEADBAND && boxTemp > -50.0f && boxTemp < 100.0f && boxTemp != 0.0f) {
+			if (isBoxTempValid()) {
 				if (!cascadeBaselineInitialized) {
 					cascadeBoxBaseline = boxTemp;
 					cascadeBaselineInitialized = true;
-				} else {
+				} else if (fabs(error) <= CASCADE_ADAPT_DEADBAND) {
 					// Smoothly adapt baseline toward current steady box air temperature (15% per report)
 					cascadeBoxBaseline = 0.85f * cascadeBoxBaseline + 0.15f * boxTemp;
 				}
@@ -195,8 +225,15 @@ void updateCascadeTarget() {
 		// Box target is anchored at the thermal equilibrium baseline instead of hardcoded setTemp
 		effectiveBoxTarget = constrain(cascadeBoxBaseline + offset, setTemp - cascadeMaxOffset, setTemp + cascadeMaxOffset);
 	} else {
-		effectiveBoxTarget = setTemp;
-		cascadeBoxBaseline = setTemp;
+		if (useISpindelTemp) {
+			// iSpindel is configured but waiting for first report or temporarily offline:
+			// anchor target to baseline/boxTemp so we don't blast heat/cool before receiving wort telemetry
+			effectiveBoxTarget = isBoxTempValid() ? cascadeBoxBaseline : setTemp;
+		} else {
+			// Direct box control mode: user explicitly regulates box air to setTemp
+			effectiveBoxTarget = setTemp;
+			cascadeBoxBaseline = setTemp;
+		}
 	}
 }
 
