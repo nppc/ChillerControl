@@ -33,15 +33,11 @@ void sendTelemetry() {
 		(!isCoolerStopped() && isCoolingDemanded() ? "cooling" : "nothing");
 
 	JsonDocument doc;
-	doc["temperature"] = boxTemp;
 	doc["box_temperature"] = boxTemp;
 	doc["box_target"] = effectiveBoxTarget;
 	doc["fermenter_temperature"] = getFermenterTemp();
-	doc["control_temperature"] = getFermenterTemp();
-	doc["control_source"] = isISpindelActive() ? "cascade_ispindel" : "box";
 	doc["state"] = currentState;
 	doc["set_temperature"] = targetVal;
-	doc["target"] = targetVal;
 	doc["hot_temperature"] = HotTemp;
 	doc["voltage"] = measuredVoltage;
 	doc["current"] = measuredCurrent;
@@ -49,9 +45,6 @@ void sendTelemetry() {
 	doc["pwm"] = pwmPct;
 	doc["ip_address"] = WiFi.localIP().toString();
 	doc["rssi"] = WiFi.RSSI();
-	if (isHeatingAutoTuning()) {
-		doc["autotune"] = 1;
-	}
 
 	if (hasNewISpindelData) {
 		JsonObjectConst obj = lastISpindelDoc.as<JsonObjectConst>();

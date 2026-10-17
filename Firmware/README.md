@@ -33,8 +33,8 @@ Telemetry is sent as a JSON `POST` to the configured HTTPS endpoint at the
 configured interval. The Network page builds the URL from the endpoint address
 (for example, `https://aa.ddnss.eu/api/v1`), the Access Token path segment, and
 the endpoint path (for example, `/telemetry`). The payload includes box temperature,
-fermenter liquid temperature (when active), active control temperature, box target,
-hot-side temperature, voltage, current, heater PWM, control source, and the
+fermenter temperature, box target, state, setpoint temperature,
+hot-side temperature, voltage, current, heater PWM, Wi-Fi RSSI, and the
 device's current LAN IP address. Server certificate validation is disabled;
 configure this only on a network where accepting an unverified certificate is
 acceptable.
