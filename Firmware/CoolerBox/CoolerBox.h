@@ -129,6 +129,8 @@ void handleScript();
 bool sendTelemetry();
 uint8_t telemetryBackoffLevelMinutes();
 bool isWebClientAllowed();
+bool clockValid();
+uint32_t epochSeconds();
 // iSpindel data — stored as plain typed fields; no live JsonDocument between sends.
 extern float iSpindelGravity;
 extern float iSpindelBattery;

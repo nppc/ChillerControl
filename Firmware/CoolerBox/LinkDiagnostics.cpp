@@ -179,8 +179,7 @@ void recordLinkDiagnostic(LinkDiagnosticEvent event, uint8_t backoffMinutes) {
 		++counters.staDisconnects;
 		break;
 	case LinkDiagnosticEvent::ApDisconnected:
-		++counters.apDisconnects;
-		break;
+		return;
 	}
 
 	if (bufferedLines >= LINK_LOG_BUFFER_SIZE && !flushLogBuffer()) {
@@ -212,7 +211,6 @@ void handleLinkLog() {
 	appendSummary(summary, "Successful uploads: ", counters.uploadSuccesses);
 	appendSummary(summary, "Failed uploads: ", counters.uploadFailures);
 	appendSummary(summary, "STA disconnects: ", counters.staDisconnects);
-	appendSummary(summary, "AP disconnects: ", counters.apDisconnects);
 	summary += F("Current backoff: ");
 	summary += telemetryBackoffLevelMinutes();
 	summary += F(" minutes\n");

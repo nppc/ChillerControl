@@ -143,7 +143,16 @@ bool sendTelemetry() {
 	}
 
 	String payload;
-	serializeJson(doc, payload);
+	if (clockValid()) {
+		char tsBuf[16];
+		snprintf(tsBuf, sizeof(tsBuf), "%lu000", static_cast<unsigned long>(epochSeconds()));
+		JsonDocument tbDoc;
+		tbDoc["ts"] = serialized(tsBuf);
+		tbDoc["values"] = doc;
+		serializeJson(tbDoc, payload);
+	} else {
+		serializeJson(doc, payload);
+	}
 
 	BearSSL::WiFiClientSecure client;
 	client.setInsecure();

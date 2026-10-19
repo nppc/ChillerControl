@@ -266,11 +266,10 @@ void onApStationConnected(const WiFiEventSoftAPModeStationConnected &event) {
 	snprintf(lastApStationMac, sizeof(lastApStationMac), "%02X:%02X:%02X:%02X:%02X:%02X",
 	         event.mac[0], event.mac[1], event.mac[2],
 	         event.mac[3], event.mac[4], event.mac[5]);
-	enqueueWifiLogEvent(AP_STATION_CONNECTED_EVENT, 0, event.mac);
 }
 
 void onApStationDisconnected(const WiFiEventSoftAPModeStationDisconnected &event) {
-	enqueueWifiLogEvent(AP_STATION_DISCONNECTED_EVENT, 0, event.mac);
+	(void)event;
 }
 
 void processWifiEventLogs() {
@@ -294,8 +293,6 @@ void processWifiEventLogs() {
 			message += F(" channel=");
 			message += WiFi.channel();
 			Debug.addLine(message);
-		} else if (type == AP_STATION_DISCONNECTED_EVENT) {
-			recordLinkDiagnostic(LinkDiagnosticEvent::ApDisconnected, telemetryBackoffLevelMinutes());
 		}
 	}
 	if (wifiLogDropped != 0) {
@@ -421,6 +418,14 @@ bool isWebClientAllowed() {
 		}
 	}
 	return false;
+}
+
+bool clockValid() {
+	return time(nullptr) >= 1700000000;
+}
+
+uint32_t epochSeconds() {
+	return static_cast<uint32_t>(time(nullptr));
 }
 
 void setup() {
