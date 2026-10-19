@@ -709,11 +709,25 @@ async function setupNetworkPage() {
     setIf('endpointAccessToken', data.endpointAccessToken);
     setIf('endpointPath', data.endpointPath);
     setIf('sendInterval', data.sendInterval);
+    setIf('timezone', data.timezone);
     const hidden = document.getElementById('apHidden');
     if (hidden) hidden.checked = data.apHidden === true;
     const allowLocalWeb = document.getElementById('allowApWeb');
     if (allowLocalWeb) allowLocalWeb.checked = data.allowApWeb === true;
   } catch (e) {}
+
+}
+
+async function fetchLinkLog() {
+  const log = document.getElementById('linkLog');
+  if (!log) return;
+  try {
+    const res = await fetch('/api/link-log');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    log.textContent = await res.text();
+  } catch (e) {
+    log.textContent = `Unable to load link diagnostics: ${e.message || e}`;
+  }
 }
 
 async function fetchDebug() {
@@ -754,6 +768,14 @@ function setupDebugPage() {
     refreshBtn.addEventListener('click', (e) => {
       e.preventDefault();
       fetchDebug();
+    });
+  }
+
+  const loadLinkLogBtn = document.getElementById('loadLinkLogBtn');
+  if (loadLinkLogBtn) {
+    loadLinkLogBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      fetchLinkLog();
     });
   }
 

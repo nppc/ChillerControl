@@ -1046,6 +1046,19 @@ textarea {
   font-weight: 650;
 }
 
+.link-log-view {
+  max-height: 420px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--text);
+  font: 12px/1.5 Consolas, "Courier New", monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .network-field + .network-field {
   margin-top: 18px;
 }

@@ -91,6 +91,7 @@ void handleApiNetwork() {
 	doc["endpointAccessToken"] = endpointAccessToken;
 	doc["endpointPath"] = endpointPath;
 	doc["sendInterval"] = sendInterval;
+	doc["timezone"] = timezone;
 
 	String json;
 	serializeJson(doc, json);
@@ -373,6 +374,10 @@ void handleNotFound() {
 }
 
 void handleNetworkStore() {
+	bool otherNetworkSettingsChanged =
+		apHidden != httpServer.hasArg("apHidden") ||
+		allowApWeb != httpServer.hasArg("allowApWeb");
+	bool timezoneChanged = false;
 	apHidden = httpServer.hasArg("apHidden");
 	allowApWeb = httpServer.hasArg("allowApWeb");
 	if (httpServer.args() > 0) {
@@ -381,46 +386,77 @@ void handleNetworkStore() {
 			if (httpServer.argName(i) == "apSSID") {
 				s.trim();
 				if (s.isEmpty()) {
+					if (strcmp(apSSID, "Cooler") != 0) otherNetworkSettingsChanged = true;
 					strncpy(apSSID, "Cooler", sizeof(apSSID));
 					apSSID[sizeof(apSSID) - 1] = '\0';
 				} else {
+					if (s != apSSID) otherNetworkSettingsChanged = true;
 					s.toCharArray(apSSID, sizeof(apSSID));
 				}
 			}
 			if (httpServer.argName(i) == "apPassword" || httpServer.argName(i) == "apPASS") {
 				s.trim();
 				if (s.isEmpty() || s.length() >= 8) {
+					if (s != apPassword) otherNetworkSettingsChanged = true;
 					s.toCharArray(apPassword, sizeof(apPassword));
 				} else {
 					Debug.addLine(F("AP password must be at least 8 characters or empty"));
 				}
 			}
 			if (httpServer.argName(i) == "IntSSID") {
+				if (s != IntSSID) otherNetworkSettingsChanged = true;
 				s.toCharArray(IntSSID, 20);
 			}
 			if (httpServer.argName(i) == "IntPASS") {
+				if (s != IntPASS) otherNetworkSettingsChanged = true;
 				s.toCharArray(IntPASS, 20);
 			}
 			if (httpServer.argName(i) == "endpointAddress") {
+				if (s != endpointAddress) otherNetworkSettingsChanged = true;
 				endpointAddress = s;
 			}
 			if (httpServer.argName(i) == "endpointAccessToken") {
+				if (s != endpointAccessToken) otherNetworkSettingsChanged = true;
 				endpointAccessToken = s;
 			}
 			if (httpServer.argName(i) == "endpointPath") {
+				if (s != endpointPath) otherNetworkSettingsChanged = true;
 				endpointPath = s;
 			}
 			if (httpServer.argName(i) == "sendInterval") {
 				int requestedInterval = s.toInt();
 				if (requestedInterval >= 10 && requestedInterval <= 86400) {
+					if (requestedInterval != sendInterval) otherNetworkSettingsChanged = true;
 					sendInterval = requestedInterval;
 				} else {
 					Debug.addLine(F("Invalid telemetry interval"));
 				}
 			}
+			if (httpServer.argName(i) == "timezone") {
+				s.trim();
+				bool validTimezone = !s.isEmpty() && s.length() < sizeof(timezone);
+				for (size_t j = 0; validTimezone && j < s.length(); ++j) {
+					unsigned char character = static_cast<unsigned char>(s[j]);
+					validTimezone = character >= 0x20 && character <= 0x7E;
+				}
+				if (validTimezone) {
+					timezoneChanged = s != timezone;
+					s.toCharArray(timezone, sizeof(timezone));
+					setenv("TZ", timezone, 1);
+					tzset();
+				} else {
+					Debug.addLine(F("Invalid timezone, kept previous"));
+				}
+			}
 		}
 	}
 	saveSettings();
+	if (timezoneChanged && !otherNetworkSettingsChanged) {
+		// TZ is applied above, so a timezone-only change does not need a reboot.
+		httpServer.sendHeader("Location", String("/network"), true);
+		httpServer.send(302, "text/plain", "");
+		return;
+	}
 	drd.stop();
 
 	if (!handleFileRead("/reboot.htm")) {

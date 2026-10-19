@@ -36,6 +36,15 @@
 <TABLE width="100%">
 <TR><TD><button type="button" id="refreshDebugBtn" class="btn btn_round">Refresh</button></TD></TR>
 </TABLE>
+<BR>
+<TABLE width="100%">
+<TR><TD><button type="button" id="loadLinkLogBtn" class="btn btn_round">Load Link Diagnostics</button></TD></TR>
+</TABLE>
+<section class="network-section" aria-labelledby="linkDiagnosticsHeading">
+<h2 id="linkDiagnosticsHeading">Link Diagnostics</h2>
+<p>Upload and Wi-Fi disconnect totals since boot. Event history is appended to LittleFS after every 8 buffered events and includes the current RAM buffer.</p>
+<pre id="linkLog" class="link-log-view" aria-live="polite">Click "Load Link Diagnostics" to fetch history.</pre>
+</section>
 </div>
 </body>
 </html>

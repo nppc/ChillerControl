@@ -51,6 +51,15 @@ extern unsigned long millisWIFIcheckInterval;
 extern unsigned long lastWifiDropMillis;
 extern bool wifiDropOccurred;
 extern bool wifiWasConnected;
+extern volatile bool httpRequestInProgress;
+enum class LinkDiagnosticEvent : uint8_t {
+	UploadSucceeded,
+	UploadFailed,
+	StaDisconnected,
+	ApDisconnected
+};
+void recordLinkDiagnostic(LinkDiagnosticEvent event, uint8_t backoffMinutes);
+void handleLinkLog();
 extern int ColdSensorId;
 extern int HotSensorId;
 extern int boxTemp_SmoothArray[filterSamples];
@@ -61,6 +70,8 @@ extern char apPassword[65];
 extern bool apHidden;
 extern bool allowApWeb;
 extern bool emergencyMode;
+extern const char DEFAULT_TIMEZONE[];
+extern char timezone[64];
 extern const char *ssid;
 extern const char *password;
 extern char IntSSID[20];
@@ -116,7 +127,8 @@ void handleApiNetwork();
 void handleApiDebug();
 void handleCSS();
 void handleScript();
-void sendTelemetry();
+bool sendTelemetry();
+uint8_t telemetryBackoffLevelMinutes();
 bool isWebClientAllowed();
 extern JsonDocument lastISpindelDoc;
 extern bool hasNewISpindelData;

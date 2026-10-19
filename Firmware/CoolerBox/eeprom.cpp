@@ -35,6 +35,19 @@ void applySettings(JsonDocument &doc) {
 	useISpindelTemp = doc["useISpindelTemp"] | true;
 	cascadeMaxOffset = CASCADE_MAX_OFFSET;
 	cascadeGain = 2.0f;
+	String timezoneSetting = doc["timezone"] | "";
+	timezoneSetting.trim();
+	bool validTimezone = !timezoneSetting.isEmpty() && timezoneSetting.length() < sizeof(timezone);
+	for (size_t i = 0; validTimezone && i < timezoneSetting.length(); ++i) {
+		unsigned char character = static_cast<unsigned char>(timezoneSetting[i]);
+		validTimezone = character >= 0x20 && character <= 0x7E;
+	}
+	if (validTimezone) {
+		timezoneSetting.toCharArray(timezone, sizeof(timezone));
+	} else {
+		strncpy(timezone, DEFAULT_TIMEZONE, sizeof(timezone));
+		timezone[sizeof(timezone) - 1] = '\0';
+	}
 
 	String s = doc["IntSSID"].as<String>();s.toCharArray(IntSSID,20);
 	s = doc["IntPASS"].as<String>();s.toCharArray(IntPASS,20);
@@ -108,6 +121,8 @@ void initDefaultSettings() {
 	useISpindelTemp = true;
 	cascadeMaxOffset = CASCADE_MAX_OFFSET;
 	cascadeGain = 2.0f;
+	strncpy(timezone, DEFAULT_TIMEZONE, sizeof(timezone));
+	timezone[sizeof(timezone) - 1] = '\0';
 	IntSSID[0] = '\0';
 	IntPASS[0] = '\0';
 	endpointAddress = "";
@@ -147,6 +162,7 @@ void saveSettings(){
 	doc["apHidden"] = apHidden;
 	doc["allowApWeb"] = allowApWeb;
 	doc["useISpindelTemp"] = useISpindelTemp;
+	doc["timezone"] = timezone;
 	doc["cascadeMaxOffset"] = cascadeMaxOffset;
 	doc["cascadeGain"] = cascadeGain;
 	doc["IntSSID"] = String(IntSSID);
