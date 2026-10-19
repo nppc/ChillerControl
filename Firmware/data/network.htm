@@ -117,17 +117,40 @@
 <p>How often data is sent to the endpoint.</p>
 </div>
 <div class="network-field">
-<label for="timezone">Timezone (POSIX TZ string)</label>
-<input type="text" id="timezone" name="timezone" maxlength="63" list="timezonePresets" autocomplete="off" value=""/>
-<datalist id="timezonePresets">
-<option value="EET-2EEST,M3.5.0/3,M10.5.0/4" label="Europe/Helsinki"></option>
-<option value="UTC0" label="UTC"></option>
-<option value="CET-1CEST,M3.5.0,M10.5.0/3" label="Europe/Berlin"></option>
-<option value="GMT0BST,M3.5.0/1,M10.5.0" label="Europe/London"></option>
-<option value="MSK-3" label="Europe/Moscow"></option>
-<option value="EST5EDT,M3.2.0,M11.1.0" label="America/New_York"></option>
-</datalist>
-<p>POSIX timezone used for local log timestamps. Defaults to Europe/Helsinki.</p>
+<label for="timezonePreset">Timezone</label>
+<select id="timezonePreset">
+<option value="EET-2EEST,M3.5.0/3,M10.5.0/4">Finland - Helsinki (UTC+2/+3)</option>
+<option value="EET-2EEST,M3.5.0/3,M10.5.0/4">Estonia - Tallinn (UTC+2/+3)</option>
+<option value="EET-2EEST,M3.5.0/3,M10.5.0/4">Latvia - Riga (UTC+2/+3)</option>
+<option value="EET-2EEST,M3.5.0/3,M10.5.0/4">Lithuania - Vilnius (UTC+2/+3)</option>
+<option value="EET-2EEST,M3.5.0/3,M10.5.0/4">Greece - Athens (UTC+2/+3)</option>
+<option value="EET-2EEST,M3.5.0/3,M10.5.0/4">Romania - Bucharest (UTC+2/+3)</option>
+<option value="EET-2EEST,M3.5.0/3,M10.5.0/4">Bulgaria - Sofia (UTC+2/+3)</option>
+<option value="EET-2EEST,M3.5.0/3,M10.5.0/4">Ukraine - Kyiv (UTC+2/+3)</option>
+<option value="CET-1CEST,M3.5.0,M10.5.0/3">Germany - Berlin (UTC+1/+2)</option>
+<option value="CET-1CEST,M3.5.0,M10.5.0/3">France - Paris (UTC+1/+2)</option>
+<option value="CET-1CEST,M3.5.0,M10.5.0/3">Italy - Rome (UTC+1/+2)</option>
+<option value="CET-1CEST,M3.5.0,M10.5.0/3">Spain - Madrid (UTC+1/+2)</option>
+<option value="CET-1CEST,M3.5.0,M10.5.0/3">Netherlands - Amsterdam (UTC+1/+2)</option>
+<option value="CET-1CEST,M3.5.0,M10.5.0/3">Belgium - Brussels (UTC+1/+2)</option>
+<option value="CET-1CEST,M3.5.0,M10.5.0/3">Austria - Vienna (UTC+1/+2)</option>
+<option value="CET-1CEST,M3.5.0,M10.5.0/3">Czechia - Prague (UTC+1/+2)</option>
+<option value="CET-1CEST,M3.5.0,M10.5.0/3">Poland - Warsaw (UTC+1/+2)</option>
+<option value="CET-1CEST,M3.5.0,M10.5.0/3">Sweden - Stockholm (UTC+1/+2)</option>
+<option value="CET-1CEST,M3.5.0,M10.5.0/3">Norway - Oslo (UTC+1/+2)</option>
+<option value="CET-1CEST,M3.5.0,M10.5.0/3">Switzerland - Zurich (UTC+1/+2)</option>
+<option value="GMT0BST,M3.5.0/1,M10.5.0">United Kingdom - London (UTC+0/+1)</option>
+<option value="WET0WEST,M3.5.0/1,M10.5.0">Portugal - Lisbon (UTC+0/+1)</option>
+<option value="GMT0">Iceland - Reykjavik (UTC+0)</option>
+<option value="UTC0">UTC (UTC+0)</option>
+<option value="custom">Other / custom timezone...</option>
+</select>
+<input type="hidden" id="timezone" name="timezone" value="EET-2EEST,M3.5.0/3,M10.5.0/4"/>
+<div id="timezoneCustomField" hidden>
+<label for="timezoneCustom">Custom POSIX TZ string</label>
+<input type="text" id="timezoneCustom" maxlength="63" autocomplete="off" value=""/>
+</div>
+<p id="timezoneHelp">Choose a location for local log timestamps. For a location not listed, select “Other / custom timezone” and enter its POSIX TZ string; an IANA name such as Europe/Berlin is not itself a POSIX TZ string. The preset rules are based on IANA time-zone data.</p>
 </div>
 </section>
 <button type="submit" class="btn btn_round network-save">Save Network Settings &amp; Reboot</button>
