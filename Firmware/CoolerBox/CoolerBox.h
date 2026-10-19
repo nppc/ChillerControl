@@ -19,6 +19,7 @@
 #include "TemperatureControl.h"
 #include "DebugHTML.h"
 #include "DoubleResetDetector.h"
+#include "TelemetryQueue.h"
 
 #define I2C_ADDRESS 0x5E
 #define I2C_DATALEN 11
@@ -127,6 +128,7 @@ void handleApiDebug();
 void handleCSS();
 void handleScript();
 bool sendTelemetry();
+bool isTelemetryUploadDue();
 uint8_t telemetryBackoffLevelMinutes();
 bool isWebClientAllowed();
 bool clockValid();

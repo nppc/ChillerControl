@@ -206,7 +206,7 @@ void recordLinkDiagnostic(LinkDiagnosticEvent event, uint8_t backoffMinutes) {
 
 void handleLinkLog() {
 	String summary;
-	summary.reserve(192);
+	summary.reserve(384);
 	summary = F("Current boot totals:\n");
 	appendSummary(summary, "Successful uploads: ", counters.uploadSuccesses);
 	appendSummary(summary, "Failed uploads: ", counters.uploadFailures);
@@ -214,6 +214,11 @@ void handleLinkLog() {
 	summary += F("Current backoff: ");
 	summary += telemetryBackoffLevelMinutes();
 	summary += F(" minutes\n");
+	appendSummary(summary, "Records pending: ", telemetryQueuePending());
+	appendSummary(summary, "Records dropped: ", telemetryQueueDrops());
+	appendSummary(summary, "Chunks sent: ", telemetryChunksSent());
+	appendSummary(summary, "Free heap: ", ESP.getFreeHeap());
+	appendSummary(summary, "Max free block: ", ESP.getMaxFreeBlockSize());
 	if (droppedLogRecords != 0) {
 		appendSummary(summary, "Log records lost after LittleFS write failures: ", droppedLogRecords);
 	}

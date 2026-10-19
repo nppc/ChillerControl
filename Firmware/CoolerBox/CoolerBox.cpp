@@ -698,7 +698,7 @@ void loop() {
 		}
 	}
 
-	if (sendTelemetryNow) {
+	if (sendTelemetryNow || isTelemetryUploadDue()) {
 		sendTelemetryNow = false;
 		sendTelemetry();
 	}
