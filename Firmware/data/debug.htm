@@ -42,7 +42,7 @@
 </TABLE>
 <section class="network-section" aria-labelledby="linkDiagnosticsHeading">
 <h2 id="linkDiagnosticsHeading">Link Diagnostics</h2>
-<p>Upload and Wi-Fi disconnect totals since boot. Event history is appended to LittleFS after every 8 buffered events and includes the current RAM buffer.</p>
+<p>Upload and Wi-Fi disconnect totals since boot. Only upload failures and Wi-Fi disconnects are stored in two rotating LittleFS files (wifi-link.log and wifi-link.old.log, up to 128 KB each); upload successes are counted but not stored. The event history includes the current RAM buffer.</p>
 <pre id="linkLog" class="link-log-view" aria-live="polite">Click "Load Link Diagnostics" to fetch history.</pre>
 </section>
 </div>

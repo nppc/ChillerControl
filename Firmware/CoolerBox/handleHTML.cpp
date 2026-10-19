@@ -91,7 +91,7 @@ void handleApiNetwork() {
 	doc["endpointAccessToken"] = endpointAccessToken;
 	doc["endpointPath"] = endpointPath;
 	doc["sendInterval"] = sendInterval;
-	doc["timezone"] = timezone;
+	doc["timezone"] = tzSetting;
 
 	String json;
 	serializeJson(doc, json);
@@ -377,7 +377,7 @@ void handleNetworkStore() {
 	bool otherNetworkSettingsChanged =
 		apHidden != httpServer.hasArg("apHidden") ||
 		allowApWeb != httpServer.hasArg("allowApWeb");
-	bool timezoneChanged = false;
+	bool tzSettingChanged = false;
 	apHidden = httpServer.hasArg("apHidden");
 	allowApWeb = httpServer.hasArg("allowApWeb");
 	if (httpServer.args() > 0) {
@@ -434,15 +434,15 @@ void handleNetworkStore() {
 			}
 			if (httpServer.argName(i) == "timezone") {
 				s.trim();
-				bool validTimezone = !s.isEmpty() && s.length() < sizeof(timezone);
-				for (size_t j = 0; validTimezone && j < s.length(); ++j) {
+				bool validTzSetting = !s.isEmpty() && s.length() < sizeof(tzSetting);
+				for (size_t j = 0; validTzSetting && j < s.length(); ++j) {
 					unsigned char character = static_cast<unsigned char>(s[j]);
-					validTimezone = character >= 0x20 && character <= 0x7E;
+					validTzSetting = character >= 0x20 && character <= 0x7E;
 				}
-				if (validTimezone) {
-					timezoneChanged = s != timezone;
-					s.toCharArray(timezone, sizeof(timezone));
-					setenv("TZ", timezone, 1);
+				if (validTzSetting) {
+					tzSettingChanged = s != tzSetting;
+					s.toCharArray(tzSetting, sizeof(tzSetting));
+					setenv("TZ", tzSetting, 1);
 					tzset();
 				} else {
 					Debug.addLine(F("Invalid timezone, kept previous"));
@@ -451,7 +451,7 @@ void handleNetworkStore() {
 		}
 	}
 	saveSettings();
-	if (timezoneChanged && !otherNetworkSettingsChanged) {
+	if (tzSettingChanged && !otherNetworkSettingsChanged) {
 		// TZ is applied above, so a timezone-only change does not need a reboot.
 		httpServer.sendHeader("Location", String("/network"), true);
 		httpServer.send(302, "text/plain", "");

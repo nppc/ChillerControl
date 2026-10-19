@@ -4,7 +4,7 @@
 
 DebugHTML Debug;
 const char DEFAULT_TIMEZONE[] = "EET-2EEST,M3.5.0/3,M10.5.0/4";
-char timezone[64] = "EET-2EEST,M3.5.0/3,M10.5.0/4";
+char tzSetting[64] = "EET-2EEST,M3.5.0/3,M10.5.0/4";
 
 float boxTemp = 0.0f;	// current measured temperature inside the box
 float HotTemp = 0.0f;	// current measured temperature of hot radiator
@@ -25,7 +25,6 @@ unsigned long millisWIFIcheckInterval;
 unsigned long lastWifiDropMillis = 0;
 bool wifiDropOccurred = false;
 bool wifiWasConnected = false;
-volatile bool httpRequestInProgress = false;
 
 int ColdSensorId = 0;
 int HotSensorId = 0; 
@@ -82,6 +81,11 @@ volatile uint8_t wifiLogDropped = 0;
 uint8_t lastBssid[6] = {};
 int lastCh = 0;
 uint8_t reconnectAttemptCount = 0;
+uint32_t reconnectScheduleStartMillis = 0;
+uint32_t lastReconnectBeginMillis = 0;
+uint32_t reconnectScheduleAttemptCount = 0;
+bool reconnectScheduleActive = false;
+bool reconnectBeginIssued = false;
 int lastStaRssi = 0;
 bool apStarted = false;
 IPAddress configuredApIP(0, 0, 0, 0);
@@ -398,7 +402,7 @@ void setup() {
 	Serial.begin(115200);
 
 	restoreSettings();	// restore PID, boxMode, and voltage limits first
-	setenv("TZ", timezone, 1);
+	setenv("TZ", tzSetting, 1);
 	tzset();
 	maxVoltage_backup = maxVoltage; // update backup
 	initBootAutoStartState(useISpindelTemp);
@@ -425,7 +429,7 @@ void setup() {
 		primeDS18B20();
 	} else {
 		Serial.println("Connecting to external Wi-Fi...");
-		configTime(timezone, "pool.ntp.org", "time.google.com");
+		configTime(tzSetting, "pool.ntp.org", "time.google.com");
 		WiFi.mode(WIFI_AP_STA);
 		WiFi.setOutputPower(20.5f); // Always use maximum transmit power (+20.5 dBm)
 
@@ -525,9 +529,7 @@ void handleTemperatureControl() {
 void loop() {
 	if (Update.isRunning()) {
 		drd.stop();
-		httpRequestInProgress = true;
 		httpServer.handleClient();
-		httpRequestInProgress = false;
 		delay(1);
 		return;
 	}
@@ -548,6 +550,9 @@ void loop() {
 				Debug.addLine(String(F("Cached router BSSID/channel for reconnect: channel=")) + lastCh);
 			}
 			reconnectAttemptCount = 0;
+			reconnectScheduleAttemptCount = 0;
+			reconnectScheduleActive = false;
+			reconnectBeginIssued = false;
 			ensureNormalAp();
 		}
 	}
@@ -558,7 +563,7 @@ void loop() {
 		static bool clockWasValid = false;
 		bool clockIsValid = time(nullptr) >= 1700000000;
 		if (clockIsValid && !clockWasValid) {
-			Debug.addLine(String(F("Time synchronized (timezone: ")) + timezone + F(")"));
+			Debug.addLine(String(F("Time synchronized (timezone: ")) + tzSetting + F(")"));
 		}
 		clockWasValid = clockIsValid;
 		bool isConnected = (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0));
@@ -570,15 +575,43 @@ void loop() {
 				wifiWasConnected = false;
 				wifiDropOccurred = true;
 				lastWifiDropMillis = millis();
+				reconnectScheduleStartMillis = lastWifiDropMillis;
+				reconnectScheduleAttemptCount = 0;
+				reconnectScheduleActive = true;
+				reconnectBeginIssued = false;
 				Debug.addLine(F("Wi-Fi connection lost"));
 			}
 			if (lastStaRssi != 0) {
 				lastStaRssi = 0;
 			}
-			static unsigned long lastReconnectAttempt = 0;
-			if (millis() - lastReconnectAttempt > (60 * 1000UL)) {
-				lastReconnectAttempt = millis();
+			if (!reconnectScheduleActive) {
+				reconnectScheduleStartMillis = millis();
+				reconnectScheduleAttemptCount = 0;
+				reconnectScheduleActive = true;
+				reconnectBeginIssued = false;
+			}
+			uint32_t now = millis();
+			uint32_t sinceDrop = static_cast<uint32_t>(now - reconnectScheduleStartMillis);
+			bool reconnectDue;
+			if (reconnectScheduleAttemptCount == 0) {
+				reconnectDue = sinceDrop >= 5000UL;
+			} else if (reconnectScheduleAttemptCount == 1) {
+				reconnectDue = sinceDrop >= 15000UL;
+			} else if (reconnectScheduleAttemptCount == 2) {
+				reconnectDue = sinceDrop >= 30000UL;
+			} else {
+				reconnectDue =
+					static_cast<uint32_t>(now - lastReconnectBeginMillis) >= 60000UL;
+			}
+			bool previousAttemptStillStarting =
+				reconnectBeginIssued &&
+				WiFi.status() == WL_IDLE_STATUS &&
+				static_cast<uint32_t>(now - lastReconnectBeginMillis) < 20000UL;
+			if (reconnectDue && !previousAttemptStillStarting) {
 				Debug.addLine(F("Wi-Fi disconnected: attempting reconnect"));
+				lastReconnectBeginMillis = now;
+				reconnectBeginIssued = true;
+				++reconnectScheduleAttemptCount;
 				if (lastCh > 0 && reconnectAttemptCount < 3) {
 					++reconnectAttemptCount;
 					Debug.addLine(String(F("Reconnecting on cached channel (attempt ")) +
@@ -612,9 +645,7 @@ void loop() {
 		sendTelemetry();
 	}
 
-	httpRequestInProgress = true;
 	httpServer.handleClient();
-	httpRequestInProgress = false;
 	delay(1);
 	
 	handleTemperatureControl();

@@ -2,10 +2,11 @@
 
 namespace {
 const char LINK_LOG_PATH[] = "/wifi-link.log";
+const char LINK_LOG_OLD_PATH[] = "/wifi-link.old.log";
 const uint8_t LINK_LOG_BUFFER_SIZE = 8;
 const size_t LINK_LOG_MESSAGE_SIZE = 112;
 const size_t LINK_LOG_LINE_SIZE = 144;
-const size_t LINK_LOG_MAX_SIZE = 500UL * 1024UL;
+const size_t LINK_LOG_MAX_SIZE = 128UL * 1024UL;
 
 struct BufferedLinkLogLine {
 	char message[LINK_LOG_MESSAGE_SIZE];
@@ -22,6 +23,8 @@ struct LinkLogCounters {
 LinkLogCounters counters;
 BufferedLinkLogLine linkLogBuffer[LINK_LOG_BUFFER_SIZE] = {};
 uint8_t bufferedLines = 0;
+size_t serializedBufferSize = 0;
+bool bufferSerialized = false;
 uint32_t droppedLogRecords = 0;
 unsigned long lastWriteErrorLogMillis = 0;
 bool writeErrorLogged = false;
@@ -58,16 +61,45 @@ size_t formatLinkLogLine(char *buffer, size_t bufferSize, const BufferedLinkLogL
 	return snprintf(buffer, bufferSize, "[uptime %s] %s\n", timestamp, line.message);
 }
 
+void logWriteError(const __FlashStringHelper *message) {
+	if (!writeErrorLogged ||
+	    static_cast<unsigned long>(millis() - lastWriteErrorLogMillis) >= 60000UL) {
+		Debug.addLine(message);
+		lastWriteErrorLogMillis = millis();
+		writeErrorLogged = true;
+	}
+}
+
+bool buildLogBatch() {
+	size_t batchSize = 0;
+	for (uint8_t i = 0; i < bufferedLines; ++i) {
+		BufferedLinkLogLine line = linkLogBuffer[i];
+		char formattedLine[LINK_LOG_LINE_SIZE];
+		size_t lineSize = formatLinkLogLine(formattedLine, sizeof(formattedLine), line);
+		if (lineSize > sizeof(BufferedLinkLogLine) ||
+		    batchSize + lineSize > sizeof(linkLogBuffer)) {
+			return false;
+		}
+		memcpy(reinterpret_cast<char *>(linkLogBuffer) + batchSize, formattedLine, lineSize);
+		batchSize += lineSize;
+	}
+	serializedBufferSize = batchSize;
+	return batchSize != 0;
+}
+
 bool flushLogBuffer() {
 	if (bufferedLines == 0) {
 		return true;
 	}
 
-	size_t pendingBytes = 0;
-	for (uint8_t i = 0; i < bufferedLines; ++i) {
-		char formattedLine[LINK_LOG_LINE_SIZE];
-		pendingBytes += formatLinkLogLine(formattedLine, sizeof(formattedLine), linkLogBuffer[i]);
+	if (!bufferSerialized) {
+		if (!buildLogBatch()) {
+			logWriteError(F("Failed to format Wi-Fi link log batch"));
+			return false;
+		}
+		bufferSerialized = true;
 	}
+	size_t pendingBytes = serializedBufferSize;
 	size_t existingSize = 0;
 	if (LittleFS.exists(LINK_LOG_PATH)) {
 		File existingFile = LittleFS.open(LINK_LOG_PATH, "r");
@@ -77,46 +109,43 @@ bool flushLogBuffer() {
 		}
 	}
 	if (existingSize > LINK_LOG_MAX_SIZE || pendingBytes > LINK_LOG_MAX_SIZE - existingSize) {
-		if (!LittleFS.remove(LINK_LOG_PATH)) {
-			Debug.addLine(F("Failed to purge oversized Wi-Fi link log"));
+		if (LittleFS.exists(LINK_LOG_OLD_PATH) && !LittleFS.remove(LINK_LOG_OLD_PATH)) {
+			logWriteError(F("Failed to remove old Wi-Fi link log during rotation"));
 			return false;
 		}
-		Debug.addLine(F("Purged Wi-Fi link log after exceeding 500 KB"));
+		if (existingSize > LINK_LOG_MAX_SIZE) {
+			// Retire a pre-rotation log that already exceeds the new per-file cap.
+			if (!LittleFS.remove(LINK_LOG_PATH)) {
+				logWriteError(F("Failed to retire oversized legacy Wi-Fi link log"));
+				return false;
+			}
+			Debug.addLine(F("Retired oversized legacy Wi-Fi link log"));
+		} else {
+			if (!LittleFS.rename(LINK_LOG_PATH, LINK_LOG_OLD_PATH)) {
+				logWriteError(F("Failed to rotate Wi-Fi link log"));
+				return false;
+			}
+			Debug.addLine(F("Rotated Wi-Fi link log to old history file"));
+		}
 	}
 
 	File file = LittleFS.open(LINK_LOG_PATH, "a");
 	if (!file) {
-		if (!writeErrorLogged ||
-		    static_cast<unsigned long>(millis() - lastWriteErrorLogMillis) >= 60000UL) {
-			Debug.addLine(F("Failed to open Wi-Fi link log in LittleFS"));
-			lastWriteErrorLogMillis = millis();
-			writeErrorLogged = true;
-		}
+		logWriteError(F("Failed to open Wi-Fi link log in LittleFS"));
 		return false;
 	}
 
-	bool complete = true;
-	for (uint8_t i = 0; i < bufferedLines; ++i) {
-		char formattedLine[LINK_LOG_LINE_SIZE];
-		size_t lineLength = formatLinkLogLine(formattedLine, sizeof(formattedLine), linkLogBuffer[i]);
-		if (file.write(reinterpret_cast<const uint8_t *>(formattedLine), lineLength) != lineLength) {
-			complete = false;
-			break;
-		}
-	}
+	bool complete = file.write(reinterpret_cast<const uint8_t *>(linkLogBuffer), pendingBytes) == pendingBytes;
 	file.flush();
 	file.close();
 	if (!complete) {
-		if (!writeErrorLogged ||
-		    static_cast<unsigned long>(millis() - lastWriteErrorLogMillis) >= 60000UL) {
-			Debug.addLine(F("Failed to write Wi-Fi link log to LittleFS"));
-			lastWriteErrorLogMillis = millis();
-			writeErrorLogged = true;
-		}
+		logWriteError(F("Failed to write Wi-Fi link log to LittleFS"));
 		return false;
 	}
 
 	bufferedLines = 0;
+	serializedBufferSize = 0;
+	bufferSerialized = false;
 	writeErrorLogged = false;
 	return true;
 }
@@ -142,7 +171,7 @@ void recordLinkDiagnostic(LinkDiagnosticEvent event, uint8_t backoffMinutes) {
 	switch (event) {
 	case LinkDiagnosticEvent::UploadSucceeded:
 		++counters.uploadSuccesses;
-		break;
+		return;
 	case LinkDiagnosticEvent::UploadFailed:
 		++counters.uploadFailures;
 		break;
@@ -162,7 +191,7 @@ void recordLinkDiagnostic(LinkDiagnosticEvent event, uint8_t backoffMinutes) {
 	BufferedLinkLogLine &line = linkLogBuffer[bufferedLines];
 	line.millisAtEvent = static_cast<uint32_t>(millis());
 	snprintf(line.message, sizeof(line.message),
-	         "event=%s success=%lu failed=%lu sta_disc=%lu ap_disc=%lu backoff=%um",
+	         "event=%s ok=%lu fail=%lu sta=%lu ap=%lu backoff=%um",
 	         eventName(event),
 	         static_cast<unsigned long>(counters.uploadSuccesses),
 	         static_cast<unsigned long>(counters.uploadFailures),
@@ -195,8 +224,14 @@ void handleLinkLog() {
 	httpServer.setContentLength(CONTENT_LENGTH_UNKNOWN);
 	httpServer.send(200, "text/plain; charset=utf-8", summary);
 
-	File file = LittleFS.open(LINK_LOG_PATH, "r");
-	if (file) {
+	bool foundLog = false;
+	const char *logPaths[] = {LINK_LOG_OLD_PATH, LINK_LOG_PATH};
+	for (const char *logPath : logPaths) {
+		File file = LittleFS.open(logPath, "r");
+		if (!file) {
+			continue;
+		}
+		foundLog = true;
 		char chunk[128];
 		while (file.available()) {
 			size_t count = file.readBytes(chunk, sizeof(chunk));
@@ -206,13 +241,25 @@ void handleLinkLog() {
 			yield();
 		}
 		file.close();
-	} else {
+	}
+	if (!foundLog) {
 		httpServer.sendContent(F("No persisted link events yet.\n"));
 	}
-	for (uint8_t i = 0; i < bufferedLines; ++i) {
-		char formattedLine[LINK_LOG_LINE_SIZE];
-		size_t lineLength = formatLinkLogLine(formattedLine, sizeof(formattedLine), linkLogBuffer[i]);
-		httpServer.sendContent(formattedLine, lineLength);
+	if (bufferSerialized) {
+		const char *pending = reinterpret_cast<const char *>(linkLogBuffer);
+		for (size_t offset = 0; offset < serializedBufferSize;) {
+			size_t count = serializedBufferSize - offset;
+			if (count > 128) count = 128;
+			httpServer.sendContent(pending + offset, count);
+			offset += count;
+			yield();
+		}
+	} else {
+		for (uint8_t i = 0; i < bufferedLines; ++i) {
+			char formattedLine[LINK_LOG_LINE_SIZE];
+			size_t lineLength = formatLinkLogLine(formattedLine, sizeof(formattedLine), linkLogBuffer[i]);
+			httpServer.sendContent(formattedLine, lineLength);
+		}
 	}
 	httpServer.sendContent("");
 }

@@ -8,12 +8,29 @@ const unsigned long TELEMETRY_SKIP_LOG_INTERVAL_MS = 60UL * 1000UL;
 const uint8_t TELEMETRY_BACKOFF_LEVELS_MINUTES[] = {1, 2, 5, 10};
 const uint8_t TELEMETRY_BACKOFF_LEVEL_COUNT =
 	sizeof(TELEMETRY_BACKOFF_LEVELS_MINUTES) / sizeof(TELEMETRY_BACKOFF_LEVELS_MINUTES[0]);
+const unsigned long ISPINDEL_WAKE_WINDOW_BEFORE_MS = 15000UL;
+const unsigned long ISPINDEL_WAKE_WINDOW_AFTER_MS = 10000UL;
+const uint8_t ISPINDEL_WAKE_WINDOW_CYCLES = 3;
 
 unsigned long nextAllowedSend = 0;
 bool failureBackoffActive = false;
 uint8_t consecutiveUploadFailures = 0;
 unsigned long lastSkipLogMillis[4] = {};
 bool skipLogged[4] = {};
+
+bool isInISpindelWakeWindow(unsigned long since, unsigned long interval) {
+	if (interval == 0 || interval <= ISPINDEL_WAKE_WINDOW_BEFORE_MS ||
+	    since < interval - ISPINDEL_WAKE_WINDOW_BEFORE_MS ||
+	    since > static_cast<unsigned long>(ISPINDEL_WAKE_WINDOW_CYCLES) * interval +
+	                ISPINDEL_WAKE_WINDOW_AFTER_MS) {
+		return false;
+	}
+
+	// Modulo covers accumulated packet-timer drift, limited to the first three expected wakes.
+	unsigned long phase = since % interval;
+	return phase >= interval - ISPINDEL_WAKE_WINDOW_BEFORE_MS ||
+	       phase <= ISPINDEL_WAKE_WINDOW_AFTER_MS;
+}
 
 void logUploadSkipped(uint8_t reason, const __FlashStringHelper *message) {
 	unsigned long now = millis();
@@ -52,16 +69,14 @@ bool sendTelemetry() {
 		logUploadSkipped(0, F("Telemetry upload skipped: failure backoff"));
 		return false;
 	}
-	if (httpRequestInProgress) {
-		logUploadSkipped(1, F("Telemetry upload skipped: HTTP request in progress"));
+	if (httpServer.client().connected()) {
+		logUploadSkipped(1, F("Telemetry upload skipped: HTTP client connected"));
 		return false;
 	}
 	if (lastISpindelMillis != 0) {
 		unsigned long intervalMs = static_cast<unsigned long>(iSpindelIntervalSec) * 1000UL;
 		unsigned long sinceLastPacket = millis() - lastISpindelMillis;
-		unsigned long wakeWindowStart = intervalMs > 15000UL ? intervalMs - 15000UL : 0UL;
-		unsigned long wakeWindowEnd = intervalMs + 10000UL;
-		if (sinceLastPacket >= wakeWindowStart && sinceLastPacket <= wakeWindowEnd) {
+		if (isInISpindelWakeWindow(sinceLastPacket, intervalMs)) {
 			logUploadSkipped(3, F("Telemetry upload skipped: iSpindel wake window"));
 			return false;
 		}
