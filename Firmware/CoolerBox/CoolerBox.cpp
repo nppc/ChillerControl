@@ -396,34 +396,13 @@ void handleISpindel() {
 	sendTelemetryNow = true;
 
 	String clientMac = getISpindelClientMac();
-	String logMsg = F("iSpindel data received: ");
-	if (clientMac.length() > 0) {
-		logMsg += F("mac=");
-		logMsg += clientMac;
-		logMsg += F(", ");
-	}
+	String logMsg = F("iSpindel data received: MAC=");
+	logMsg += (clientMac.length() > 0 ? clientMac : F("unknown"));
 	if (iSpindelRssi != 0) {
-		logMsg += F("rssi=");
+		logMsg += F(", RSSI=");
 		logMsg += String(iSpindelRssi);
-		logMsg += F("dBm, ");
+		logMsg += F("dBm");
 	}
-	logMsg += F("temp=");
-	logMsg += String(iSpindelTemperature, 2);
-	logMsg += F("\xC2\xB0\x43"); // °C in UTF-8
-	if (iSpindelGravity != 0.0f) {
-		logMsg += F(", gravity=");
-		logMsg += String(iSpindelGravity, 4);
-	}
-	if (iSpindelBattery != 0.0f) {
-		logMsg += F(", batt=");
-		logMsg += String(iSpindelBattery, 2);
-		logMsg += F("V");
-	}
-	logMsg += F(", int=");
-	logMsg += String(iSpindelIntervalSec);
-	logMsg += F("s -> boxTarget=");
-	logMsg += String(effectiveBoxTarget, 2);
-	logMsg += F("\xC2\xB0\x43"); // °C in UTF-8
 	Debug.addLine(logMsg);
 }
 
