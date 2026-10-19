@@ -1,6 +1,9 @@
 #include "CoolerBox.h"
 
 #include <time.h>
+extern "C" {
+#include <user_interface.h>
+}
 
 DebugHTML Debug;
 const char DEFAULT_TIMEZONE[] = "EET-2EEST,M3.5.0/3,M10.5.0/4";
@@ -11,10 +14,14 @@ float HotTemp = 0.0f;	// current measured temperature of hot radiator
 float setTemp = 19.0f;	// preset temperature
 bool useISpindelTemp = true;
 float iSpindelTemperature = 0.0f;
-JsonDocument lastISpindelDoc;
+float iSpindelGravity = 0.0f;
+float iSpindelBattery = 0.0f;
 bool hasNewISpindelData = false;
 unsigned long lastISpindelMillis = 0;
 int iSpindelRssi = 0;
+char iSpindelExtraKeys[ISPINDEL_EXTRA_MAX][24] = {};
+char iSpindelExtraValues[ISPINDEL_EXTRA_MAX][32] = {};
+uint8_t iSpindelExtraCount = 0;
 float measuredVoltage = 0.0f; 
 float measuredCurrent = 0.0f; 
 
@@ -230,7 +237,35 @@ void onStationDisconnected(const WiFiEventStationModeDisconnected &event) {
 	enqueueWifiLogEvent(STA_DISCONNECTED_EVENT, static_cast<uint8_t>(event.reason), nullptr);
 }
 
+static char lastApStationMac[18] = "";
+
+String getISpindelClientMac() {
+	IPAddress remoteIp = httpServer.client().remoteIP();
+	struct station_info *stat_info = wifi_softap_get_station_info();
+	char macBuf[18] = "";
+	while (stat_info != nullptr) {
+		if (IPAddress(stat_info->ip.addr) == remoteIp) {
+			snprintf(macBuf, sizeof(macBuf), "%02X:%02X:%02X:%02X:%02X:%02X",
+			         stat_info->bssid[0], stat_info->bssid[1], stat_info->bssid[2],
+			         stat_info->bssid[3], stat_info->bssid[4], stat_info->bssid[5]);
+			break;
+		}
+		stat_info = STAILQ_NEXT(stat_info, next);
+	}
+	wifi_softap_free_station_info();
+	if (macBuf[0] != '\0') {
+		return String(macBuf);
+	}
+	if (lastApStationMac[0] != '\0') {
+		return String(lastApStationMac);
+	}
+	return String();
+}
+
 void onApStationConnected(const WiFiEventSoftAPModeStationConnected &event) {
+	snprintf(lastApStationMac, sizeof(lastApStationMac), "%02X:%02X:%02X:%02X:%02X:%02X",
+	         event.mac[0], event.mac[1], event.mac[2],
+	         event.mac[3], event.mac[4], event.mac[5]);
 	enqueueWifiLogEvent(AP_STATION_CONNECTED_EVENT, 0, event.mac);
 }
 
@@ -243,10 +278,6 @@ void processWifiEventLogs() {
 		uint8_t tail = wifiLogTail;
 		uint8_t type = wifiLogQueue[tail].type;
 		uint8_t reason = wifiLogQueue[tail].reason;
-		uint8_t macBytes[6];
-		for (uint8_t i = 0; i < 6; ++i) {
-			macBytes[i] = wifiLogQueue[tail].mac[i];
-		}
 		wifiLogTail = (tail + 1) & WIFI_LOG_QUEUE_MASK;
 
 		if (type == STA_CONNECTED_EVENT) {
@@ -263,17 +294,8 @@ void processWifiEventLogs() {
 			message += F(" channel=");
 			message += WiFi.channel();
 			Debug.addLine(message);
-		} else {
-			if (type == AP_STATION_DISCONNECTED_EVENT) {
-				recordLinkDiagnostic(LinkDiagnosticEvent::ApDisconnected, telemetryBackoffLevelMinutes());
-			}
-			char mac[18];
-			snprintf(mac, sizeof(mac), "%02X:%02X:%02X:%02X:%02X:%02X",
-			         macBytes[0], macBytes[1], macBytes[2],
-			         macBytes[3], macBytes[4], macBytes[5]);
-			Debug.addLine(String(type == AP_STATION_CONNECTED_EVENT
-			                     ? F("AP station connected: ")
-			                     : F("AP station disconnected: ")) + mac);
+		} else if (type == AP_STATION_DISCONNECTED_EVENT) {
+			recordLinkDiagnostic(LinkDiagnosticEvent::ApDisconnected, telemetryBackoffLevelMinutes());
 		}
 	}
 	if (wifiLogDropped != 0) {
@@ -299,60 +321,112 @@ void handleISpindel() {
 		httpServer.send(400, "text/plain", "Missing body");
 		return;
 	}
-	DeserializationError error = deserializeJson(lastISpindelDoc, httpServer.arg("plain"));
+
+	JsonDocument localDoc;
+	DeserializationError error = deserializeJson(localDoc, httpServer.arg("plain"));
 	if (error) {
 		httpServer.send(400, "text/plain", "JSON parse error");
 		return;
 	}
-	if (lastISpindelDoc["temperature"].is<float>()) {
-		iSpindelTemperature = lastISpindelDoc["temperature"].as<float>();
+
+	// Extract known fields into typed globals
+	if (localDoc["temperature"].is<float>()) {
+		iSpindelTemperature = localDoc["temperature"].as<float>();
 		lastISpindelMillis = millis();
 	}
-	if (lastISpindelDoc["RSSI"].is<int>()) {
-		iSpindelRssi = lastISpindelDoc["RSSI"].as<int>();
-	} else if (lastISpindelDoc["rssi"].is<int>()) {
-		iSpindelRssi = lastISpindelDoc["rssi"].as<int>();
+	if (localDoc["gravity"].is<float>()) {
+		iSpindelGravity = localDoc["gravity"].as<float>();
 	}
-	if (lastISpindelDoc["interval"].is<int>()) {
-		int repInterval = lastISpindelDoc["interval"].as<int>();
+	if (localDoc["battery"].is<float>()) {
+		iSpindelBattery = localDoc["battery"].as<float>();
+	}
+	if (localDoc["RSSI"].is<int>()) {
+		iSpindelRssi = localDoc["RSSI"].as<int>();
+	} else if (localDoc["rssi"].is<int>()) {
+		iSpindelRssi = localDoc["rssi"].as<int>();
+	}
+	if (localDoc["interval"].is<int>()) {
+		int repInterval = localDoc["interval"].as<int>();
 		if (repInterval >= 30 && repInterval <= 86400) {
 			iSpindelIntervalSec = repInterval;
 		}
 	}
+
+	// Capture any additional fields for verbatim forwarding to the telemetry endpoint.
+	// Known fields that are already forwarded as typed values are skipped.
+	iSpindelExtraCount = 0;
+	static const char *const KNOWN_KEYS[] = {
+		"temperature", "gravity", "battery", "RSSI", "rssi", "interval", nullptr
+	};
+	for (JsonPairConst kv : localDoc.as<JsonObjectConst>()) {
+		const char *rawKey = kv.key().c_str();
+		bool known = false;
+		for (uint8_t k = 0; KNOWN_KEYS[k] != nullptr; ++k) {
+			if (strcmp(rawKey, KNOWN_KEYS[k]) == 0) {
+				known = true;
+				break;
+			}
+		}
+		if (known || iSpindelExtraCount >= ISPINDEL_EXTRA_MAX) {
+			continue;
+		}
+		// Build "ispindel_<key>" prefix (lower-cased)
+		char prefixed[24];
+		snprintf(prefixed, sizeof(prefixed), "ispindel_");
+		size_t offset = strlen(prefixed);
+		for (size_t i = 0; rawKey[i] && offset < sizeof(prefixed) - 1; ++i) {
+			prefixed[offset++] = static_cast<char>(tolower(static_cast<unsigned char>(rawKey[i])));
+		}
+		prefixed[offset] = '\0';
+		strlcpy(iSpindelExtraKeys[iSpindelExtraCount], prefixed, sizeof(iSpindelExtraKeys[0]));
+		// Serialise the value as compact JSON so any type (number/string/bool) is preserved
+		String valStr;
+		serializeJson(kv.value(), valStr);
+		strlcpy(iSpindelExtraValues[iSpindelExtraCount], valStr.c_str(), sizeof(iSpindelExtraValues[0]));
+		++iSpindelExtraCount;
+	}
+
 	hasNewISpindelData = true;
 	if (isBootAutoStartPending()) {
 		cancelBootAutoStart();
 		setCoolerStopped(LOW);
-		Debug.addLine(F("Boot auto-start: First iSpindel data received. Process started in cascade mode."));
 	}
 	updateCascadeTarget();
 	httpServer.send(200, "text/plain", "OK");
 	sendTelemetryNow = true;
 
-	String logMsg = F("iSpindel data received: temp=");
-	logMsg += String(iSpindelTemperature, 2);
-	logMsg += F("°C");
-	if (lastISpindelDoc["gravity"].is<float>()) {
-		logMsg += F(", gravity=");
-		logMsg += String(lastISpindelDoc["gravity"].as<float>(), 4);
-	}
-	if (lastISpindelDoc["battery"].is<float>()) {
-		logMsg += F(", batt=");
-		logMsg += String(lastISpindelDoc["battery"].as<float>(), 2);
-		logMsg += F("V");
+	String clientMac = getISpindelClientMac();
+	String logMsg = F("iSpindel data received: ");
+	if (clientMac.length() > 0) {
+		logMsg += F("mac=");
+		logMsg += clientMac;
+		logMsg += F(", ");
 	}
 	if (iSpindelRssi != 0) {
-		logMsg += F(", rssi=");
+		logMsg += F("rssi=");
 		logMsg += String(iSpindelRssi);
-		logMsg += F("dBm");
+		logMsg += F("dBm, ");
+	}
+	logMsg += F("temp=");
+	logMsg += String(iSpindelTemperature, 2);
+	logMsg += F("\xC2\xB0\x43"); // °C in UTF-8
+	if (iSpindelGravity != 0.0f) {
+		logMsg += F(", gravity=");
+		logMsg += String(iSpindelGravity, 4);
+	}
+	if (iSpindelBattery != 0.0f) {
+		logMsg += F(", batt=");
+		logMsg += String(iSpindelBattery, 2);
+		logMsg += F("V");
 	}
 	logMsg += F(", int=");
 	logMsg += String(iSpindelIntervalSec);
 	logMsg += F("s -> boxTarget=");
 	logMsg += String(effectiveBoxTarget, 2);
-	logMsg += F("°C");
+	logMsg += F("\xC2\xB0\x43"); // °C in UTF-8
 	Debug.addLine(logMsg);
 }
+
 
 bool isWebClientAllowed() {
 	if (emergencyMode || allowApWeb) {

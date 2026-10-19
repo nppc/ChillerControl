@@ -3,7 +3,7 @@
 #include <time.h>
 
 #define DEBUG_MAX_RECORDS 20
-#define DEBUG_LINE_MAX_LEN 128
+#define DEBUG_LINE_MAX_LEN 96
 
 class DebugHTML {
 private:

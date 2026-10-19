@@ -70,7 +70,6 @@ bool sendTelemetry() {
 		return false;
 	}
 	if (httpServer.client().connected()) {
-		logUploadSkipped(1, F("Telemetry upload skipped: HTTP client connected"));
 		return false;
 	}
 	if (lastISpindelMillis != 0) {
@@ -127,14 +126,19 @@ bool sendTelemetry() {
 	doc["rssi"] = WiFi.RSSI();
 
 	if (hasNewISpindelData) {
-		JsonObjectConst obj = lastISpindelDoc.as<JsonObjectConst>();
-		for (JsonPairConst kv : obj) {
-			String key = kv.key().c_str();
-			key.toLowerCase();
-			if (!key.startsWith("ispindel")) {
-				key = "ispindel_" + key;
+		// Forward all iSpindel fields from typed globals — no live JsonDocument needed
+		doc["ispindel_temperature"] = iSpindelTemperature;
+		doc["ispindel_gravity"]     = iSpindelGravity;
+		doc["ispindel_battery"]     = iSpindelBattery;
+		doc["ispindel_rssi"]        = iSpindelRssi;
+		// Forward any extra fields captured verbatim at receive time
+		for (uint8_t i = 0; i < iSpindelExtraCount; ++i) {
+			// Values were serialised as JSON; deserialise them back so they retain
+			// their original type (number, boolean, string) in the outgoing payload.
+			JsonDocument valDoc;
+			if (deserializeJson(valDoc, iSpindelExtraValues[i]) == DeserializationError::Ok) {
+				doc[iSpindelExtraKeys[i]] = valDoc.as<JsonVariant>();
 			}
-			doc[key] = kv.value();
 		}
 	}
 
