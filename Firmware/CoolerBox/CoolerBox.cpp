@@ -1,8 +1,72 @@
 #include "CoolerBox.h"
 
 #include <time.h>
+#include <Ticker.h>
 extern "C" {
 #include <user_interface.h>
+#include <lwip/priv/tcp_priv.h>
+}
+
+uint8_t getTcpActivePcbCount() {
+	uint8_t count = 0;
+	for (struct tcp_pcb *pcb = tcp_active_pcbs; pcb != nullptr; pcb = pcb->next) {
+		count++;
+	}
+	return count;
+}
+
+uint8_t getTcpTwPcbCount() {
+	uint8_t count = 0;
+	for (struct tcp_pcb *pcb = tcp_tw_pcbs; pcb != nullptr; pcb = pcb->next) {
+		count++;
+	}
+	return count;
+}
+
+struct RtcStallDiag {
+	uint32_t magic;
+	char stage[8];
+	uint32_t durationMs;
+	uint32_t heap;
+	uint8_t pcbActive;
+	uint8_t pcbTw;
+	uint8_t pad[2];
+};
+
+static Ticker stallTicker;
+static volatile uint32_t loopCycleCounter = 0;
+static volatile const char *currentLoopStage = "init";
+static volatile unsigned long stageStartMillis = 0;
+
+static void IRAM_ATTR checkStall() {
+	static uint32_t lastCycle = 0;
+	static uint8_t stallCount = 0;
+	if (loopCycleCounter == lastCycle) {
+		stallCount++;
+		if (stallCount == 3) {
+			uint32_t dur = millis() - stageStartMillis;
+			ets_printf("\n*** STALL DETECTED in [%s] for %u ms (hp=%u stk=%u pcb=%u/%u) ***\n",
+			           currentLoopStage, dur,
+			           ESP.getFreeHeap(), ESP.getFreeContStack(),
+			           getTcpActivePcbCount(), getTcpTwPcbCount());
+			RtcStallDiag diag;
+			diag.magic = 0x5354414C;
+			strlcpy(diag.stage, (const char *)currentLoopStage, sizeof(diag.stage));
+			diag.durationMs = dur;
+			diag.heap = ESP.getFreeHeap();
+			diag.pcbActive = getTcpActivePcbCount();
+			diag.pcbTw = getTcpTwPcbCount();
+			ESP.rtcUserMemoryWrite(70, (uint32_t *)&diag, sizeof(diag));
+		}
+	} else {
+		lastCycle = loopCycleCounter;
+		stallCount = 0;
+	}
+}
+
+static inline void setLoopStage(const char *stage) {
+	currentLoopStage = stage;
+	stageStartMillis = millis();
 }
 
 DebugHTML Debug;
@@ -330,6 +394,19 @@ void setup() {
 	Debug.init();
 	Debug.addLine(String(F("Boot reset: ")) + ESP.getResetInfo());
 
+	pinMode(LED_BUILTIN, OUTPUT);
+	digitalWrite(LED_BUILTIN, HIGH);
+
+	RtcStallDiag prevStall;
+	if (ESP.rtcUserMemoryRead(70, (uint32_t *)&prevStall, sizeof(prevStall)) && prevStall.magic == 0x5354414C) {
+		Debug.addLine(String(F("Prev stall: [")) + prevStall.stage + F("] ") + prevStall.durationMs +
+		              F("ms hp=") + prevStall.heap + F(" pcb=") + prevStall.pcbActive + F("/") + prevStall.pcbTw);
+		prevStall.magic = 0;
+		ESP.rtcUserMemoryWrite(70, (uint32_t *)&prevStall, sizeof(prevStall));
+	}
+
+	stallTicker.attach(1.0f, checkStall);
+
 	drd.detectDoubleReset();
 	emergencyMode = drd.isDoubleResetDetected();
   
@@ -470,6 +547,9 @@ void handleTemperatureControl() {
 }
 
 void loop() {
+	loopCycleCounter++;
+	digitalWrite(LED_BUILTIN, ((millis() / 500) % 2 == 0) ? LOW : HIGH);
+
 	if (Update.isRunning()) {
 		drd.stop();
 		httpServer.handleClient();
@@ -477,6 +557,7 @@ void loop() {
 		return;
 	}
 
+	setLoopStage("drd");
 	drd.loop();
 
 	if (pendingUpstreamIp) {
@@ -486,6 +567,7 @@ void loop() {
 		}
 	}
 
+	setLoopStage("wifi");
 	// Monitor Wi-Fi connection state and reconnect if dropped
 	if (!emergencyMode && (millis() - millisWIFIcheckInterval >= 3000UL)) {
 		millisWIFIcheckInterval = millis();
@@ -528,25 +610,66 @@ void loop() {
 		}
 	}
 
-	if (sendTelemetryNow || isTelemetryUploadDue()) {
-		sendTelemetryNow = false;
-		sendTelemetry();
+	setLoopStage("hb");
+	static unsigned long lastHeartbeatMillis = 0;
+	if (millis() - lastHeartbeatMillis >= 60000UL) {
+		lastHeartbeatMillis = millis();
+		Debug.addLine(String(F("HB: hp=")) + ESP.getFreeHeap() +
+		              F(" blk=") + ESP.getMaxFreeBlockSize() +
+		              F(" stk=") + ESP.getFreeContStack() +
+		              F(" pcb=") + getTcpActivePcbCount() + F("/") + getTcpTwPcbCount() +
+		              F(" box=") + telemetryBoxPending() +
+		              F(" isp=") + telemetryISpindelPending());
 	}
 
+	setLoopStage("tel");
+	if (sendTelemetryNow || isTelemetryUploadDue()) {
+		bool wasNow = sendTelemetryNow;
+		sendTelemetryNow = false;
+		unsigned long tTel = millis();
+		sendTelemetry();
+		unsigned long dTel = millis() - tTel;
+		if (dTel > 500) {
+			Debug.addLine(String(F("Slow tel (")) + (wasNow ? F("now") : F("due")) + F("): ") + dTel + F("ms"));
+		}
+		yield();
+	}
+
+	setLoopStage("http");
+	unsigned long tHttp = millis();
 	httpServer.handleClient();
+	unsigned long dHttp = millis() - tHttp;
+	if (dHttp > 500) {
+		Debug.addLine(String(F("Slow http: ")) + dHttp + F("ms pcb=") +
+		              getTcpActivePcbCount() + F("/") + getTcpTwPcbCount());
+	}
 	delay(1);
 	
+	setLoopStage("temp");
+	unsigned long tTemp = millis();
 	handleTemperatureControl();
-	
-	if(millis()-millisReadI2CDataInterval>(I2C_INTERVAL * 1000UL)){
-		millisReadI2CDataInterval = millis();
-		readI2Cdata();
+	unsigned long dTemp = millis() - tTemp;
+	if (dTemp > 200) {
+		Debug.addLine(String(F("Slow temp: ")) + dTemp + F("ms"));
 	}
 	
-	if(measuredVoltage<2.0f){
+	setLoopStage("i2c");
+	if (millis() - millisReadI2CDataInterval > (I2C_INTERVAL * 1000UL)) {
+		millisReadI2CDataInterval = millis();
+		unsigned long tI2c = millis();
+		readI2Cdata();
+		unsigned long dI2c = millis() - tI2c;
+		if (dI2c > 200) {
+			Debug.addLine(String(F("Slow i2c: ")) + dI2c + F("ms"));
+		}
+	}
+	
+	setLoopStage("led");
+	if (measuredVoltage < 2.0f) {
 		digitalWrite(LED_WARN, LOW);
-	}else{
+	} else {
 		digitalWrite(LED_WARN, HIGH);
 	}
 
+	setLoopStage("idle");
 }

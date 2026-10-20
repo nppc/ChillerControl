@@ -20,9 +20,11 @@ public:
 				}
 				count = N / 2;
 				stride *= 2;
+				Debug.addLine(String(F("Ring downsample: cnt=")) + count + F(" str=") + stride);
 			} else {
 				head = (head + 1) % N;
 				--count;
+				Debug.addLine(String(F("Ring drop: cnt=")) + count);
 			}
 		}
 		buf[(head + count) % N] = record;
@@ -36,6 +38,10 @@ public:
 
 	uint8_t pending() const {
 		return static_cast<uint8_t>(count);
+	}
+
+	uint8_t getStride() const {
+		return stride;
 	}
 
 	const T &peek(uint8_t index) const {
@@ -116,10 +122,18 @@ void captureTelemetrySnapshot() {
 		 static_cast<uint8_t>(TelemetryState::Nothing));
 
 	boxRing.push(record);
+
+	Debug.addLine(String(F("Snap #")) + boxRing.pending() +
+	              F(" str=") + boxRing.getStride() +
+	              F(" hp=") + ESP.getFreeHeap() +
+	              F(" blk=") + ESP.getMaxFreeBlockSize() +
+	              F(" stk=") + ESP.getFreeContStack());
 }
 
 void telemetryISpindelPush(const TelemetryISpindelRecord &record) {
 	iSpindelRing.push(record);
+	Debug.addLine(String(F("iSpindel #")) + iSpindelRing.pending() +
+	              F(" str=") + iSpindelRing.getStride());
 }
 
 void telemetryQueueReset() {
@@ -137,6 +151,14 @@ uint8_t telemetryBoxPending() {
 
 uint8_t telemetryISpindelPending() {
 	return iSpindelRing.pending();
+}
+
+uint8_t telemetryBoxStride() {
+	return boxRing.getStride();
+}
+
+uint8_t telemetryISpindelStride() {
+	return iSpindelRing.getStride();
 }
 
 const TelemetryBoxRecord &telemetryBoxPeek(uint8_t index) {

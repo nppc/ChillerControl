@@ -125,6 +125,8 @@ uint8_t telemetryBackoffLevelMinutes();
 bool isWebClientAllowed();
 bool clockValid();
 uint32_t epochSeconds();
+uint8_t getTcpActivePcbCount();
+uint8_t getTcpTwPcbCount();
 // iSpindel data used by control and wake-window scheduling.
 extern unsigned long lastISpindelMillis;
 extern int iSpindelRssi;

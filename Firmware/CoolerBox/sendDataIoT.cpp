@@ -17,8 +17,10 @@ const uint8_t ISPINDEL_WAKE_WINDOW_CYCLES = 3;
 unsigned long nextAllowedSend = 0;
 bool failureBackoffActive = false;
 uint8_t consecutiveUploadFailures = 0;
-unsigned long lastSkipLogMillis[4] = {};
-bool skipLogged[4] = {};
+unsigned long lastSkipLogMillis[6] = {};
+bool skipLogged[6] = {};
+char recordBuffer[320];
+char heldRecord[320];
 
 bool isInISpindelWakeWindow(unsigned long since, unsigned long interval) {
 	if (interval == 0 || interval <= ISPINDEL_WAKE_WINDOW_BEFORE_MS ||
@@ -52,7 +54,6 @@ void logUploadAttemptBlock() {
 	if (lastBlockLogMillis == 0 ||
 	    static_cast<unsigned long>(now - lastBlockLogMillis) >= TELEMETRY_SKIP_LOG_INTERVAL_MS) {
 		lastBlockLogMillis = now;
-		Debug.addLine(String(F("Telemetry upload attempt: max free block ")) + ESP.getMaxFreeBlockSize() + F(" B"));
 	}
 }
 
@@ -66,6 +67,12 @@ void setUploadBackoff() {
 }
 
 int postTelemetryPayload(const String &url, const String &payload) {
+	unsigned long t0 = millis();
+	Debug.addLine(String(F("POST start: len=")) + payload.length() +
+	              F(" hp=") + ESP.getFreeHeap() +
+	              F(" blk=") + ESP.getMaxFreeBlockSize() +
+	              F(" stk=") + ESP.getFreeContStack());
+
 	BearSSL::WiFiClientSecure client;
 	client.setInsecure();
 	client.setBufferSizes(1024, 512);
@@ -80,6 +87,12 @@ int postTelemetryPayload(const String &url, const String &payload) {
 
 	https.addHeader("Content-Type", "application/json");
 	int status = https.POST(payload);
+	unsigned long duration = millis() - t0;
+
+	Debug.addLine(String(F("POST done: st=")) + status +
+	              F(" in ") + duration + F("ms hp=") + ESP.getFreeHeap() +
+	              F(" stk=") + ESP.getFreeContStack());
+
 	if (status < 0) {
 		Debug.addLine(String(F("HTTPS POST failed: ")) + https.errorToString(status));
 	} else if (status < 200 || status >= 300) {
@@ -241,18 +254,19 @@ bool isTelemetryUploadDue() {
 bool sendTelemetry() {
 	if (static_cast<long>(millis() - nextAllowedSend) < 0) {
 		if (failureBackoffActive) {
-			logUploadSkipped(0, F("Telemetry upload skipped: failure backoff"));
+			logUploadSkipped(0, F("Skip: failure backoff"));
 		}
 		return false;
 	}
 	if (httpServer.client().connected()) {
+		logUploadSkipped(1, F("Skip: HTTP client connected"));
 		return false;
 	}
 	if (lastISpindelMillis != 0) {
 		unsigned long intervalMs = static_cast<unsigned long>(iSpindelIntervalSec) * 1000UL;
 		unsigned long sinceLastPacket = millis() - lastISpindelMillis;
 		if (isInISpindelWakeWindow(sinceLastPacket, intervalMs)) {
-			logUploadSkipped(3, F("Telemetry upload skipped: iSpindel wake window"));
+			logUploadSkipped(3, F("Skip: iSpindel wake window"));
 			return false;
 		}
 	}
@@ -261,16 +275,23 @@ bool sendTelemetry() {
 	}
 
 	if (WiFi.status() != WL_CONNECTED || WiFi.localIP() == IPAddress(0, 0, 0, 0)) {
+		logUploadSkipped(4, F("Skip: WiFi disconnected or no IP"));
 		return false;
 	}
 	if (endpointAddress.isEmpty() || endpointAccessToken.isEmpty() || endpointPath.isEmpty()) {
-		Debug.addLine(F("HTTPS endpoint settings missing"));
+		logUploadSkipped(5, F("Skip: Endpoint settings missing"));
 		return false;
 	}
 	if (!endpointAddress.startsWith("https://")) {
 		Debug.addLine(F("Endpoint address must use https://"));
 		return false;
 	}
+
+	Debug.addLine(String(F("TX prep: box=")) + telemetryBoxPending() +
+	              F(" isp=") + telemetryISpindelPending() +
+	              F(" hp=") + ESP.getFreeHeap() +
+	              F(" pcb=") + getTcpActivePcbCount() + F("/") + getTcpTwPcbCount() +
+	              F(" stk=") + ESP.getFreeContStack());
 
 	String url = endpointAddress;
 	while (url.endsWith("/")) {
@@ -298,7 +319,6 @@ bool sendTelemetry() {
 	uint8_t iSpindelCount = 0;
 	uint8_t boxCount = 0;
 	bool stoppedOnPayloadLimit = false;
-	char recordBuffer[320];
 
 	for (uint8_t i = 0; i < telemetryISpindelPending(); ++i) {
 		if (!formatISpindelRecord(recordBuffer, sizeof(recordBuffer), telemetryISpindelPeek(i))) {
@@ -321,7 +341,6 @@ bool sendTelemetry() {
 			boxLimit = TELEMETRY_CHUNK_MAX;
 		}
 
-		char heldRecord[320];
 		bool hasHeldRecord = false;
 		for (uint8_t i = 0; i < boxLimit; ++i) {
 			const TelemetryBoxRecord &boxRecord = telemetryBoxPeek(i);
@@ -398,8 +417,11 @@ bool sendTelemetry() {
 	}
 
 	logUploadAttemptBlock();
-	if (ESP.getMaxFreeBlockSize() < TELEMETRY_MIN_FREE_BLOCK) {
-		logUploadSkipped(2, F("Telemetry upload skipped: heap block too small"));
+	uint32_t currentMaxBlock = ESP.getMaxFreeBlockSize();
+	if (currentMaxBlock < TELEMETRY_MIN_FREE_BLOCK) {
+		logUploadSkipped(2, F("Skip: low heap block"));
+		Debug.addLine(String(F("Low blk=")) + currentMaxBlock + F(" < ") + TELEMETRY_MIN_FREE_BLOCK +
+		              F(" hp=") + ESP.getFreeHeap() + F(" stk=") + ESP.getFreeContStack());
 		nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
 		return false;
 	}
@@ -411,6 +433,9 @@ bool sendTelemetry() {
 		telemetryISpindelPop(iSpindelCount);
 		telemetryBoxPop(boxCount);
 		telemetryQueueReset();
+		Debug.addLine(String(F("TX OK: sent box=")) + boxCount + F(" isp=") + iSpindelCount +
+		              F(" rem box=") + telemetryBoxPending() + F(" isp=") + telemetryISpindelPending() +
+		              F(" pcb=") + getTcpActivePcbCount() + F("/") + getTcpTwPcbCount());
 		if (telemetryQueuePending() > 0) {
 			nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
 		}
@@ -428,5 +453,7 @@ bool sendTelemetry() {
 	}
 
 	setUploadBackoff();
+	Debug.addLine(String(F("TX fail: backoff=")) + telemetryBackoffLevelMinutes() +
+	              F("m rem box=") + telemetryBoxPending() + F(" isp=") + telemetryISpindelPending());
 	return false;
 }

@@ -13,6 +13,13 @@ private:
 
 	void storeLine(const char *strLine) {
 		if (!strLine) return;
+		Serial.println(strLine);
+		int prev = (curRecord + DEBUG_MAX_RECORDS - 1) % DEBUG_MAX_RECORDS;
+		if (debugStr[prev][0] != '\0' && strcmp(debugStr[prev], strLine) == 0 &&
+		    (millis() - recordMillis[prev]) < 10000UL) {
+			recordMillis[prev] = static_cast<uint32_t>(millis());
+			return;
+		}
 		strlcpy(debugStr[curRecord], strLine, DEBUG_LINE_MAX_LEN);
 		recordMillis[curRecord] = static_cast<uint32_t>(millis());
 		curRecord = (curRecord + 1) % DEBUG_MAX_RECORDS;
@@ -33,10 +40,10 @@ public:
 
 	void addLine(const __FlashStringHelper *ifsh) {
 		if (!ifsh) return;
-		strncpy_P(debugStr[curRecord], reinterpret_cast<PGM_P>(ifsh), DEBUG_LINE_MAX_LEN - 1);
-		debugStr[curRecord][DEBUG_LINE_MAX_LEN - 1] = '\0';
-		recordMillis[curRecord] = static_cast<uint32_t>(millis());
-		curRecord = (curRecord + 1) % DEBUG_MAX_RECORDS;
+		char buf[DEBUG_LINE_MAX_LEN];
+		strncpy_P(buf, reinterpret_cast<PGM_P>(ifsh), DEBUG_LINE_MAX_LEN - 1);
+		buf[DEBUG_LINE_MAX_LEN - 1] = '\0';
+		storeLine(buf);
 	}
 
 	void addLine(const char *strLine) {

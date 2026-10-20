@@ -5,8 +5,8 @@
 
 const size_t TELEMETRY_RAM_RECORDS = 48;
 const size_t ISPINDEL_RAM_RECORDS = 10;
-const size_t TELEMETRY_CHUNK_MAX = 12;
-const size_t TELEMETRY_MAX_PAYLOAD = 3072;
+const size_t TELEMETRY_CHUNK_MAX = 4;
+const size_t TELEMETRY_MAX_PAYLOAD = 2048;
 const unsigned long TELEMETRY_CHUNK_GAP_MS = 2000UL;
 const size_t TELEMETRY_MIN_FREE_BLOCK = 12000;
 
@@ -50,6 +50,8 @@ void telemetryQueueReset();
 uint8_t telemetryQueuePending();
 uint8_t telemetryBoxPending();
 uint8_t telemetryISpindelPending();
+uint8_t telemetryBoxStride();
+uint8_t telemetryISpindelStride();
 const TelemetryBoxRecord &telemetryBoxPeek(uint8_t index);
 const TelemetryISpindelRecord &telemetryISpindelPeek(uint8_t index);
 void telemetryBoxPop(uint8_t count);
