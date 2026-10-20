@@ -34,7 +34,22 @@ configured interval. The Network page builds the URL from the endpoint address
 (for example, `https://aa.ddnss.eu/api/v1`), the Access Token path segment, and
 the endpoint path (for example, `/telemetry`). Box snapshots are stored in a
 48-record RAM ring (24 bytes per record); iSpindel readings are stored separately
-in a 10-record RAM ring. A full ring drops its oldest record. Each POST sends
+in a 10-record RAM ring. When a ring fills, it keeps every second record,
+doubling its sampling interval until its maximum stride (16 for box records,
+8 for iSpindel readings); at that maximum, new records replace the oldest.
+Successful uploads reset each ring's stride to one. Assuming the configured
+box snapshot interval is 60 seconds, the box ring's retained history grows as
+it thins:
+
+| Stride | Box record interval | Coverage in 48 slots |
+| --- | --- | --- |
+| 1 | 1 minute | 48 minutes |
+| 2 | 2 minutes | 1 hour 36 minutes |
+| 4 | 4 minutes | 3 hours 12 minutes |
+| 8 | 8 minutes | 6 hours 24 minutes |
+| 16 | 16 minutes | 12 hours 48 minutes (12.8 hours) |
+
+Each POST sends
 iSpindel readings first, followed by up to 12 box snapshots, each with its own
 timestamp. Box values include temperatures, voltage, current, PWM, state, RSSI,
 and the device's current LAN IP address on the last box record in the chunk.

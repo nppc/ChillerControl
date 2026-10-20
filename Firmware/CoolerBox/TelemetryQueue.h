@@ -46,6 +46,7 @@ int16_t telemetryFixedPoint(float value, int32_t scale);
 const char *telemetryStateToString(TelemetryState state);
 void captureTelemetrySnapshot();
 void telemetryISpindelPush(const TelemetryISpindelRecord &record);
+void telemetryQueueReset();
 uint8_t telemetryQueuePending();
 uint8_t telemetryBoxPending();
 uint8_t telemetryISpindelPending();

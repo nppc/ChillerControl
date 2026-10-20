@@ -410,6 +410,7 @@ bool sendTelemetry() {
 		consecutiveUploadFailures = 0;
 		telemetryISpindelPop(iSpindelCount);
 		telemetryBoxPop(boxCount);
+		telemetryQueueReset();
 		if (telemetryQueuePending() > 0) {
 			nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
 		}

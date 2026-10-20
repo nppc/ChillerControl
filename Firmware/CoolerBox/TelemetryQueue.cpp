@@ -4,13 +4,62 @@
 #include <math.h>
 
 namespace {
-TelemetryBoxRecord boxRing[TELEMETRY_RAM_RECORDS];
-uint8_t boxHead = 0;
-uint8_t boxCount = 0;
+template <typename T, size_t N, uint8_t MAX_STRIDE>
+class Ring {
+public:
+	void push(const T &record) {
+		if (++skip < stride) {
+			return;
+		}
+		skip = 0;
 
-TelemetryISpindelRecord iSpindelRing[ISPINDEL_RAM_RECORDS];
-uint8_t iSpindelHead = 0;
-uint8_t iSpindelCount = 0;
+		if (count == N) {
+			if (stride < MAX_STRIDE) {
+				for (size_t i = 0; i < N / 2; ++i) {
+					buf[(head + i) % N] = buf[(head + 2 * i) % N];
+				}
+				count = N / 2;
+				stride *= 2;
+			} else {
+				head = (head + 1) % N;
+				--count;
+			}
+		}
+		buf[(head + count) % N] = record;
+		++count;
+	}
+
+	void reset() {
+		stride = 1;
+		skip = 0;
+	}
+
+	uint8_t pending() const {
+		return static_cast<uint8_t>(count);
+	}
+
+	const T &peek(uint8_t index) const {
+		return buf[(head + index) % N];
+	}
+
+	void pop(uint8_t amount) {
+		if (amount > count) {
+			amount = static_cast<uint8_t>(count);
+		}
+		head = (head + amount) % N;
+		count -= amount;
+	}
+
+private:
+	T buf[N] = {};
+	size_t head = 0;
+	size_t count = 0;
+	uint8_t stride = 1;
+	uint8_t skip = 0;
+};
+
+Ring<TelemetryBoxRecord, TELEMETRY_RAM_RECORDS, 16> boxRing;
+Ring<TelemetryISpindelRecord, ISPINDEL_RAM_RECORDS, 8> iSpindelRing;
 
 int8_t clampRssi(int value) {
 	if (value < INT8_MIN + 1) {
@@ -66,59 +115,42 @@ void captureTelemetrySnapshot() {
 		((!isCoolerStopped() && isCoolingDemanded()) ? static_cast<uint8_t>(TelemetryState::Cooling) :
 		 static_cast<uint8_t>(TelemetryState::Nothing));
 
-	uint8_t tail = static_cast<uint8_t>((boxHead + boxCount) % TELEMETRY_RAM_RECORDS);
-	if (boxCount == TELEMETRY_RAM_RECORDS) {
-		boxRing[boxHead] = record;
-		boxHead = static_cast<uint8_t>((boxHead + 1) % TELEMETRY_RAM_RECORDS);
-	} else {
-		boxRing[tail] = record;
-		++boxCount;
-	}
+	boxRing.push(record);
 }
 
 void telemetryISpindelPush(const TelemetryISpindelRecord &record) {
-	uint8_t tail = static_cast<uint8_t>((iSpindelHead + iSpindelCount) % ISPINDEL_RAM_RECORDS);
-	if (iSpindelCount == ISPINDEL_RAM_RECORDS) {
-		iSpindelRing[iSpindelHead] = record;
-		iSpindelHead = static_cast<uint8_t>((iSpindelHead + 1) % ISPINDEL_RAM_RECORDS);
-	} else {
-		iSpindelRing[tail] = record;
-		++iSpindelCount;
-	}
+	iSpindelRing.push(record);
+}
+
+void telemetryQueueReset() {
+	boxRing.reset();
+	iSpindelRing.reset();
 }
 
 uint8_t telemetryQueuePending() {
-	return static_cast<uint8_t>(boxCount + iSpindelCount);
+	return static_cast<uint8_t>(boxRing.pending() + iSpindelRing.pending());
 }
 
 uint8_t telemetryBoxPending() {
-	return boxCount;
+	return boxRing.pending();
 }
 
 uint8_t telemetryISpindelPending() {
-	return iSpindelCount;
+	return iSpindelRing.pending();
 }
 
 const TelemetryBoxRecord &telemetryBoxPeek(uint8_t index) {
-	return boxRing[(boxHead + index) % TELEMETRY_RAM_RECORDS];
+	return boxRing.peek(index);
 }
 
 const TelemetryISpindelRecord &telemetryISpindelPeek(uint8_t index) {
-	return iSpindelRing[(iSpindelHead + index) % ISPINDEL_RAM_RECORDS];
+	return iSpindelRing.peek(index);
 }
 
 void telemetryBoxPop(uint8_t count) {
-	if (count > boxCount) {
-		count = boxCount;
-	}
-	boxHead = static_cast<uint8_t>((boxHead + count) % TELEMETRY_RAM_RECORDS);
-	boxCount -= count;
+	boxRing.pop(count);
 }
 
 void telemetryISpindelPop(uint8_t count) {
-	if (count > iSpindelCount) {
-		count = iSpindelCount;
-	}
-	iSpindelHead = static_cast<uint8_t>((iSpindelHead + count) % ISPINDEL_RAM_RECORDS);
-	iSpindelCount -= count;
+	iSpindelRing.pop(count);
 }
