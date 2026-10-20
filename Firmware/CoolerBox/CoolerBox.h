@@ -52,14 +52,6 @@ extern unsigned long millisWIFIcheckInterval;
 extern unsigned long lastWifiDropMillis;
 extern bool wifiDropOccurred;
 extern bool wifiWasConnected;
-enum class LinkDiagnosticEvent : uint8_t {
-	UploadSucceeded,
-	UploadFailed,
-	StaDisconnected,
-	ApDisconnected
-};
-void recordLinkDiagnostic(LinkDiagnosticEvent event, uint8_t backoffMinutes);
-void handleLinkLog();
 extern int ColdSensorId;
 extern int HotSensorId;
 extern int boxTemp_SmoothArray[filterSamples];

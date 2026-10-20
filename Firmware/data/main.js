@@ -746,18 +746,6 @@ async function setupNetworkPage() {
 
 }
 
-async function fetchLinkLog() {
-  const log = document.getElementById('linkLog');
-  if (!log) return;
-  try {
-    const res = await fetch('/api/link-log');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    log.textContent = await res.text();
-  } catch (e) {
-    log.textContent = `Unable to load link diagnostics: ${e.message || e}`;
-  }
-}
-
 async function fetchDebug() {
   try {
     const res = await fetch('/api/debug');
@@ -796,14 +784,6 @@ function setupDebugPage() {
     refreshBtn.addEventListener('click', (e) => {
       e.preventDefault();
       fetchDebug();
-    });
-  }
-
-  const loadLinkLogBtn = document.getElementById('loadLinkLogBtn');
-  if (loadLinkLogBtn) {
-    loadLinkLogBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      fetchLinkLog();
     });
   }
 

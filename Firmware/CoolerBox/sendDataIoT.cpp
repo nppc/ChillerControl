@@ -72,7 +72,6 @@ void setUploadBackoff() {
 	uint8_t backoffMinutes = telemetryBackoffLevelMinutes();
 	nextAllowedSend = millis() + static_cast<unsigned long>(backoffMinutes) * 60UL * 1000UL;
 	failureBackoffActive = true;
-	recordLinkDiagnostic(LinkDiagnosticEvent::UploadFailed, backoffMinutes);
 }
 
 bool postTelemetryPayload(const String &url, const String &payload) {
@@ -258,7 +257,6 @@ bool sendTelemetry() {
 			if (chunkIncludedISpindel) {
 				hasNewISpindelData = false;
 			}
-			recordLinkDiagnostic(LinkDiagnosticEvent::UploadSucceeded, 0);
 			if (telemetryQueuePending() > 0) {
 				nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
 			}
@@ -317,7 +315,6 @@ bool sendTelemetry() {
 			if (hasNewISpindelData) {
 				hasNewISpindelData = false;
 			}
-			recordLinkDiagnostic(LinkDiagnosticEvent::UploadSucceeded, 0);
 			return true;
 		}
 		return false;

@@ -39,6 +39,61 @@ device's current LAN IP address. Server certificate validation is disabled;
 configure this only on a network where accepting an unverified certificate is
 acceptable.
 
+## Wi-Fi behavior
+
+In normal operation, the Wemos uses both Wi-Fi interfaces at once:
+
+- **Device access point (AP):** The device starts its configured network name,
+  password, and hidden/show setting. It allows one client. The AP is initially
+  configured for channel 1; because the AP and router connection share one radio,
+  the active radio channel is not independently pinned for the AP.
+- **Router connection (STA):** At boot, the firmware explicitly starts a
+  connection using the saved router name and password. It waits up to about
+  10 seconds for the first connection. Automatic connection on boot is disabled,
+  but the ESP8266 Wi-Fi library's automatic reconnect is enabled. While the
+  router connection is down, the firmware also calls `WiFi.reconnect()` on a
+  60-second timer. That timer starts at boot; it is not restarted when a drop is
+  detected. Reconnection uses the saved credentials and does not pin a BSSID or
+  channel.
+- **Radio settings:** Wi-Fi sleep is disabled and the transmitter is set to
+  20.5 dBm (maximum configured output).
+- **AP address:** Without a router IP, the AP uses its existing address or
+  defaults to `192.168.4.1`. When a router IP is available, the firmware chooses
+  a private AP subnet that does not overlap the router subnet and configures the
+  AP with that address. It checks this at startup, after the router receives an
+  IP address, and during its regular Wi-Fi status checks. When connected, it
+  also configures the AP's DHCP server with the router's DNS server when one is
+  available.
+
+If the boot connection does not succeed within the initial wait, the AP and
+web server still start; automatic reconnect and the periodic reconnect call
+continue to try the saved router credentials.
+
+The firmware checks router connectivity every 3 seconds. It considers the
+connection available only when Wi-Fi reports connected and a non-zero local IP
+is present. A detected loss is recorded for the Debug page; a later connection
+is also logged there. The Debug page shows the current router SSID, RSSI, and IP
+when connected, and the most recent detected drop.
+
+The `/ispindel` and `/api/ispindel` POST endpoints accept iSpindel data through
+the device AP. These endpoints are not subject to the ordinary web-page access
+restriction. Other web requests from the AP are blocked by default unless
+**Allow web pages on the local access point** is enabled in Network settings.
+Connections through the router are not blocked by that AP-only restriction.
+The iSpindel's MAC address and reported RSSI are included in the Debug log when
+data is received.
+
+In emergency mode (double-reset recovery), the router connection is not started.
+The device provides an open AP named `Cooler` at `192.168.4.1`, with up to four
+clients, for recovery access.
+
+NTP time synchronization starts asynchronously in normal mode using
+`pool.ntp.org` and `time.google.com`; the configured timezone controls displayed
+log times. Emergency mode does not start NTP. Telemetry uploads require a valid
+clock and a connected router. When uploads cannot proceed, telemetry snapshots
+are retained in the queue and sent later in chunks; failed uploads use
+progressive backoff.
+
 Cooling requests the configured maximum voltage when the box temperature is at or
 above the active target, and requests zero below target. The buck converter's
 configured voltage-change rate continues to smooth power transitions. Heating

@@ -63,37 +63,8 @@ namespace {
 const IPAddress AP_SUBNET_MASK(255, 255, 255, 0);
 volatile bool pendingUpstreamIp = false;
 WiFiEventHandler staGotIpHandler;
-WiFiEventHandler staConnectedHandler;
-WiFiEventHandler staDisconnectedHandler;
 WiFiEventHandler apStationConnectedHandler;
-WiFiEventHandler apStationDisconnectedHandler;
 volatile bool sendTelemetryNow = false;
-struct WifiLogEvent {
-	uint8_t type;
-	uint8_t reason;
-	uint8_t mac[6];
-};
-const uint8_t WIFI_LOG_QUEUE_SIZE = 8;
-const uint8_t WIFI_LOG_QUEUE_MASK = WIFI_LOG_QUEUE_SIZE - 1;
-enum WifiLogEventType : uint8_t {
-	STA_CONNECTED_EVENT = 1,
-	STA_DISCONNECTED_EVENT,
-	AP_STATION_CONNECTED_EVENT,
-	AP_STATION_DISCONNECTED_EVENT
-};
-volatile WifiLogEvent wifiLogQueue[WIFI_LOG_QUEUE_SIZE] = {};
-volatile uint8_t wifiLogHead = 0;
-volatile uint8_t wifiLogTail = 0;
-volatile uint8_t wifiLogDropped = 0;
-uint8_t lastBssid[6] = {};
-int lastCh = 0;
-uint8_t reconnectAttemptCount = 0;
-uint32_t reconnectScheduleStartMillis = 0;
-uint32_t lastReconnectBeginMillis = 0;
-uint32_t reconnectScheduleAttemptCount = 0;
-bool reconnectScheduleActive = false;
-bool reconnectBeginIssued = false;
-int lastStaRssi = 0;
 bool apStarted = false;
 IPAddress configuredApIP(0, 0, 0, 0);
 IPAddress configuredApDns(0, 0, 0, 0);
@@ -191,9 +162,9 @@ bool ensureNormalAp() {
 	if (!apStarted) {
 		bool started;
 		if (apPassword[0] != '\0') {
-			started = WiFi.softAP(apSSID, apPassword, 1, apHidden ? 1 : 0, 3);
+			started = WiFi.softAP(apSSID, apPassword, 1, apHidden ? 1 : 0, 1);
 		} else {
-			started = WiFi.softAP(apSSID, nullptr, 1, apHidden ? 1 : 0, 3);
+			started = WiFi.softAP(apSSID, nullptr, 1, apHidden ? 1 : 0, 1);
 		}
 		if (!started) {
 			Debug.addLine(F("Failed to start configured AP"));
@@ -209,32 +180,6 @@ bool ensureNormalAp() {
 
 void onStationGotIp(const WiFiEventStationModeGotIP &) {
 	pendingUpstreamIp = true;
-}
-
-void enqueueWifiLogEvent(uint8_t type, uint8_t reason, const uint8_t *mac) {
-	uint8_t head = wifiLogHead;
-	uint8_t next = (head + 1) & WIFI_LOG_QUEUE_MASK;
-	if (next == wifiLogTail) {
-		if (wifiLogDropped < 255) {
-			++wifiLogDropped;
-		}
-		return;
-	}
-	wifiLogQueue[head].type = type;
-	wifiLogQueue[head].reason = reason;
-	for (uint8_t i = 0; i < 6; ++i) {
-		wifiLogQueue[head].mac[i] = mac == nullptr ? 0 : mac[i];
-	}
-	wifiLogHead = next;
-}
-
-void onStationConnected(const WiFiEventStationModeConnected &event) {
-	(void)event;
-	enqueueWifiLogEvent(STA_CONNECTED_EVENT, 0, nullptr);
-}
-
-void onStationDisconnected(const WiFiEventStationModeDisconnected &event) {
-	enqueueWifiLogEvent(STA_DISCONNECTED_EVENT, static_cast<uint8_t>(event.reason), nullptr);
 }
 
 static char lastApStationMac[18] = "";
@@ -266,40 +211,6 @@ void onApStationConnected(const WiFiEventSoftAPModeStationConnected &event) {
 	snprintf(lastApStationMac, sizeof(lastApStationMac), "%02X:%02X:%02X:%02X:%02X:%02X",
 	         event.mac[0], event.mac[1], event.mac[2],
 	         event.mac[3], event.mac[4], event.mac[5]);
-}
-
-void onApStationDisconnected(const WiFiEventSoftAPModeStationDisconnected &event) {
-	(void)event;
-}
-
-void processWifiEventLogs() {
-	while (wifiLogTail != wifiLogHead) {
-		uint8_t tail = wifiLogTail;
-		uint8_t type = wifiLogQueue[tail].type;
-		uint8_t reason = wifiLogQueue[tail].reason;
-		wifiLogTail = (tail + 1) & WIFI_LOG_QUEUE_MASK;
-
-		if (type == STA_CONNECTED_EVENT) {
-			Debug.addLine(String(F("STA connected: channel=")) + WiFi.channel());
-		} else if (type == STA_DISCONNECTED_EVENT) {
-			recordLinkDiagnostic(LinkDiagnosticEvent::StaDisconnected, telemetryBackoffLevelMinutes());
-			String message = String(F("STA disconnected: reason=")) + reason;
-			if (lastStaRssi != 0) {
-				message += F(" RSSI=");
-				message += lastStaRssi;
-			} else {
-				message += F(" RSSI=unavailable");
-			}
-			message += F(" channel=");
-			message += WiFi.channel();
-			Debug.addLine(message);
-		}
-	}
-	if (wifiLogDropped != 0) {
-		uint8_t dropped = wifiLogDropped;
-		wifiLogDropped = 0;
-		Debug.addLine(String(F("Wi-Fi event log queue overflow; dropped ")) + dropped + F(" events"));
-	}
 }
 
 ESP8266WebServer::THandlerFunction guardedHandler(ESP8266WebServer::THandlerFunction handler) {
@@ -453,6 +364,13 @@ void setup() {
 	if (!LittleFS.begin()) {
 		Debug.addLine(F("LittleFS mount failed"));
 		Serial.println(F("LittleFS mount failed; filesystem settings and files are unavailable."));
+	} else {
+		if (LittleFS.exists("/wifi-link.log") && !LittleFS.remove("/wifi-link.log")) {
+			Debug.addLine(F("Failed to remove obsolete Wi-Fi link log"));
+		}
+		if (LittleFS.exists("/wifi-link.old.log") && !LittleFS.remove("/wifi-link.old.log")) {
+			Debug.addLine(F("Failed to remove obsolete rotated Wi-Fi link log"));
+		}
 	}
 
 	INIT_DS18B20();
@@ -492,12 +410,9 @@ void setup() {
 		WiFi.setOutputPower(20.5f); // Always use maximum transmit power (+20.5 dBm)
 
 		WiFi.setAutoConnect(false);
-		WiFi.setAutoReconnect(false);
+		WiFi.setAutoReconnect(true);
 		staGotIpHandler = WiFi.onStationModeGotIP(onStationGotIp);
-		staConnectedHandler = WiFi.onStationModeConnected(onStationConnected);
-		staDisconnectedHandler = WiFi.onStationModeDisconnected(onStationDisconnected);
 		apStationConnectedHandler = WiFi.onSoftAPModeStationConnected(onApStationConnected);
-		apStationDisconnectedHandler = WiFi.onSoftAPModeStationDisconnected(onApStationDisconnected);
 		WiFi.begin(IntSSID, IntPASS);
 
 		primeDS18B20();
@@ -549,7 +464,6 @@ void setup() {
 	httpServer.on("/api/settings", HTTP_GET, guardedHandler(handleApiSettings));
 	httpServer.on("/api/pids", HTTP_GET, guardedHandler(handleApiPIDs));
 	httpServer.on("/api/network", HTTP_GET, guardedHandler(handleApiNetwork));
-	httpServer.on("/api/link-log", HTTP_GET, guardedHandler(handleLinkLog));
 	httpServer.on("/api/debug", HTTP_GET, guardedHandler(handleApiDebug));
 	httpServer.on("/autotune", HTTP_GET, guardedHandler(handleAutotune));
 	httpServer.on("/autotune", HTTP_POST, guardedHandler(handleAutotune));
@@ -593,24 +507,10 @@ void loop() {
 	}
 
 	drd.loop();
-	processWifiEventLogs();
 
 	if (pendingUpstreamIp) {
 		pendingUpstreamIp = false;
 		if (!emergencyMode) {
-			int connectedChannel = WiFi.channel();
-			uint8_t *connectedBssid = WiFi.BSSID();
-			if (connectedChannel > 0 && connectedBssid != nullptr) {
-				lastCh = connectedChannel;
-				for (uint8_t i = 0; i < 6; ++i) {
-					lastBssid[i] = connectedBssid[i];
-				}
-				Debug.addLine(String(F("Cached router BSSID/channel for reconnect: channel=")) + lastCh);
-			}
-			reconnectAttemptCount = 0;
-			reconnectScheduleAttemptCount = 0;
-			reconnectScheduleActive = false;
-			reconnectBeginIssued = false;
 			ensureNormalAp();
 		}
 	}
@@ -633,56 +533,15 @@ void loop() {
 				wifiWasConnected = false;
 				wifiDropOccurred = true;
 				lastWifiDropMillis = millis();
-				reconnectScheduleStartMillis = lastWifiDropMillis;
-				reconnectScheduleAttemptCount = 0;
-				reconnectScheduleActive = true;
-				reconnectBeginIssued = false;
 				Debug.addLine(F("Wi-Fi connection lost"));
 			}
-			if (lastStaRssi != 0) {
-				lastStaRssi = 0;
-			}
-			if (!reconnectScheduleActive) {
-				reconnectScheduleStartMillis = millis();
-				reconnectScheduleAttemptCount = 0;
-				reconnectScheduleActive = true;
-				reconnectBeginIssued = false;
-			}
-			uint32_t now = millis();
-			uint32_t sinceDrop = static_cast<uint32_t>(now - reconnectScheduleStartMillis);
-			bool reconnectDue;
-			if (reconnectScheduleAttemptCount == 0) {
-				reconnectDue = sinceDrop >= 5000UL;
-			} else if (reconnectScheduleAttemptCount == 1) {
-				reconnectDue = sinceDrop >= 15000UL;
-			} else if (reconnectScheduleAttemptCount == 2) {
-				reconnectDue = sinceDrop >= 30000UL;
-			} else {
-				reconnectDue =
-					static_cast<uint32_t>(now - lastReconnectBeginMillis) >= 60000UL;
-			}
-			bool previousAttemptStillStarting =
-				reconnectBeginIssued &&
-				WiFi.status() == WL_IDLE_STATUS &&
-				static_cast<uint32_t>(now - lastReconnectBeginMillis) < 20000UL;
-			if (reconnectDue && !previousAttemptStillStarting) {
+			static unsigned long lastReconnectAttempt = 0;
+			if (millis() - lastReconnectAttempt > (60 * 1000UL)) {
+				lastReconnectAttempt = millis();
 				Debug.addLine(F("Wi-Fi disconnected: attempting reconnect"));
-				lastReconnectBeginMillis = now;
-				reconnectBeginIssued = true;
-				++reconnectScheduleAttemptCount;
-				if (lastCh > 0 && reconnectAttemptCount < 3) {
-					++reconnectAttemptCount;
-					Debug.addLine(String(F("Reconnecting on cached channel (attempt ")) +
-					              reconnectAttemptCount + F("/3, channel=") + lastCh + F(")"));
-					WiFi.begin(IntSSID, IntPASS, lastCh, lastBssid, true);
-				} else {
-					Debug.addLine(F("Reconnecting with full channel scan"));
-					WiFi.begin(IntSSID, IntPASS);
-					reconnectAttemptCount = 0;
-				}
+				WiFi.reconnect();
 			}
 		} else {
-			lastStaRssi = WiFi.RSSI();
 			if (!wifiWasConnected) {
 				wifiWasConnected = true;
 				Debug.addLine(String(F("Wi-Fi connected: ")) + WiFi.localIP().toString());
