@@ -1,12 +1,41 @@
 #include "TelemetryQueue.h"
 #include "CoolerBox.h"
 
+#include <math.h>
+
 namespace {
-TelemetrySnapshot ring[TELEMETRY_RAM_RECORDS];
-uint8_t head = 0;
-uint8_t pendingCount = 0;
-uint32_t drops = 0;
-uint32_t chunksSentCount = 0;
+TelemetryBoxRecord boxRing[TELEMETRY_RAM_RECORDS];
+uint8_t boxHead = 0;
+uint8_t boxCount = 0;
+
+TelemetryISpindelRecord iSpindelRing[ISPINDEL_RAM_RECORDS];
+uint8_t iSpindelHead = 0;
+uint8_t iSpindelCount = 0;
+
+int8_t clampRssi(int value) {
+	if (value < INT8_MIN + 1) {
+		return INT8_MIN + 1;
+	}
+	if (value > INT8_MAX) {
+		return INT8_MAX;
+	}
+	return static_cast<int8_t>(value);
+}
+}
+
+int16_t telemetryFixedPoint(float value, int32_t scale) {
+	if (!isfinite(value)) {
+		return INT16_MIN;
+	}
+
+	double scaled = static_cast<double>(value) * scale;
+	if (scaled <= INT16_MIN + 1) {
+		return INT16_MIN + 1;
+	}
+	if (scaled >= INT16_MAX) {
+		return INT16_MAX;
+	}
+	return static_cast<int16_t>(lround(scaled));
 }
 
 const char *telemetryStateToString(TelemetryState state) {
@@ -19,85 +48,77 @@ const char *telemetryStateToString(TelemetryState state) {
 	}
 }
 
-void telemetryQueuePush(const TelemetrySnapshot &snapshot) {
-	if (pendingCount >= TELEMETRY_RAM_RECORDS) {
-		ring[head] = snapshot;
-		head = (head + 1) % TELEMETRY_RAM_RECORDS;
-		++drops;
+void captureTelemetrySnapshot() {
+	TelemetryBoxRecord record = {};
+	record.t = epochSeconds();
+	record.box_temperature = telemetryFixedPoint(boxTemp, 100);
+	record.box_target = telemetryFixedPoint(effectiveBoxTarget, 100);
+	record.fermenter_temperature = telemetryFixedPoint(getFermenterTemp(), 100);
+	record.set_temperature = telemetryFixedPoint(
+		isHeatingAutoTuning() ? getHeatingAutoTuneTargetTemp() : setTemp, 100);
+	record.hot_temperature = telemetryFixedPoint(HotTemp, 100);
+	record.voltage = telemetryFixedPoint(measuredVoltage, 100);
+	record.current = telemetryFixedPoint(measuredCurrent, 100);
+	record.pwm = telemetryFixedPoint(
+		(maxHotPWM > 0) ? (setHotPWM * 100.0f / static_cast<float>(maxHotPWM)) : 0.0f, 100);
+	record.rssi = clampRssi(WiFi.RSSI());
+	record.state = (setHotPWM > 0.0f) ? static_cast<uint8_t>(TelemetryState::Heating) :
+		((!isCoolerStopped() && isCoolingDemanded()) ? static_cast<uint8_t>(TelemetryState::Cooling) :
+		 static_cast<uint8_t>(TelemetryState::Nothing));
+
+	uint8_t tail = static_cast<uint8_t>((boxHead + boxCount) % TELEMETRY_RAM_RECORDS);
+	if (boxCount == TELEMETRY_RAM_RECORDS) {
+		boxRing[boxHead] = record;
+		boxHead = static_cast<uint8_t>((boxHead + 1) % TELEMETRY_RAM_RECORDS);
 	} else {
-		uint8_t tail = (head + pendingCount) % TELEMETRY_RAM_RECORDS;
-		ring[tail] = snapshot;
-		++pendingCount;
+		boxRing[tail] = record;
+		++boxCount;
 	}
 }
 
-void captureTelemetrySnapshot() {
-	TelemetrySnapshot snap;
-	snap.t = epochSeconds();
-	snap.box_temperature = boxTemp;
-	snap.box_target = effectiveBoxTarget;
-	snap.fermenter_temperature = getFermenterTemp();
-
-	float targetVal = isHeatingAutoTuning() ? getHeatingAutoTuneTargetTemp() : setTemp;
-	snap.set_temperature = targetVal;
-	snap.hot_temperature = HotTemp;
-	snap.voltage = measuredVoltage;
-	snap.current = measuredCurrent;
-
-	float pwmPct = (maxHotPWM > 0) ? (setHotPWM * 100.0f / static_cast<float>(maxHotPWM)) : 0.0f;
-	snap.hot_pwm = pwmPct;
-	snap.pwm = pwmPct;
-
-	snap.state = (setHotPWM > 0.0f) ? static_cast<uint8_t>(TelemetryState::Heating) :
-		((!isCoolerStopped() && isCoolingDemanded()) ? static_cast<uint8_t>(TelemetryState::Cooling) : static_cast<uint8_t>(TelemetryState::Nothing));
-
-	snap.rssi = static_cast<float>(WiFi.RSSI());
-
-	if (hasNewISpindelData) {
-		snap.ispindel_temperature = iSpindelTemperature;
-		snap.ispindel_gravity = iSpindelGravity;
-		snap.ispindel_battery = iSpindelBattery;
-		snap.ispindel_rssi = static_cast<float>(iSpindelRssi);
+void telemetryISpindelPush(const TelemetryISpindelRecord &record) {
+	uint8_t tail = static_cast<uint8_t>((iSpindelHead + iSpindelCount) % ISPINDEL_RAM_RECORDS);
+	if (iSpindelCount == ISPINDEL_RAM_RECORDS) {
+		iSpindelRing[iSpindelHead] = record;
+		iSpindelHead = static_cast<uint8_t>((iSpindelHead + 1) % ISPINDEL_RAM_RECORDS);
 	} else {
-		snap.ispindel_temperature = NAN;
-		snap.ispindel_gravity = NAN;
-		snap.ispindel_battery = NAN;
-		snap.ispindel_rssi = NAN;
+		iSpindelRing[tail] = record;
+		++iSpindelCount;
 	}
-
-	telemetryQueuePush(snap);
 }
 
 uint8_t telemetryQueuePending() {
-	return pendingCount;
+	return static_cast<uint8_t>(boxCount + iSpindelCount);
 }
 
-uint32_t telemetryQueueDrops() {
-	return drops;
+uint8_t telemetryBoxPending() {
+	return boxCount;
 }
 
-uint32_t telemetryChunksSent() {
-	return chunksSentCount;
+uint8_t telemetryISpindelPending() {
+	return iSpindelCount;
 }
 
-void telemetryQueueIncrementChunksSent() {
-	++chunksSentCount;
+const TelemetryBoxRecord &telemetryBoxPeek(uint8_t index) {
+	return boxRing[(boxHead + index) % TELEMETRY_RAM_RECORDS];
 }
 
-const TelemetrySnapshot &telemetryQueuePeek(uint8_t index) {
-	uint8_t pos = (head + index) % TELEMETRY_RAM_RECORDS;
-	return ring[pos];
+const TelemetryISpindelRecord &telemetryISpindelPeek(uint8_t index) {
+	return iSpindelRing[(iSpindelHead + index) % ISPINDEL_RAM_RECORDS];
 }
 
-void telemetryQueuePop(uint8_t count) {
-	if (count > pendingCount) {
-		count = pendingCount;
+void telemetryBoxPop(uint8_t count) {
+	if (count > boxCount) {
+		count = boxCount;
 	}
-	head = (head + count) % TELEMETRY_RAM_RECORDS;
-	pendingCount -= count;
+	boxHead = static_cast<uint8_t>((boxHead + count) % TELEMETRY_RAM_RECORDS);
+	boxCount -= count;
 }
 
-size_t telemetryRingSizeBytes() {
-	return sizeof(ring);
+void telemetryISpindelPop(uint8_t count) {
+	if (count > iSpindelCount) {
+		count = iSpindelCount;
+	}
+	iSpindelHead = static_cast<uint8_t>((iSpindelHead + count) % ISPINDEL_RAM_RECORDS);
+	iSpindelCount -= count;
 }
-

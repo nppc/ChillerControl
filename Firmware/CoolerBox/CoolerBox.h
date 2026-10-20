@@ -125,16 +125,7 @@ uint8_t telemetryBackoffLevelMinutes();
 bool isWebClientAllowed();
 bool clockValid();
 uint32_t epochSeconds();
-// iSpindel data — stored as plain typed fields; no live JsonDocument between sends.
-extern float iSpindelGravity;
-extern float iSpindelBattery;
-extern bool hasNewISpindelData;
+// iSpindel data used by control and wake-window scheduling.
 extern unsigned long lastISpindelMillis;
 extern int iSpindelRssi;
-// Extra iSpindel key/value pairs forwarded verbatim to the telemetry endpoint.
-// Keys are stored with "ispindel_" prefix already applied, values as JSON-serialised strings.
-static const uint8_t ISPINDEL_EXTRA_MAX = 8;
-extern char iSpindelExtraKeys[ISPINDEL_EXTRA_MAX][24];
-extern char iSpindelExtraValues[ISPINDEL_EXTRA_MAX][32];
-extern uint8_t iSpindelExtraCount;
 void handleISpindel();

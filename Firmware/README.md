@@ -32,12 +32,19 @@ the board's serial port.
 Telemetry is sent as a JSON `POST` to the configured HTTPS endpoint at the
 configured interval. The Network page builds the URL from the endpoint address
 (for example, `https://aa.ddnss.eu/api/v1`), the Access Token path segment, and
-the endpoint path (for example, `/telemetry`). The payload includes box temperature,
-fermenter temperature, box target, state, setpoint temperature,
-hot-side temperature, voltage, current, heater PWM, Wi-Fi RSSI, and the
-device's current LAN IP address. Server certificate validation is disabled;
-configure this only on a network where accepting an unverified certificate is
-acceptable.
+the endpoint path (for example, `/telemetry`). Box snapshots are stored in a
+48-record RAM ring (24 bytes per record); iSpindel readings are stored separately
+in a 10-record RAM ring. A full ring drops its oldest record. Each POST sends
+iSpindel readings first, followed by up to 12 box snapshots, each with its own
+timestamp. Box values include temperatures, voltage, current, PWM, state, RSSI,
+and the device's current LAN IP address on the last box record in the chunk.
+iSpindel values include temperature, gravity, battery, RSSI, angle, and interval.
+Values are sent at their stored precision (temperatures/electrical values and
+angle/battery at two decimals; gravity at four decimals). Missing measurements
+are omitted. Chunks rejected with HTTP 400, 413, or 422 are dropped rather than
+retried; other failed uploads remain queued and use progressive backoff.
+Server certificate validation is disabled; configure this only on a network
+where accepting an unverified certificate is acceptable.
 
 ## Wi-Fi behavior
 

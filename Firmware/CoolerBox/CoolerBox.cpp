@@ -14,14 +14,8 @@ float HotTemp = 0.0f;	// current measured temperature of hot radiator
 float setTemp = 19.0f;	// preset temperature
 bool useISpindelTemp = true;
 float iSpindelTemperature = 0.0f;
-float iSpindelGravity = 0.0f;
-float iSpindelBattery = 0.0f;
-bool hasNewISpindelData = false;
 unsigned long lastISpindelMillis = 0;
 int iSpindelRssi = 0;
-char iSpindelExtraKeys[ISPINDEL_EXTRA_MAX][24] = {};
-char iSpindelExtraValues[ISPINDEL_EXTRA_MAX][32] = {};
-uint8_t iSpindelExtraCount = 0;
 float measuredVoltage = 0.0f; 
 float measuredCurrent = 0.0f; 
 
@@ -237,71 +231,55 @@ void handleISpindel() {
 		return;
 	}
 
-	// Extract known fields into typed globals
+	// Update the values used by control and wake-window scheduling.
 	if (localDoc["temperature"].is<float>()) {
 		iSpindelTemperature = localDoc["temperature"].as<float>();
 		lastISpindelMillis = millis();
-	}
-	if (localDoc["gravity"].is<float>()) {
-		iSpindelGravity = localDoc["gravity"].as<float>();
-	}
-	if (localDoc["battery"].is<float>()) {
-		iSpindelBattery = localDoc["battery"].as<float>();
 	}
 	if (localDoc["RSSI"].is<int>()) {
 		iSpindelRssi = localDoc["RSSI"].as<int>();
 	} else if (localDoc["rssi"].is<int>()) {
 		iSpindelRssi = localDoc["rssi"].as<int>();
 	}
+	uint32_t reportedInterval = 0;
 	if (localDoc["interval"].is<int>()) {
 		int repInterval = localDoc["interval"].as<int>();
 		if (repInterval >= 30 && repInterval <= 86400) {
 			iSpindelIntervalSec = repInterval;
+			reportedInterval = static_cast<uint32_t>(repInterval);
 		}
 	}
 
-	// Capture any additional fields for verbatim forwarding to the telemetry endpoint.
-	// Known fields that are already forwarded as typed values are skipped.
-	iSpindelExtraCount = 0;
-	static const char *const KNOWN_KEYS[] = {
-		"temperature", "gravity", "battery", "RSSI", "rssi", "interval", nullptr
-	};
-	for (JsonPairConst kv : localDoc.as<JsonObjectConst>()) {
-		const char *rawKey = kv.key().c_str();
-		bool known = false;
-		for (uint8_t k = 0; KNOWN_KEYS[k] != nullptr; ++k) {
-			if (strcmp(rawKey, KNOWN_KEYS[k]) == 0) {
-				known = true;
-				break;
-			}
+	if (clockValid()) {
+		TelemetryISpindelRecord record = {};
+		record.t = epochSeconds();
+		record.interval = reportedInterval;
+		record.temperature = localDoc["temperature"].is<float>()
+			? telemetryFixedPoint(localDoc["temperature"].as<float>(), 100) : INT16_MIN;
+		record.gravity = localDoc["gravity"].is<float>()
+			? telemetryFixedPoint(localDoc["gravity"].as<float>(), 10000) : INT16_MIN;
+		record.angle = localDoc["angle"].is<float>()
+			? telemetryFixedPoint(localDoc["angle"].as<float>(), 100) : INT16_MIN;
+		record.battery = localDoc["battery"].is<float>()
+			? telemetryFixedPoint(localDoc["battery"].as<float>(), 100) : INT16_MIN;
+		if (localDoc["RSSI"].is<int>()) {
+			int rssi = localDoc["RSSI"].as<int>();
+			record.rssi = static_cast<int8_t>(constrain(rssi, INT8_MIN + 1, INT8_MAX));
+		} else if (localDoc["rssi"].is<int>()) {
+			int rssi = localDoc["rssi"].as<int>();
+			record.rssi = static_cast<int8_t>(constrain(rssi, INT8_MIN + 1, INT8_MAX));
+		} else {
+			record.rssi = INT8_MIN;
 		}
-		if (known || iSpindelExtraCount >= ISPINDEL_EXTRA_MAX) {
-			continue;
-		}
-		// Build "ispindel_<key>" prefix (lower-cased)
-		char prefixed[24];
-		snprintf(prefixed, sizeof(prefixed), "ispindel_");
-		size_t offset = strlen(prefixed);
-		for (size_t i = 0; rawKey[i] && offset < sizeof(prefixed) - 1; ++i) {
-			prefixed[offset++] = static_cast<char>(tolower(static_cast<unsigned char>(rawKey[i])));
-		}
-		prefixed[offset] = '\0';
-		strlcpy(iSpindelExtraKeys[iSpindelExtraCount], prefixed, sizeof(iSpindelExtraKeys[0]));
-		// Serialise the value as compact JSON so any type (number/string/bool) is preserved
-		String valStr;
-		serializeJson(kv.value(), valStr);
-		strlcpy(iSpindelExtraValues[iSpindelExtraCount], valStr.c_str(), sizeof(iSpindelExtraValues[0]));
-		++iSpindelExtraCount;
+		telemetryISpindelPush(record);
+		sendTelemetryNow = true;
 	}
-
-	hasNewISpindelData = true;
 	if (isBootAutoStartPending()) {
 		cancelBootAutoStart();
 		setCoolerStopped(LOW);
 	}
 	updateCascadeTarget();
 	httpServer.send(200, "text/plain", "OK");
-	sendTelemetryNow = true;
 
 	String clientMac = getISpindelClientMac();
 	String logMsg = F("iSpindel data received: MAC=");
@@ -364,13 +342,6 @@ void setup() {
 	if (!LittleFS.begin()) {
 		Debug.addLine(F("LittleFS mount failed"));
 		Serial.println(F("LittleFS mount failed; filesystem settings and files are unavailable."));
-	} else {
-		if (LittleFS.exists("/wifi-link.log") && !LittleFS.remove("/wifi-link.log")) {
-			Debug.addLine(F("Failed to remove obsolete Wi-Fi link log"));
-		}
-		if (LittleFS.exists("/wifi-link.old.log") && !LittleFS.remove("/wifi-link.old.log")) {
-			Debug.addLine(F("Failed to remove obsolete rotated Wi-Fi link log"));
-		}
 	}
 
 	INIT_DS18B20();

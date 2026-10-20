@@ -2,17 +2,8 @@
 
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecureBearSSL.h>
-
-class StringAppender : public Print {
-public:
-	explicit StringAppender(String &s) : s_(s) {}
-	size_t write(uint8_t c) override { return s_.concat(static_cast<char>(c)) ? 1 : 0; }
-	size_t write(const uint8_t *b, size_t n) override {
-		return s_.concat(reinterpret_cast<const char *>(b), n) ? n : 0;
-	}
-private:
-	String &s_;
-};
+#include <limits.h>
+#include <stdarg.h>
 
 namespace {
 const unsigned long TELEMETRY_SKIP_LOG_INTERVAL_MS = 60UL * 1000UL;
@@ -69,35 +60,157 @@ void setUploadBackoff() {
 	if (consecutiveUploadFailures < TELEMETRY_BACKOFF_LEVEL_COUNT) {
 		++consecutiveUploadFailures;
 	}
-	uint8_t backoffMinutes = telemetryBackoffLevelMinutes();
-	nextAllowedSend = millis() + static_cast<unsigned long>(backoffMinutes) * 60UL * 1000UL;
+	nextAllowedSend = millis() +
+		static_cast<unsigned long>(telemetryBackoffLevelMinutes()) * 60UL * 1000UL;
 	failureBackoffActive = true;
 }
 
-bool postTelemetryPayload(const String &url, const String &payload) {
+int postTelemetryPayload(const String &url, const String &payload) {
 	BearSSL::WiFiClientSecure client;
 	client.setInsecure();
-	client.setBufferSizes(1024, 512); // Limit TLS buffer sizes to save RAM and avoid heap exhaustion
-	client.setTimeout(1500);          // Bound blocking time on weak links.
+	client.setBufferSizes(1024, 512);
+	client.setTimeout(1500);
 
 	HTTPClient https;
 	https.setTimeout(1500);
 	if (!https.begin(client, url)) {
 		Debug.addLine(F("HTTPS endpoint setup failed"));
-		setUploadBackoff();
-		return false;
+		return -1;
 	}
+
 	https.addHeader("Content-Type", "application/json");
 	int status = https.POST(payload);
 	if (status < 0) {
 		Debug.addLine(String(F("HTTPS POST failed: ")) + https.errorToString(status));
-		setUploadBackoff();
 	} else if (status < 200 || status >= 300) {
 		Debug.addLine(String(F("HTTPS endpoint returned: ")) + status);
-		setUploadBackoff();
 	}
 	https.end();
-	return status >= 200 && status < 300;
+	return status;
+}
+
+bool appendFormat(char *buffer, size_t capacity, size_t &length, const char *format, ...) {
+	if (length >= capacity) {
+		return false;
+	}
+	va_list args;
+	va_start(args, format);
+	int written = vsnprintf(buffer + length, capacity - length, format, args);
+	va_end(args);
+	if (written < 0 || static_cast<size_t>(written) >= capacity - length) {
+		return false;
+	}
+	length += static_cast<size_t>(written);
+	return true;
+}
+
+void formatFixed(char *output, size_t capacity, int16_t value, uint32_t scale, uint8_t digits) {
+	int32_t signedValue = value;
+	uint32_t magnitude = static_cast<uint32_t>(signedValue < 0 ? -signedValue : signedValue);
+	snprintf(output, capacity, "%s%lu.%0*lu", signedValue < 0 ? "-" : "",
+	         static_cast<unsigned long>(magnitude / scale), digits,
+	         static_cast<unsigned long>(magnitude % scale));
+}
+
+bool appendFixedField(char *buffer, size_t capacity, size_t &length, bool &hasField,
+	                  const char *key, int16_t value, uint32_t scale, uint8_t digits) {
+	if (value == INT16_MIN) {
+		return true;
+	}
+	char fixed[20];
+	formatFixed(fixed, sizeof(fixed), value, scale, digits);
+	if (!appendFormat(buffer, capacity, length, "%s\"%s\":%s",
+	                  hasField ? "," : "", key, fixed)) {
+		return false;
+	}
+	hasField = true;
+	return true;
+}
+
+bool formatISpindelRecord(char *buffer, size_t capacity, const TelemetryISpindelRecord &record) {
+	size_t length = 0;
+	bool hasField = false;
+	if (!appendFormat(buffer, capacity, length, "{\"ts\":%lu000,\"values\":{",
+	                  static_cast<unsigned long>(record.t)) ||
+	    !appendFixedField(buffer, capacity, length, hasField,
+	                      "ispindel_temperature", record.temperature, 100, 2) ||
+	    !appendFixedField(buffer, capacity, length, hasField,
+	                      "ispindel_gravity", record.gravity, 10000, 4) ||
+	    !appendFixedField(buffer, capacity, length, hasField,
+	                      "ispindel_battery", record.battery, 100, 2) ||
+	    !appendFixedField(buffer, capacity, length, hasField,
+	                      "ispindel_angle", record.angle, 100, 2)) {
+		return false;
+	}
+	if (record.rssi != INT8_MIN &&
+	    !appendFormat(buffer, capacity, length, "%s\"ispindel_rssi\":%d",
+	                  hasField ? "," : "", static_cast<int>(record.rssi))) {
+		return false;
+	}
+	if (record.rssi != INT8_MIN) {
+		hasField = true;
+	}
+	if (record.interval != 0 &&
+	    !appendFormat(buffer, capacity, length, "%s\"ispindel_interval\":%lu",
+	                  hasField ? "," : "", static_cast<unsigned long>(record.interval))) {
+		return false;
+	}
+	return appendFormat(buffer, capacity, length, "}}");
+}
+
+bool formatBoxRecord(char *buffer, size_t capacity, const TelemetryBoxRecord &record,
+	                 const IPAddress &ipAddress, bool includeIpAddress) {
+	size_t length = 0;
+	bool hasField = false;
+	if (!appendFormat(buffer, capacity, length, "{\"ts\":%lu000,\"values\":{",
+	                  static_cast<unsigned long>(record.t)) ||
+	    !appendFixedField(buffer, capacity, length, hasField, "box_temperature",
+	                      record.box_temperature, 100, 2) ||
+	    !appendFixedField(buffer, capacity, length, hasField, "box_target",
+	                      record.box_target, 100, 2) ||
+	    !appendFixedField(buffer, capacity, length, hasField, "fermenter_temperature",
+	                      record.fermenter_temperature, 100, 2) ||
+	    !appendFixedField(buffer, capacity, length, hasField, "set_temperature",
+	                      record.set_temperature, 100, 2) ||
+	    !appendFixedField(buffer, capacity, length, hasField, "hot_temperature",
+	                      record.hot_temperature, 100, 2) ||
+	    !appendFixedField(buffer, capacity, length, hasField, "voltage",
+	                      record.voltage, 100, 2) ||
+	    !appendFixedField(buffer, capacity, length, hasField, "current",
+	                      record.current, 100, 2) ||
+	    !appendFixedField(buffer, capacity, length, hasField, "pwm",
+	                      record.pwm, 100, 2)) {
+		return false;
+	}
+	if (!appendFormat(buffer, capacity, length, "%s\"state\":\"%s\"",
+	                  hasField ? "," : "",
+	                  telemetryStateToString(static_cast<TelemetryState>(record.state)))) {
+		return false;
+	}
+	if (record.rssi != INT8_MIN &&
+	    !appendFormat(buffer, capacity, length, ",\"rssi\":%d", static_cast<int>(record.rssi))) {
+		return false;
+	}
+	if (includeIpAddress &&
+	    !appendFormat(buffer, capacity, length, ",\"ip_address\":\"%u.%u.%u.%u\"",
+	                  ipAddress[0], ipAddress[1], ipAddress[2], ipAddress[3])) {
+		return false;
+	}
+	return appendFormat(buffer, capacity, length, "}}");
+}
+
+bool canAppendRecord(const String &payload, const char *record, bool hasPrevious) {
+	size_t needed = payload.length() + (hasPrevious ? 1 : 0) + strlen(record) + 1;
+	return needed <= TELEMETRY_MAX_PAYLOAD;
+}
+
+bool canAppendTwoRecords(const String &payload, const char *first, const char *second) {
+	size_t needed = payload.length() + 1 + strlen(first) + 1 + strlen(second) + 1;
+	return needed <= TELEMETRY_MAX_PAYLOAD;
+}
+
+bool appendPayloadRecord(String &payload, const char *record, bool hasPrevious) {
+	return (!hasPrevious || payload.concat(',')) && payload.concat(record);
 }
 }
 
@@ -143,10 +256,7 @@ bool sendTelemetry() {
 			return false;
 		}
 	}
-
-	if (!clockValid()) {
-		millisSendDataInterval = millis();
-	} else if (telemetryQueuePending() == 0) {
+	if (!clockValid() || telemetryQueuePending() == 0) {
 		return false;
 	}
 
@@ -173,150 +283,149 @@ bool sendTelemetry() {
 	}
 	url += endpointPath;
 
-	if (clockValid()) {
-		String payload;
-		uint8_t recordsToSend = telemetryQueuePending();
-		if (recordsToSend > TELEMETRY_CHUNK_MAX) {
-			recordsToSend = TELEMETRY_CHUNK_MAX;
-		}
-		bool chunkIncludedISpindel = false;
+	String payload;
+	if (!payload.reserve(TELEMETRY_MAX_PAYLOAD)) {
+		Debug.addLine(F("Telemetry payload allocation failed"));
+		nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
+		return false;
+	}
+	if (!payload.concat('[')) {
+		Debug.addLine(F("Telemetry payload allocation failed"));
+		nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
+		return false;
+	}
 
-		while (recordsToSend > 0) {
-			payload = "";
-			payload.reserve(TELEMETRY_MAX_PAYLOAD);
-			payload = '[';
-			chunkIncludedISpindel = false;
+	uint8_t iSpindelCount = 0;
+	uint8_t boxCount = 0;
+	bool stoppedOnPayloadLimit = false;
+	char recordBuffer[320];
 
-			for (uint8_t i = 0; i < recordsToSend; ++i) {
-				if (i > 0) {
-					payload += ',';
-				}
-				const TelemetrySnapshot &snap = telemetryQueuePeek(i);
-				char tsBuf[16];
-				snprintf(tsBuf, sizeof(tsBuf), "%lu000", static_cast<unsigned long>(snap.t));
-
-				JsonDocument recDoc;
-				recDoc["ts"] = serialized(tsBuf);
-				JsonObject values = recDoc["values"].to<JsonObject>();
-
-				if (!isnan(snap.box_temperature)) values["box_temperature"] = snap.box_temperature;
-				if (!isnan(snap.box_target)) values["box_target"] = snap.box_target;
-				if (!isnan(snap.fermenter_temperature)) values["fermenter_temperature"] = snap.fermenter_temperature;
-				values["state"] = telemetryStateToString(static_cast<TelemetryState>(snap.state));
-				if (!isnan(snap.set_temperature)) values["set_temperature"] = snap.set_temperature;
-				if (!isnan(snap.hot_temperature)) values["hot_temperature"] = snap.hot_temperature;
-				if (!isnan(snap.voltage)) values["voltage"] = snap.voltage;
-				if (!isnan(snap.current)) values["current"] = snap.current;
-				if (!isnan(snap.hot_pwm)) values["hot_pwm"] = snap.hot_pwm;
-				if (!isnan(snap.pwm)) values["pwm"] = snap.pwm;
-				if (i == recordsToSend - 1) {
-					values["ip_address"] = WiFi.localIP().toString();
-				}
-				if (!isnan(snap.rssi)) values["rssi"] = static_cast<int>(snap.rssi);
-
-				if (!isnan(snap.ispindel_temperature)) {
-					values["ispindel_temperature"] = snap.ispindel_temperature;
-					chunkIncludedISpindel = true;
-				}
-				if (!isnan(snap.ispindel_gravity)) {
-					values["ispindel_gravity"] = snap.ispindel_gravity;
-					chunkIncludedISpindel = true;
-				}
-				if (!isnan(snap.ispindel_battery)) {
-					values["ispindel_battery"] = snap.ispindel_battery;
-					chunkIncludedISpindel = true;
-				}
-				if (!isnan(snap.ispindel_rssi)) {
-					values["ispindel_rssi"] = static_cast<int>(snap.ispindel_rssi);
-					chunkIncludedISpindel = true;
-				}
-
-				StringAppender out(payload);
-				serializeJson(recDoc, out);
-			}
-			payload += ']';
-
-			if (payload.length() <= TELEMETRY_MAX_PAYLOAD || recordsToSend == 1) {
-				break;
-			}
-			--recordsToSend;
-		}
-
-		logUploadAttemptBlock();
-		if (ESP.getMaxFreeBlockSize() < TELEMETRY_MIN_FREE_BLOCK) {
-			logUploadSkipped(2, F("Telemetry upload skipped: heap block too small"));
+	for (uint8_t i = 0; i < telemetryISpindelPending(); ++i) {
+		if (!formatISpindelRecord(recordBuffer, sizeof(recordBuffer), telemetryISpindelPeek(i))) {
+			Debug.addLine(F("Telemetry record formatting failed"));
 			nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
 			return false;
 		}
-
-		if (postTelemetryPayload(url, payload)) {
-			failureBackoffActive = false;
-			consecutiveUploadFailures = 0;
-			telemetryQueuePop(recordsToSend);
-			telemetryQueueIncrementChunksSent();
-			if (chunkIncludedISpindel) {
-				hasNewISpindelData = false;
-			}
-			if (telemetryQueuePending() > 0) {
-				nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
-			}
-			return true;
+		if (!canAppendRecord(payload, recordBuffer, iSpindelCount > 0) ||
+		    !appendPayloadRecord(payload, recordBuffer, iSpindelCount > 0)) {
+			stoppedOnPayloadLimit = true;
+			break;
 		}
-		return false;
-	} else {
-		float targetVal = isHeatingAutoTuning() ? getHeatingAutoTuneTargetTemp() : setTemp;
-		float pwmPct = (maxHotPWM > 0) ? (setHotPWM * 100.0f / static_cast<float>(maxHotPWM)) : 0.0f;
-		const char *currentState = setHotPWM > 0.0f ? "heating" :
-			(!isCoolerStopped() && isCoolingDemanded() ? "cooling" : "nothing");
+		++iSpindelCount;
+	}
 
-		JsonDocument doc;
-		doc["box_temperature"] = boxTemp;
-		doc["box_target"] = effectiveBoxTarget;
-		doc["fermenter_temperature"] = getFermenterTemp();
-		doc["state"] = currentState;
-		doc["set_temperature"] = targetVal;
-		doc["hot_temperature"] = HotTemp;
-		doc["voltage"] = measuredVoltage;
-		doc["current"] = measuredCurrent;
-		doc["hot_pwm"] = pwmPct;
-		doc["pwm"] = pwmPct;
-		doc["ip_address"] = WiFi.localIP().toString();
-		doc["rssi"] = WiFi.RSSI();
+	IPAddress ipAddress = WiFi.localIP();
+	if (!stoppedOnPayloadLimit) {
+		uint8_t boxLimit = telemetryBoxPending();
+		if (boxLimit > TELEMETRY_CHUNK_MAX) {
+			boxLimit = TELEMETRY_CHUNK_MAX;
+		}
 
-		if (hasNewISpindelData) {
-			// Forward all iSpindel fields from typed globals — no live JsonDocument needed
-			doc["ispindel_temperature"] = iSpindelTemperature;
-			doc["ispindel_gravity"]     = iSpindelGravity;
-			doc["ispindel_battery"]     = iSpindelBattery;
-			doc["ispindel_rssi"]        = iSpindelRssi;
-			// Forward any extra fields captured verbatim at receive time
-			for (uint8_t i = 0; i < iSpindelExtraCount; ++i) {
-				// Values were serialised as JSON; deserialise them back so they retain
-				// their original type (number, boolean, string) in the outgoing payload.
-				JsonDocument valDoc;
-				if (deserializeJson(valDoc, iSpindelExtraValues[i]) == DeserializationError::Ok) {
-					doc[iSpindelExtraKeys[i]] = valDoc.as<JsonVariant>();
+		char heldRecord[320];
+		bool hasHeldRecord = false;
+		for (uint8_t i = 0; i < boxLimit; ++i) {
+			const TelemetryBoxRecord &boxRecord = telemetryBoxPeek(i);
+			if (!hasHeldRecord) {
+				if (!formatBoxRecord(recordBuffer, sizeof(recordBuffer), boxRecord, ipAddress, true) ||
+				    !canAppendRecord(payload, recordBuffer, iSpindelCount > 0)) {
+					stoppedOnPayloadLimit = true;
+					break;
 				}
+				if (!formatBoxRecord(heldRecord, sizeof(heldRecord), boxRecord, ipAddress, false)) {
+					Debug.addLine(F("Telemetry record formatting failed"));
+					nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
+					return false;
+				}
+				hasHeldRecord = true;
+				continue;
 			}
+
+			if (!formatBoxRecord(recordBuffer, sizeof(recordBuffer), boxRecord, ipAddress, true)) {
+				Debug.addLine(F("Telemetry record formatting failed"));
+				nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
+				return false;
+			}
+			if (canAppendTwoRecords(payload, heldRecord, recordBuffer)) {
+				if (!appendPayloadRecord(payload, heldRecord, iSpindelCount + boxCount > 0)) {
+					Debug.addLine(F("Telemetry payload append failed"));
+					nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
+					return false;
+				}
+				++boxCount;
+				if (!formatBoxRecord(heldRecord, sizeof(heldRecord), boxRecord, ipAddress, false)) {
+					Debug.addLine(F("Telemetry record formatting failed"));
+					nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
+					return false;
+				}
+				continue;
+			}
+
+			if (!formatBoxRecord(recordBuffer, sizeof(recordBuffer),
+			                     telemetryBoxPeek(boxCount), ipAddress, true) ||
+			    !canAppendRecord(payload, recordBuffer, iSpindelCount + boxCount > 0) ||
+			    !appendPayloadRecord(payload, recordBuffer, iSpindelCount + boxCount > 0)) {
+				Debug.addLine(F("Telemetry payload append failed"));
+				nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
+				return false;
+			}
+			++boxCount;
+			hasHeldRecord = false;
+			stoppedOnPayloadLimit = true;
+			break;
 		}
 
-		String payload;
-		serializeJson(doc, payload);
-
-		logUploadAttemptBlock();
-		if (ESP.getMaxFreeBlockSize() < TELEMETRY_MIN_FREE_BLOCK) {
-			logUploadSkipped(2, F("Telemetry upload skipped: heap block too small"));
-			return false;
-		}
-
-		if (postTelemetryPayload(url, payload)) {
-			failureBackoffActive = false;
-			consecutiveUploadFailures = 0;
-			if (hasNewISpindelData) {
-				hasNewISpindelData = false;
+		if (hasHeldRecord) {
+			if (!formatBoxRecord(recordBuffer, sizeof(recordBuffer),
+			                     telemetryBoxPeek(boxCount), ipAddress, true) ||
+			    !canAppendRecord(payload, recordBuffer, iSpindelCount + boxCount > 0) ||
+			    !appendPayloadRecord(payload, recordBuffer, iSpindelCount + boxCount > 0)) {
+				Debug.addLine(F("Telemetry payload append failed"));
+				nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
+				return false;
 			}
-			return true;
+			++boxCount;
+		}
+	}
+
+	if (iSpindelCount == 0 && boxCount == 0) {
+		nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
+		return false;
+	}
+	if (!payload.concat(']')) {
+		Debug.addLine(F("Telemetry payload append failed"));
+		nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
+		return false;
+	}
+
+	logUploadAttemptBlock();
+	if (ESP.getMaxFreeBlockSize() < TELEMETRY_MIN_FREE_BLOCK) {
+		logUploadSkipped(2, F("Telemetry upload skipped: heap block too small"));
+		nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
+		return false;
+	}
+
+	int status = postTelemetryPayload(url, payload);
+	if (status >= 200 && status < 300) {
+		failureBackoffActive = false;
+		consecutiveUploadFailures = 0;
+		telemetryISpindelPop(iSpindelCount);
+		telemetryBoxPop(boxCount);
+		if (telemetryQueuePending() > 0) {
+			nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
+		}
+		return true;
+	}
+
+	if (status == 400 || status == 413 || status == 422) {
+		Debug.addLine(String(F("dropped chunk, HTTP ")) + status);
+		telemetryISpindelPop(iSpindelCount);
+		telemetryBoxPop(boxCount);
+		if (telemetryQueuePending() > 0) {
+			nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
 		}
 		return false;
 	}
+
+	setUploadBackoff();
+	return false;
 }

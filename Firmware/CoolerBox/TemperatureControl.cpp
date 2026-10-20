@@ -398,8 +398,6 @@ void processControl() {
 		if (clockValid()) {
 			captureTelemetrySnapshot();
 			millisSendDataInterval = millis();
-		} else {
-			sendTelemetry();
 		}
 	}
 }
