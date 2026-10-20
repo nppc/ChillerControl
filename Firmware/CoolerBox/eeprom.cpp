@@ -35,6 +35,19 @@ void applySettings(JsonDocument &doc) {
 	useISpindelTemp = doc["useISpindelTemp"] | true;
 	cascadeMaxOffset = CASCADE_MAX_OFFSET;
 	cascadeGain = 2.0f;
+	String tzSettingValue = doc["timezone"] | "";
+	tzSettingValue.trim();
+	bool validTzSetting = !tzSettingValue.isEmpty() && tzSettingValue.length() < sizeof(tzSetting);
+	for (size_t i = 0; validTzSetting && i < tzSettingValue.length(); ++i) {
+		unsigned char character = static_cast<unsigned char>(tzSettingValue[i]);
+		validTzSetting = character >= 0x20 && character <= 0x7E;
+	}
+	if (validTzSetting) {
+		tzSettingValue.toCharArray(tzSetting, sizeof(tzSetting));
+	} else {
+		strncpy(tzSetting, DEFAULT_TIMEZONE, sizeof(tzSetting));
+		tzSetting[sizeof(tzSetting) - 1] = '\0';
+	}
 
 	String s = doc["IntSSID"].as<String>();s.toCharArray(IntSSID,20);
 	s = doc["IntPASS"].as<String>();s.toCharArray(IntPASS,20);
@@ -108,6 +121,8 @@ void initDefaultSettings() {
 	useISpindelTemp = true;
 	cascadeMaxOffset = CASCADE_MAX_OFFSET;
 	cascadeGain = 2.0f;
+	strncpy(tzSetting, DEFAULT_TIMEZONE, sizeof(tzSetting));
+	tzSetting[sizeof(tzSetting) - 1] = '\0';
 	IntSSID[0] = '\0';
 	IntPASS[0] = '\0';
 	endpointAddress = "";
@@ -147,6 +162,7 @@ void saveSettings(){
 	doc["apHidden"] = apHidden;
 	doc["allowApWeb"] = allowApWeb;
 	doc["useISpindelTemp"] = useISpindelTemp;
+	doc["timezone"] = tzSetting;
 	doc["cascadeMaxOffset"] = cascadeMaxOffset;
 	doc["cascadeGain"] = cascadeGain;
 	doc["IntSSID"] = String(IntSSID);

@@ -689,6 +689,23 @@ async function setupPidsPage() {
 }
 
 async function setupNetworkPage() {
+  const timezonePreset = document.getElementById('timezonePreset');
+  const timezoneCustomField = document.getElementById('timezoneCustomField');
+  const timezoneCustom = document.getElementById('timezoneCustom');
+  const timezoneValue = document.getElementById('timezone');
+  const updateTimezoneValue = () => {
+    if (!timezonePreset || !timezoneValue) return;
+    const customSelected = timezonePreset.value === 'custom';
+    if (timezoneCustomField) timezoneCustomField.hidden = !customSelected;
+    timezoneValue.value = customSelected && timezoneCustom
+      ? timezoneCustom.value
+      : timezonePreset.value;
+  };
+  if (timezonePreset) timezonePreset.addEventListener('change', updateTimezoneValue);
+  if (timezoneCustom) timezoneCustom.addEventListener('input', updateTimezoneValue);
+  const networkForm = document.querySelector('.network-form');
+  if (networkForm) networkForm.addEventListener('submit', updateTimezoneValue);
+
   try {
     const res = await fetch('/api/network');
     if (!res.ok) return;
@@ -709,6 +726,18 @@ async function setupNetworkPage() {
     setIf('endpointAccessToken', data.endpointAccessToken);
     setIf('endpointPath', data.endpointPath);
     setIf('sendInterval', data.sendInterval);
+    if (timezonePreset && timezoneValue && data.timezone !== undefined) {
+      const matchingPreset = Array.from(timezonePreset.options)
+        .find(option => option.value === data.timezone);
+      if (matchingPreset) {
+        timezonePreset.value = data.timezone;
+        if (timezoneCustom) timezoneCustom.value = '';
+      } else {
+        timezonePreset.value = 'custom';
+        if (timezoneCustom) timezoneCustom.value = data.timezone;
+      }
+      updateTimezoneValue();
+    }
     const hidden = document.getElementById('apHidden');
     if (hidden) hidden.checked = data.apHidden === true;
     const allowLocalWeb = document.getElementById('allowApWeb');

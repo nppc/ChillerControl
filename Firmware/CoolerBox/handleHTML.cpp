@@ -91,6 +91,7 @@ void handleApiNetwork() {
 	doc["endpointAccessToken"] = endpointAccessToken;
 	doc["endpointPath"] = endpointPath;
 	doc["sendInterval"] = sendInterval;
+	doc["timezone"] = tzSetting;
 
 	String json;
 	serializeJson(doc, json);
@@ -416,6 +417,21 @@ void handleNetworkStore() {
 					sendInterval = requestedInterval;
 				} else {
 					Debug.addLine(F("Invalid telemetry interval"));
+				}
+			}
+			if (httpServer.argName(i) == "timezone") {
+				s.trim();
+				bool validTzSetting = !s.isEmpty() && s.length() < sizeof(tzSetting);
+				for (size_t j = 0; validTzSetting && j < s.length(); ++j) {
+					unsigned char character = static_cast<unsigned char>(s[j]);
+					validTzSetting = character >= 0x20 && character <= 0x7E;
+				}
+				if (validTzSetting) {
+					s.toCharArray(tzSetting, sizeof(tzSetting));
+					setenv("TZ", tzSetting, 1);
+					tzset();
+				} else {
+					Debug.addLine(F("Invalid timezone, kept previous"));
 				}
 			}
 		}

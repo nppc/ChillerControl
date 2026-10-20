@@ -1,6 +1,10 @@
 #include "CoolerBox.h"
 
+#include <time.h>
+
 DebugHTML Debug;
+const char DEFAULT_TIMEZONE[] = "EET-2EEST,M3.5.0/3,M10.5.0/4";
+char tzSetting[64] = "EET-2EEST,M3.5.0/3,M10.5.0/4";
 
 float boxTemp = 0.0f;	// current measured temperature inside the box
 float HotTemp = 0.0f;	// current measured temperature of hot radiator
@@ -255,6 +259,14 @@ bool isWebClientAllowed() {
 	return false;
 }
 
+bool clockValid() {
+	return time(nullptr) >= 1700000000;
+}
+
+uint32_t epochSeconds() {
+	return static_cast<uint32_t>(time(nullptr));
+}
+
 void setup() {
 	pinMode(HOT_FAN, OUTPUT);
 	digitalWrite(HOT_FAN, HIGH);
@@ -287,6 +299,8 @@ void setup() {
 	Serial.begin(115200);
 
 	restoreSettings();	// restore PID, boxMode, and voltage limits first
+	setenv("TZ", tzSetting, 1);
+	tzset();
 	maxVoltage_backup = maxVoltage; // update backup
 	initBootAutoStartState(useISpindelTemp);
 
@@ -312,6 +326,7 @@ void setup() {
 		primeDS18B20();
 	} else {
 		Serial.println("Connecting to external Wi-Fi...");
+		configTime(tzSetting, "pool.ntp.org", "time.google.com");
 		WiFi.mode(WIFI_AP_STA);
 		WiFi.setOutputPower(20.5f); // Always use maximum transmit power (+20.5 dBm)
 
@@ -423,6 +438,12 @@ void loop() {
 	// Monitor Wi-Fi connection state and reconnect if dropped
 	if (!emergencyMode && (millis() - millisWIFIcheckInterval >= 3000UL)) {
 		millisWIFIcheckInterval = millis();
+		static bool clockWasValid = false;
+		bool clockIsValid = time(nullptr) >= 1700000000;
+		if (clockIsValid && !clockWasValid) {
+			Debug.addLine(String(F("Time synchronized (timezone: ")) + tzSetting + F(")"));
+		}
+		clockWasValid = clockIsValid;
 		bool isConnected = (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0));
 		if (!emergencyMode) {
 			ensureNormalAp();
