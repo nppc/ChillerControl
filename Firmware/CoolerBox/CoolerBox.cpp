@@ -11,8 +11,6 @@ float HotTemp = 0.0f;	// current measured temperature of hot radiator
 float setTemp = 19.0f;	// preset temperature
 bool useISpindelTemp = true;
 float iSpindelTemperature = 0.0f;
-JsonDocument lastISpindelDoc;
-bool hasNewISpindelData = false;
 unsigned long lastISpindelMillis = 0;
 int iSpindelRssi = 0;
 float measuredVoltage = 0.0f; 
@@ -57,6 +55,7 @@ const IPAddress AP_SUBNET_MASK(255, 255, 255, 0);
 volatile bool pendingUpstreamIp = false;
 WiFiEventHandler staGotIpHandler;
 bool apStarted = false;
+volatile bool sendTelemetryNow = false;
 IPAddress configuredApIP(0, 0, 0, 0);
 IPAddress configuredApDns(0, 0, 0, 0);
 
@@ -162,8 +161,6 @@ bool ensureNormalAp() {
 			return false;
 		}
 		apStarted = true;
-		Serial.print(F("AP IP address: "));
-		Serial.println(WiFi.softAPIP());
 	}
 	updateApDns();
 	return true;
@@ -189,27 +186,53 @@ void handleISpindel() {
 		httpServer.send(400, "text/plain", "Missing body");
 		return;
 	}
-	DeserializationError error = deserializeJson(lastISpindelDoc, httpServer.arg("plain"));
+	JsonDocument localDoc;
+	DeserializationError error = deserializeJson(localDoc, httpServer.arg("plain"));
 	if (error) {
 		httpServer.send(400, "text/plain", "JSON parse error");
 		return;
 	}
-	if (lastISpindelDoc["temperature"].is<float>()) {
-		iSpindelTemperature = lastISpindelDoc["temperature"].as<float>();
+	if (localDoc["temperature"].is<float>()) {
+		iSpindelTemperature = localDoc["temperature"].as<float>();
 		lastISpindelMillis = millis();
 	}
-	if (lastISpindelDoc["RSSI"].is<int>()) {
-		iSpindelRssi = lastISpindelDoc["RSSI"].as<int>();
-	} else if (lastISpindelDoc["rssi"].is<int>()) {
-		iSpindelRssi = lastISpindelDoc["rssi"].as<int>();
+	if (localDoc["RSSI"].is<int>()) {
+		iSpindelRssi = localDoc["RSSI"].as<int>();
+	} else if (localDoc["rssi"].is<int>()) {
+		iSpindelRssi = localDoc["rssi"].as<int>();
 	}
-	if (lastISpindelDoc["interval"].is<int>()) {
-		int repInterval = lastISpindelDoc["interval"].as<int>();
+	uint32_t reportedInterval = 0;
+	if (localDoc["interval"].is<int>()) {
+		int repInterval = localDoc["interval"].as<int>();
 		if (repInterval >= 30 && repInterval <= 86400) {
 			iSpindelIntervalSec = repInterval;
+			reportedInterval = static_cast<uint32_t>(repInterval);
 		}
 	}
-	hasNewISpindelData = true;
+	if (clockValid()) {
+		TelemetryISpindelRecord record = {};
+		record.t = epochSeconds();
+		record.interval = reportedInterval;
+		record.temperature = localDoc["temperature"].is<float>()
+			? telemetryFixedPoint(localDoc["temperature"].as<float>(), 100) : INT16_MIN;
+		record.gravity = localDoc["gravity"].is<float>()
+			? telemetryFixedPoint(localDoc["gravity"].as<float>(), 10000) : INT16_MIN;
+		record.angle = localDoc["angle"].is<float>()
+			? telemetryFixedPoint(localDoc["angle"].as<float>(), 100) : INT16_MIN;
+		record.battery = localDoc["battery"].is<float>()
+			? telemetryFixedPoint(localDoc["battery"].as<float>(), 100) : INT16_MIN;
+		if (localDoc["RSSI"].is<int>()) {
+			int rssi = localDoc["RSSI"].as<int>();
+			record.rssi = static_cast<int8_t>(constrain(rssi, INT8_MIN + 1, INT8_MAX));
+		} else if (localDoc["rssi"].is<int>()) {
+			int rssi = localDoc["rssi"].as<int>();
+			record.rssi = static_cast<int8_t>(constrain(rssi, INT8_MIN + 1, INT8_MAX));
+		} else {
+			record.rssi = INT8_MIN;
+		}
+		telemetryISpindelPush(record);
+		sendTelemetryNow = true;
+	}
 	if (isBootAutoStartPending()) {
 		cancelBootAutoStart();
 		setCoolerStopped(LOW);
@@ -221,13 +244,13 @@ void handleISpindel() {
 	String logMsg = F("iSpindel data received: temp=");
 	logMsg += String(iSpindelTemperature, 2);
 	logMsg += F("°C");
-	if (lastISpindelDoc["gravity"].is<float>()) {
+	if (localDoc["gravity"].is<float>()) {
 		logMsg += F(", gravity=");
-		logMsg += String(lastISpindelDoc["gravity"].as<float>(), 4);
+		logMsg += String(localDoc["gravity"].as<float>(), 4);
 	}
-	if (lastISpindelDoc["battery"].is<float>()) {
+	if (localDoc["battery"].is<float>()) {
 		logMsg += F(", batt=");
-		logMsg += String(lastISpindelDoc["battery"].as<float>(), 2);
+		logMsg += String(localDoc["battery"].as<float>(), 2);
 		logMsg += F("V");
 	}
 	if (iSpindelRssi != 0) {
@@ -400,8 +423,6 @@ void setup() {
 	httpServer.on("/update", HTTP_GET, guardedHandler(handleUpdate));
 	httpServer.on("/update", HTTP_POST, guardedHandler(handleUpdateResult), guardedHandler(handleUpdateUpload));
 	httpServer.begin();
-	Serial.println("HTTP server started");
-
     millisSendDataInterval=millis();
     millisWIFIcheckInterval=millis();
 
@@ -475,6 +496,11 @@ void loop() {
 				Debug.addLine(String(F("Wi-Fi TX power set to maximum (20.5 dBm), RSSI: ")) + WiFi.RSSI() + F(" dBm"));
 			}
 		}
+	}
+
+	if (sendTelemetryNow || isTelemetryUploadDue()) {
+		sendTelemetryNow = false;
+		sendTelemetry();
 	}
 
 	httpServer.handleClient();

@@ -19,6 +19,7 @@
 #include "TemperatureControl.h"
 #include "DebugHTML.h"
 #include "DoubleResetDetector.h"
+#include "TelemetryQueue.h"
 
 #define I2C_ADDRESS 0x5E
 #define I2C_DATALEN 11
@@ -118,12 +119,12 @@ void handleApiNetwork();
 void handleApiDebug();
 void handleCSS();
 void handleScript();
-void sendTelemetry();
+bool sendTelemetry();
+bool isTelemetryUploadDue();
+uint8_t telemetryBackoffLevelMinutes();
 bool isWebClientAllowed();
 bool clockValid();
 uint32_t epochSeconds();
-extern JsonDocument lastISpindelDoc;
-extern bool hasNewISpindelData;
 extern unsigned long lastISpindelMillis;
 extern int iSpindelRssi;
 void handleISpindel();

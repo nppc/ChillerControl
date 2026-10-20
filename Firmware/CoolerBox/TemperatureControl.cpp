@@ -395,7 +395,9 @@ void processControl() {
 
 	// Send data to IoT
 	if (!emergencyMode && (millis() - millisSendDataInterval > static_cast<unsigned long>(sendInterval) * 1000UL)) {
-		millisSendDataInterval = millis();
-		sendTelemetry();
+		if (clockValid()) {
+			captureTelemetrySnapshot();
+			millisSendDataInterval = millis();
+		}
 	}
 }
