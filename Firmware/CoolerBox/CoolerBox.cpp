@@ -1,6 +1,9 @@
 #include "CoolerBox.h"
 
 #include <time.h>
+extern "C" {
+#include <user_interface.h>
+}
 
 DebugHTML Debug;
 const char DEFAULT_TIMEZONE[] = "EET-2EEST,M3.5.0/3,M10.5.0/4";
@@ -54,6 +57,7 @@ namespace {
 const IPAddress AP_SUBNET_MASK(255, 255, 255, 0);
 volatile bool pendingUpstreamIp = false;
 WiFiEventHandler staGotIpHandler;
+WiFiEventHandler apStationConnectedHandler;
 bool apStarted = false;
 volatile bool sendTelemetryNow = false;
 IPAddress configuredApIP(0, 0, 0, 0);
@@ -170,6 +174,36 @@ void onStationGotIp(const WiFiEventStationModeGotIP &) {
 	pendingUpstreamIp = true;
 }
 
+static char lastApStationMac[18] = "";
+static char iSpindelMac[18] = "";
+
+const char *getISpindelClientMac() {
+	if (iSpindelMac[0] == '\0') {
+		IPAddress remoteIp = httpServer.client().remoteIP();
+		struct station_info *stat_info = wifi_softap_get_station_info();
+		while (stat_info != nullptr) {
+			if (IPAddress(stat_info->ip.addr) == remoteIp) {
+				snprintf(iSpindelMac, sizeof(iSpindelMac), "%02X:%02X:%02X:%02X:%02X:%02X",
+				         stat_info->bssid[0], stat_info->bssid[1], stat_info->bssid[2],
+				         stat_info->bssid[3], stat_info->bssid[4], stat_info->bssid[5]);
+				break;
+			}
+			stat_info = STAILQ_NEXT(stat_info, next);
+		}
+		wifi_softap_free_station_info();
+		if (iSpindelMac[0] == '\0' && lastApStationMac[0] != '\0') {
+			strlcpy(iSpindelMac, lastApStationMac, sizeof(iSpindelMac));
+		}
+	}
+	return iSpindelMac;
+}
+
+void onApStationConnected(const WiFiEventSoftAPModeStationConnected &event) {
+	snprintf(lastApStationMac, sizeof(lastApStationMac), "%02X:%02X:%02X:%02X:%02X:%02X",
+	         event.mac[0], event.mac[1], event.mac[2],
+	         event.mac[3], event.mac[4], event.mac[5]);
+}
+
 ESP8266WebServer::THandlerFunction guardedHandler(ESP8266WebServer::THandlerFunction handler) {
 	return [handler]() {
 		if (!isWebClientAllowed()) {
@@ -241,28 +275,14 @@ void handleISpindel() {
 	updateCascadeTarget();
 	httpServer.send(200, "text/plain", "OK");
 
-	String logMsg = F("iSpindel data received: temp=");
-	logMsg += String(iSpindelTemperature, 2);
-	logMsg += F("°C");
-	if (localDoc["gravity"].is<float>()) {
-		logMsg += F(", gravity=");
-		logMsg += String(localDoc["gravity"].as<float>(), 4);
-	}
-	if (localDoc["battery"].is<float>()) {
-		logMsg += F(", batt=");
-		logMsg += String(localDoc["battery"].as<float>(), 2);
-		logMsg += F("V");
-	}
+	const char *clientMac = getISpindelClientMac();
+	String logMsg = F("iSpindel data received: MAC=");
+	logMsg += (clientMac[0] != '\0' ? clientMac : "unknown");
 	if (iSpindelRssi != 0) {
-		logMsg += F(", rssi=");
+		logMsg += F(", RSSI=");
 		logMsg += String(iSpindelRssi);
 		logMsg += F("dBm");
 	}
-	logMsg += F(", int=");
-	logMsg += String(iSpindelIntervalSec);
-	logMsg += F("s -> boxTarget=");
-	logMsg += String(effectiveBoxTarget, 2);
-	logMsg += F("°C");
 	Debug.addLine(logMsg);
 }
 
@@ -356,6 +376,7 @@ void setup() {
 		WiFi.setAutoConnect(false);
 		WiFi.setAutoReconnect(true);
 		staGotIpHandler = WiFi.onStationModeGotIP(onStationGotIp);
+		apStationConnectedHandler = WiFi.onSoftAPModeStationConnected(onApStationConnected);
 		WiFi.begin(IntSSID, IntPASS);
 
 		primeDS18B20();
