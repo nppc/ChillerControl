@@ -86,6 +86,7 @@ int postTelemetryPayload(const String &url, const String &payload) {
 	}
 
 	https.addHeader("Content-Type", "application/json");
+	https.addHeader("Connection", "close");
 	int status = https.POST(payload);
 	unsigned long duration = millis() - t0;
 

@@ -61,5 +61,6 @@ void handleStatus() {
 
 	String json;
 	serializeJson(doc, json);
+	httpServer.sendHeader("Connection", "close");
 	httpServer.send(200, "application/json", json);
 }

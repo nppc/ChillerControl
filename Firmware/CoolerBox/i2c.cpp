@@ -37,6 +37,9 @@ void initI2C() {
 }
 
 void sendI2Cdata(bool force, bool sendLimits) {
+	if (!I2C_PRESENT && !force) {
+		return;
+	}
 	static uint8_t lastSentVoltageCommand = 0xFF;
 	static uint8_t lastSentSpeedCommand = 0xFF;
 	static uint8_t lastSentMinVoltCommand = 0xFF;
@@ -110,6 +113,19 @@ void sendI2Cdata(bool force, bool sendLimits) {
 }
 
 void readI2Cdata() {
+	static unsigned long lastOfflineProbeMillis = 0;
+	if (!I2C_PRESENT) {
+		if (millis() - lastOfflineProbeMillis < 10000UL) {
+			return; // Check disconnected slave only once every 10 seconds
+		}
+		lastOfflineProbeMillis = millis();
+		// Quick 0-byte probe to check if slave has powered on / reconnected
+		Wire.beginTransmission(I2C_ADDRESS);
+		if (Wire.endTransmission() != 0) {
+			return; // Still offline, avoid blocking on 11-byte read
+		}
+	}
+
 	bool readSucceeded = false;
 
 	bool heaterWasActive = (setHotPWM > 0.0f);

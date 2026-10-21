@@ -60,6 +60,7 @@ void handleApiSettings() {
 
 	String json;
 	serializeJson(doc, json);
+	httpServer.sendHeader("Connection", "close");
 	httpServer.send(200, "application/json", json);
 }
 
@@ -74,6 +75,7 @@ void handleApiPIDs() {
 
 	String json;
 	serializeJson(doc, json);
+	httpServer.sendHeader("Connection", "close");
 	httpServer.send(200, "application/json", json);
 }
 
@@ -95,6 +97,7 @@ void handleApiNetwork() {
 
 	String json;
 	serializeJson(doc, json);
+	httpServer.sendHeader("Connection", "close");
 	httpServer.send(200, "application/json", json);
 }
 
@@ -180,6 +183,7 @@ void handleApiDebug() {
 
 	String json;
 	serializeJson(doc, json);
+	httpServer.sendHeader("Connection", "close");
 	httpServer.send(200, "application/json", json);
 }
 
@@ -295,6 +299,7 @@ void handleApiAutotune() {
 
 	String json;
 	serializeJson(doc, json);
+	httpServer.sendHeader("Connection", "close");
 	httpServer.send(200, "application/json", json);
 }
 
@@ -339,6 +344,7 @@ void handleSetTemp() {
 	doc["setTemp"] = setTemp;
 	String json;
 	serializeJson(doc, json);
+	httpServer.sendHeader("Connection", "close");
 	httpServer.send(200, "application/json", json);
 }
 
