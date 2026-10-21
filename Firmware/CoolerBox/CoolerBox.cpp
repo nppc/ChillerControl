@@ -644,11 +644,7 @@ void loop() {
 		} else {
 			if (!wifiWasConnected) {
 				wifiWasConnected = true;
-#ifdef WIFI_DEBUG
 				Debug.addLine(String(F("Wi-Fi connected: ")) + WiFi.localIP().toString());
-#else
-				Debug.addLine(F("Wi-Fi connected"));
-#endif
 			}
 
 			// Ensure TX power remains at maximum (+20.5 dBm)
@@ -664,25 +660,18 @@ void loop() {
 #ifdef STALL_DEBUG
 	setLoopStage("hb");
 #endif
+#ifdef WIFI_DEBUG
 	static unsigned long lastHeartbeatMillis = 0;
 	if (millis() - lastHeartbeatMillis >= 60000UL) {
 		lastHeartbeatMillis = millis();
-#ifdef WIFI_DEBUG
 		Debug.addLine(String(F("HB: hp=")) + ESP.getFreeHeap() +
 		              F(" blk=") + ESP.getMaxFreeBlockSize() +
 		              F(" stk=") + ESP.getFreeContStack() +
 		              F(" pcb=") + getTcpActivePcbCount() + F("/") + getTcpTwPcbCount() +
 		              F(" box=") + telemetryBoxPending() +
 		              F(" isp=") + telemetryISpindelPending());
-#else
-		Debug.addLine(String(F("HB: hp=")) + ESP.getFreeHeap() +
-		              F(" blk=") + ESP.getMaxFreeBlockSize() +
-		              F(" stk=") + ESP.getFreeContStack() +
-		              F(" box=") + telemetryBoxPending() +
-		              F(" isp=") + telemetryISpindelPending());
-#endif
 	}
-
+#endif
 #ifdef STALL_DEBUG
 	setLoopStage("tel");
 #endif

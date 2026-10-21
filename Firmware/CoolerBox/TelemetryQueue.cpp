@@ -104,6 +104,7 @@ const char *telemetryStateToString(TelemetryState state) {
 }
 
 void captureTelemetrySnapshot() {
+	static uint8_t previousPending = 0;
 	TelemetryBoxRecord record = {};
 	record.t = epochSeconds();
 	record.box_temperature = telemetryFixedPoint(boxTemp, 100);
@@ -123,11 +124,15 @@ void captureTelemetrySnapshot() {
 
 	boxRing.push(record);
 
-	Debug.addLine(String(F("Snap #")) + boxRing.pending() +
-	              F(" str=") + boxRing.getStride() +
-	              F(" hp=") + ESP.getFreeHeap() +
-	              F(" blk=") + ESP.getMaxFreeBlockSize() +
-	              F(" stk=") + ESP.getFreeContStack());
+	uint8_t pending = boxRing.pending();
+	if (pending > 1 && pending > previousPending) {
+		Debug.addLine(String(F("Snap #")) + pending +
+		              F(" str=") + boxRing.getStride() +
+		              F(" hp=") + ESP.getFreeHeap() +
+		              F(" blk=") + ESP.getMaxFreeBlockSize() +
+		              F(" stk=") + ESP.getFreeContStack());
+	}
+	previousPending = pending;
 }
 
 void telemetryISpindelPush(const TelemetryISpindelRecord &record) {
