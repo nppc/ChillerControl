@@ -55,7 +55,7 @@ timestamp. Box values include temperatures, voltage, current, PWM, state, RSSI,
 and the device's current LAN IP address on the last box record in the chunk.
 iSpindel values include temperature, gravity, battery, RSSI, angle, and interval.
 Values are sent at their stored precision (temperatures/electrical values and
-angle/battery at two decimals; gravity at four decimals). Missing measurements
+angle/battery at two decimals; gravity at three decimals). Missing measurements
 are omitted. Chunks rejected with HTTP 400, 413, or 422 are dropped rather than
 retried; other failed uploads remain queued and use progressive backoff.
 Server certificate validation is disabled; configure this only on a network

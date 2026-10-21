@@ -321,7 +321,7 @@ void handleISpindel() {
 		record.temperature = localDoc["temperature"].is<float>()
 			? telemetryFixedPoint(localDoc["temperature"].as<float>(), 100) : INT16_MIN;
 		record.gravity = localDoc["gravity"].is<float>()
-			? telemetryFixedPoint(localDoc["gravity"].as<float>(), 10000) : INT16_MIN;
+			? telemetryFixedPoint(localDoc["gravity"].as<float>(), 1000) : INT16_MIN;
 		record.angle = localDoc["angle"].is<float>()
 			? telemetryFixedPoint(localDoc["angle"].as<float>(), 100) : INT16_MIN;
 		record.battery = localDoc["battery"].is<float>()

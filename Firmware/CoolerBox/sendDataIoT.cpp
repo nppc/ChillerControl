@@ -149,7 +149,7 @@ bool formatISpindelRecord(char *buffer, size_t capacity, const TelemetryISpindel
 	    !appendFixedField(buffer, capacity, length, hasField,
 	                      "ispindel_temperature", record.temperature, 100, 2) ||
 	    !appendFixedField(buffer, capacity, length, hasField,
-	                      "ispindel_gravity", record.gravity, 10000, 4) ||
+	                      "ispindel_gravity", record.gravity, 1000, 3) ||
 	    !appendFixedField(buffer, capacity, length, hasField,
 	                      "ispindel_battery", record.battery, 100, 2) ||
 	    !appendFixedField(buffer, capacity, length, hasField,
