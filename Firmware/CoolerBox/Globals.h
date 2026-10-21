@@ -1,5 +1,8 @@
-// Default values
+// Debugging options
 //#define WIFI_DEBUG
+//#define STALL_DEBUG
+
+// Default values
 #define DEFAULT_HYSTERESIS 0.05  // ±0.05 °C (0.10 °C total deadband span)
 #define DEFAULT_PID_KP 60.0        
 #define DEFAULT_PID_KI 0.080

@@ -1,12 +1,17 @@
 #include "CoolerBox.h"
 
 #include <time.h>
+#ifdef STALL_DEBUG
 #include <Ticker.h>
+#endif
 extern "C" {
+#ifdef WIFI_DEBUG
 #include <user_interface.h>
 #include <lwip/priv/tcp_priv.h>
+#endif
 }
 
+#ifdef WIFI_DEBUG
 uint8_t getTcpActivePcbCount() {
 	uint8_t count = 0;
 	for (struct tcp_pcb *pcb = tcp_active_pcbs; pcb != nullptr; pcb = pcb->next) {
@@ -22,15 +27,21 @@ uint8_t getTcpTwPcbCount() {
 	}
 	return count;
 }
+#endif
 
+#ifdef STALL_DEBUG
 struct RtcStallDiag {
 	uint32_t magic;
 	char stage[8];
 	uint32_t durationMs;
 	uint32_t heap;
+#ifdef WIFI_DEBUG
 	uint8_t pcbActive;
 	uint8_t pcbTw;
 	uint8_t pad[2];
+#else
+	uint8_t reserved[4];
+#endif
 };
 
 static Ticker stallTicker;
@@ -45,17 +56,25 @@ static void IRAM_ATTR checkStall() {
 		stallCount++;
 		if (stallCount == 3) {
 			uint32_t dur = millis() - stageStartMillis;
+#ifdef WIFI_DEBUG
 			ets_printf("\n*** STALL DETECTED in [%s] for %u ms (hp=%u stk=%u pcb=%u/%u) ***\n",
 			           currentLoopStage, dur,
 			           ESP.getFreeHeap(), ESP.getFreeContStack(),
 			           getTcpActivePcbCount(), getTcpTwPcbCount());
-			RtcStallDiag diag;
+#else
+			ets_printf("\n*** STALL DETECTED in [%s] for %u ms (hp=%u stk=%u) ***\n",
+			           currentLoopStage, dur,
+			           ESP.getFreeHeap(), ESP.getFreeContStack());
+#endif
+			RtcStallDiag diag = {};
 			diag.magic = 0x5354414C;
 			strlcpy(diag.stage, (const char *)currentLoopStage, sizeof(diag.stage));
 			diag.durationMs = dur;
 			diag.heap = ESP.getFreeHeap();
+#ifdef WIFI_DEBUG
 			diag.pcbActive = getTcpActivePcbCount();
 			diag.pcbTw = getTcpTwPcbCount();
+#endif
 			ESP.rtcUserMemoryWrite(70, (uint32_t *)&diag, sizeof(diag));
 		}
 	} else {
@@ -68,6 +87,7 @@ static inline void setLoopStage(const char *stage) {
 	currentLoopStage = stage;
 	stageStartMillis = millis();
 }
+#endif
 
 DebugHTML Debug;
 const char DEFAULT_TIMEZONE[] = "EET-2EEST,M3.5.0/3,M10.5.0/4";
@@ -408,15 +428,22 @@ void setup() {
 	pinMode(LED_BUILTIN, OUTPUT);
 	digitalWrite(LED_BUILTIN, HIGH);
 
+#ifdef STALL_DEBUG
 	RtcStallDiag prevStall;
 	if (ESP.rtcUserMemoryRead(70, (uint32_t *)&prevStall, sizeof(prevStall)) && prevStall.magic == 0x5354414C) {
+#ifdef WIFI_DEBUG
 		Debug.addLine(String(F("Prev stall: [")) + prevStall.stage + F("] ") + prevStall.durationMs +
 		              F("ms hp=") + prevStall.heap + F(" pcb=") + prevStall.pcbActive + F("/") + prevStall.pcbTw);
+#else
+		Debug.addLine(String(F("Prev stall: [")) + prevStall.stage + F("] ") + prevStall.durationMs +
+		              F("ms hp=") + prevStall.heap);
+#endif
 		prevStall.magic = 0;
 		ESP.rtcUserMemoryWrite(70, (uint32_t *)&prevStall, sizeof(prevStall));
 	}
 
 	stallTicker.attach(1.0f, checkStall);
+#endif
 
 	drd.detectDoubleReset();
 	emergencyMode = drd.isDoubleResetDetected();
@@ -561,7 +588,9 @@ void handleTemperatureControl() {
 
 void loop() {
 	Debug.stopSerialLogging();
+#ifdef STALL_DEBUG
 	loopCycleCounter++;
+#endif
 	digitalWrite(LED_BUILTIN, ((millis() / 500) % 2 == 0) ? LOW : HIGH);
 
 	if (Update.isRunning()) {
@@ -571,7 +600,9 @@ void loop() {
 		return;
 	}
 
+#ifdef STALL_DEBUG
 	setLoopStage("drd");
+#endif
 	drd.loop();
 
 	if (pendingUpstreamIp) {
@@ -581,7 +612,9 @@ void loop() {
 		}
 	}
 
+#ifdef STALL_DEBUG
 	setLoopStage("wifi");
+#endif
 	// Monitor Wi-Fi connection state and reconnect if dropped
 	if (!emergencyMode && (millis() - millisWIFIcheckInterval >= 3000UL)) {
 		millisWIFIcheckInterval = millis();
@@ -628,70 +661,66 @@ void loop() {
 		}
 	}
 
+#ifdef STALL_DEBUG
 	setLoopStage("hb");
+#endif
 	static unsigned long lastHeartbeatMillis = 0;
 	if (millis() - lastHeartbeatMillis >= 60000UL) {
 		lastHeartbeatMillis = millis();
+#ifdef WIFI_DEBUG
 		Debug.addLine(String(F("HB: hp=")) + ESP.getFreeHeap() +
 		              F(" blk=") + ESP.getMaxFreeBlockSize() +
 		              F(" stk=") + ESP.getFreeContStack() +
 		              F(" pcb=") + getTcpActivePcbCount() + F("/") + getTcpTwPcbCount() +
 		              F(" box=") + telemetryBoxPending() +
 		              F(" isp=") + telemetryISpindelPending());
+#else
+		Debug.addLine(String(F("HB: hp=")) + ESP.getFreeHeap() +
+		              F(" blk=") + ESP.getMaxFreeBlockSize() +
+		              F(" stk=") + ESP.getFreeContStack() +
+		              F(" box=") + telemetryBoxPending() +
+		              F(" isp=") + telemetryISpindelPending());
+#endif
 	}
 
+#ifdef STALL_DEBUG
 	setLoopStage("tel");
+#endif
 	if (sendTelemetryNow || isTelemetryUploadDue()) {
-#ifdef WIFI_DEBUG
-		bool wasNow = sendTelemetryNow;
-#endif
 		sendTelemetryNow = false;
-		unsigned long tTel = millis();
 		sendTelemetry();
-		unsigned long dTel = millis() - tTel;
-		if (dTel > 500) {
-#ifdef WIFI_DEBUG
-			Debug.addLine(String(F("Slow tel (")) + (wasNow ? F("now") : F("due")) + F("): ") + dTel + F("ms"));
-#endif
-		}
 		yield();
 	}
 
+#ifdef STALL_DEBUG
 	setLoopStage("http");
-	unsigned long tHttp = millis();
+#endif
 	httpServer.handleClient();
-	unsigned long dHttp = millis() - tHttp;
-	if (dHttp > 500) {
-		Debug.addLine(String(F("Slow http: ")) + dHttp + F("ms pcb=") +
-		              getTcpActivePcbCount() + F("/") + getTcpTwPcbCount());
-	}
 	delay(1);
 	
+#ifdef STALL_DEBUG
 	setLoopStage("temp");
-	unsigned long tTemp = millis();
+#endif
 	handleTemperatureControl();
-	unsigned long dTemp = millis() - tTemp;
-	if (dTemp > 200) {
-		Debug.addLine(String(F("Slow temp: ")) + dTemp + F("ms"));
-	}
 	
+#ifdef STALL_DEBUG
 	setLoopStage("i2c");
+#endif
 	if (millis() - millisReadI2CDataInterval > (I2C_INTERVAL * 1000UL)) {
 		millisReadI2CDataInterval = millis();
-		unsigned long tI2c = millis();
 		readI2Cdata();
-		unsigned long dI2c = millis() - tI2c;
-		if (dI2c > 200) {
-			Debug.addLine(String(F("Slow i2c: ")) + dI2c + F("ms"));
-		}
 	}
 	
+#ifdef STALL_DEBUG
 	setLoopStage("led");
+#endif
 	if (measuredVoltage < 2.0f) {
 		digitalWrite(LED_WARN, LOW);
 	} else {
 		digitalWrite(LED_WARN, HIGH);
 	}
 
+#ifdef STALL_DEBUG
 	setLoopStage("idle");
+#endif
 }

@@ -106,6 +106,8 @@ Detailed Wi-Fi/AP and telemetry transport diagnostics, including iSpindel
 client MAC/RSSI, are compiled only when `WIFI_DEBUG` is defined in
 `CoolerBox/Globals.h`. Comment out that definition to disable the detailed
 diagnostics. Generic status and error messages remain available either way.
+The stall-detection ticker and loop-stage diagnostics are disabled by default;
+define `STALL_DEBUG` in `CoolerBox/Globals.h` to enable them.
 
 In emergency mode (double-reset recovery), the router connection is not started.
 The device provides an open AP named `Cooler` at `192.168.4.1`, with up to four
