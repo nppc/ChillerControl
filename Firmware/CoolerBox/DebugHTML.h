@@ -10,10 +10,13 @@ private:
 	char debugStr[DEBUG_MAX_RECORDS][DEBUG_LINE_MAX_LEN];
 	uint32_t recordMillis[DEBUG_MAX_RECORDS] = {};
 	int curRecord = 0;
+	bool serialLogging = true;
 
 	void storeLine(const char *strLine) {
 		if (!strLine) return;
-		Serial.println(strLine);
+		if (serialLogging) {
+			Serial.println(strLine);
+		}
 		int prev = (curRecord + DEBUG_MAX_RECORDS - 1) % DEBUG_MAX_RECORDS;
 		if (debugStr[prev][0] != '\0' && strcmp(debugStr[prev], strLine) == 0 &&
 		    (millis() - recordMillis[prev]) < 10000UL) {
@@ -28,10 +31,15 @@ private:
 public:
 	void init() {
 		curRecord = 0;
+		serialLogging = true;
 		for (int i = 0; i < DEBUG_MAX_RECORDS; i++) {
 			debugStr[i][0] = '\0';
 			recordMillis[i] = 0;
 		}
+	}
+
+	void stopSerialLogging() {
+		serialLogging = false;
 	}
 
 	void addLine(const String &strLine) {

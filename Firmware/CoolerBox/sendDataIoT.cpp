@@ -67,11 +67,13 @@ void setUploadBackoff() {
 }
 
 int postTelemetryPayload(const String &url, const String &payload) {
+#ifdef WIFI_DEBUG
 	unsigned long t0 = millis();
 	Debug.addLine(String(F("POST start: len=")) + payload.length() +
 	              F(" hp=") + ESP.getFreeHeap() +
 	              F(" blk=") + ESP.getMaxFreeBlockSize() +
 	              F(" stk=") + ESP.getFreeContStack());
+#endif
 
 	BearSSL::WiFiClientSecure client;
 	client.setInsecure();
@@ -88,11 +90,13 @@ int postTelemetryPayload(const String &url, const String &payload) {
 	https.addHeader("Content-Type", "application/json");
 	https.addHeader("Connection", "close");
 	int status = https.POST(payload);
+#ifdef WIFI_DEBUG
 	unsigned long duration = millis() - t0;
 
 	Debug.addLine(String(F("POST done: st=")) + status +
 	              F(" in ") + duration + F("ms hp=") + ESP.getFreeHeap() +
 	              F(" stk=") + ESP.getFreeContStack());
+#endif
 
 	if (status < 0) {
 		Debug.addLine(String(F("HTTPS POST failed: ")) + https.errorToString(status));
@@ -260,7 +264,9 @@ bool sendTelemetry() {
 		return false;
 	}
 	if (httpServer.client().connected()) {
+#ifdef WIFI_DEBUG
 		logUploadSkipped(1, F("Skip: HTTP client connected"));
+#endif
 		return false;
 	}
 	if (lastISpindelMillis != 0) {
@@ -288,11 +294,13 @@ bool sendTelemetry() {
 		return false;
 	}
 
+#ifdef WIFI_DEBUG
 	Debug.addLine(String(F("TX prep: box=")) + telemetryBoxPending() +
 	              F(" isp=") + telemetryISpindelPending() +
 	              F(" hp=") + ESP.getFreeHeap() +
 	              F(" pcb=") + getTcpActivePcbCount() + F("/") + getTcpTwPcbCount() +
 	              F(" stk=") + ESP.getFreeContStack());
+#endif
 
 	String url = endpointAddress;
 	while (url.endsWith("/")) {
@@ -434,9 +442,11 @@ bool sendTelemetry() {
 		telemetryISpindelPop(iSpindelCount);
 		telemetryBoxPop(boxCount);
 		telemetryQueueReset();
+#ifdef WIFI_DEBUG
 		Debug.addLine(String(F("TX OK: sent box=")) + boxCount + F(" isp=") + iSpindelCount +
 		              F(" rem box=") + telemetryBoxPending() + F(" isp=") + telemetryISpindelPending() +
 		              F(" pcb=") + getTcpActivePcbCount() + F("/") + getTcpTwPcbCount());
+#endif
 		if (telemetryQueuePending() > 0) {
 			nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
 		}

@@ -522,25 +522,26 @@ void handleUpdateUpload() {
 		}
 
 		WiFiUDP::stopAll();
-		Serial.printf("OTA upload started: %s (%s, max size: %u)\n",
-		              upload.filename.c_str(), filesystem ? "LittleFS" : "firmware", (unsigned int)maxUpdateSize);
+		Debug.addLine(String(F("OTA upload started: ")) + upload.filename +
+		              (filesystem ? F(" (LittleFS, max size: ") : F(" (firmware, max size: ")) +
+		              maxUpdateSize + F(")"));
 
 		if (!Update.begin(maxUpdateSize, command)) {
-			Update.printError(Serial);
+			Debug.addLine(F("OTA update begin failed"));
 			updateFailed = true;
 		}
 	} else if (upload.status == UPLOAD_FILE_WRITE) {
 		if (!updateFailed && Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
-			Update.printError(Serial);
+			Debug.addLine(F("OTA update write failed"));
 			updateFailed = true;
 		}
 	} else if (upload.status == UPLOAD_FILE_END) {
 		if (!updateFailed && !Update.end(true)) {
-			Update.printError(Serial);
+			Debug.addLine(F("OTA update finalize failed"));
 			updateFailed = true;
 		}
 		updateReceived = true;
-		Serial.printf("OTA upload finished: %u bytes\n", (unsigned int)upload.totalSize);
+		Debug.addLine(String(F("OTA upload finished: ")) + upload.totalSize + F(" bytes"));
 	}
 }
 

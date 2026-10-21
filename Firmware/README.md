@@ -102,8 +102,10 @@ the device AP. These endpoints are not subject to the ordinary web-page access
 restriction. Other web requests from the AP are blocked by default unless
 **Allow web pages on the local access point** is enabled in Network settings.
 Connections through the router are not blocked by that AP-only restriction.
-The iSpindel's MAC address and reported RSSI are included in the Debug log when
-data is received.
+Detailed Wi-Fi/AP and telemetry transport diagnostics, including iSpindel
+client MAC/RSSI, are compiled only when `WIFI_DEBUG` is defined in
+`CoolerBox/Globals.h`. Comment out that definition to disable the detailed
+diagnostics. Generic status and error messages remain available either way.
 
 In emergency mode (double-reset recovery), the router connection is not started.
 The device provides an open AP named `Cooler` at `192.168.4.1`, with up to four

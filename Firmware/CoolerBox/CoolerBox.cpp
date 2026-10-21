@@ -121,7 +121,9 @@ namespace {
 const IPAddress AP_SUBNET_MASK(255, 255, 255, 0);
 volatile bool pendingUpstreamIp = false;
 WiFiEventHandler staGotIpHandler;
+#ifdef WIFI_DEBUG
 WiFiEventHandler apStationConnectedHandler;
+#endif
 volatile bool sendTelemetryNow = false;
 bool apStarted = false;
 IPAddress configuredApIP(0, 0, 0, 0);
@@ -214,7 +216,9 @@ bool ensureNormalAp() {
 		configuredApDns = IPAddress(0, 0, 0, 0);
 		Debug.addLine(String(F("AP subnet configured: ")) + safeAddress.toString());
 		if (WiFi.status() == WL_CONNECTED && safeAddress != IPAddress(192, 168, 4, 1)) {
+#ifdef WIFI_DEBUG
 			Debug.addLine(F("Warning: upstream subnet overlaps the default AP subnet; the AP was moved"));
+#endif
 		}
 	}
 	if (!apStarted) {
@@ -229,8 +233,9 @@ bool ensureNormalAp() {
 			return false;
 		}
 		apStarted = true;
-		Serial.print(F("AP IP address: "));
-		Serial.println(WiFi.softAPIP());
+#ifdef WIFI_DEBUG
+		Debug.addLine(String(F("AP IP address: ")) + WiFi.softAPIP().toString());
+#endif
 	}
 	updateApDns();
 	return true;
@@ -240,6 +245,7 @@ void onStationGotIp(const WiFiEventStationModeGotIP &) {
 	pendingUpstreamIp = true;
 }
 
+#ifdef WIFI_DEBUG
 static char lastApStationMac[18] = "";
 
 String getISpindelClientMac() {
@@ -270,6 +276,7 @@ void onApStationConnected(const WiFiEventSoftAPModeStationConnected &event) {
 	         event.mac[0], event.mac[1], event.mac[2],
 	         event.mac[3], event.mac[4], event.mac[5]);
 }
+#endif
 
 ESP8266WebServer::THandlerFunction guardedHandler(ESP8266WebServer::THandlerFunction handler) {
 	return [handler]() {
@@ -345,6 +352,7 @@ void handleISpindel() {
 	updateCascadeTarget();
 	httpServer.send(200, "text/plain", "OK");
 
+#ifdef WIFI_DEBUG
 	String clientMac = getISpindelClientMac();
 	String logMsg = F("iSpindel data received: MAC=");
 	logMsg += (clientMac.length() > 0 ? clientMac : F("unknown"));
@@ -354,6 +362,9 @@ void handleISpindel() {
 		logMsg += F("dBm");
 	}
 	Debug.addLine(logMsg);
+#else
+	Debug.addLine(F("iSpindel data received"));
+#endif
 }
 
 
@@ -460,7 +471,9 @@ void setup() {
 		WiFi.setAutoConnect(false);
 		WiFi.setAutoReconnect(true);
 		staGotIpHandler = WiFi.onStationModeGotIP(onStationGotIp);
+#ifdef WIFI_DEBUG
 		apStationConnectedHandler = WiFi.onSoftAPModeStationConnected(onApStationConnected);
+#endif
 		WiFi.begin(IntSSID, IntPASS);
 
 		primeDS18B20();
@@ -547,6 +560,7 @@ void handleTemperatureControl() {
 }
 
 void loop() {
+	Debug.stopSerialLogging();
 	loopCycleCounter++;
 	digitalWrite(LED_BUILTIN, ((millis() / 500) % 2 == 0) ? LOW : HIGH);
 
@@ -597,7 +611,11 @@ void loop() {
 		} else {
 			if (!wifiWasConnected) {
 				wifiWasConnected = true;
+#ifdef WIFI_DEBUG
 				Debug.addLine(String(F("Wi-Fi connected: ")) + WiFi.localIP().toString());
+#else
+				Debug.addLine(F("Wi-Fi connected"));
+#endif
 			}
 
 			// Ensure TX power remains at maximum (+20.5 dBm)
@@ -624,13 +642,17 @@ void loop() {
 
 	setLoopStage("tel");
 	if (sendTelemetryNow || isTelemetryUploadDue()) {
+#ifdef WIFI_DEBUG
 		bool wasNow = sendTelemetryNow;
+#endif
 		sendTelemetryNow = false;
 		unsigned long tTel = millis();
 		sendTelemetry();
 		unsigned long dTel = millis() - tTel;
 		if (dTel > 500) {
+#ifdef WIFI_DEBUG
 			Debug.addLine(String(F("Slow tel (")) + (wasNow ? F("now") : F("due")) + F("): ") + dTel + F("ms"));
+#endif
 		}
 		yield();
 	}
