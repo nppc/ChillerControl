@@ -10,6 +10,10 @@ const float CASCADE_ADAPT_DEADBAND = 0.15f;
 const uint8_t CASCADE_ADAPT_READINGS = 3;
 
 const float DEFAULT_CASCADE_GAIN = 2.0f;
+const float FERMENTER_PREDICTION_HORIZON_HOURS = 1.0f;
+const float FERMENTER_MAX_RATE_C_PER_HOUR = 0.75f;
+const float FERMENTER_MAX_PREDICTION_C = 0.75f;
+const float FERMENTER_RATE_FILTER_ALPHA = 0.4f;
 float heatingCascadeGain = DEFAULT_CASCADE_GAIN;
 float coolingCascadeGain = DEFAULT_CASCADE_GAIN * CASCADE_COOLING_GAIN_MULTIPLIER;
 float lastAdaptedLiquidError = 0.0f;
@@ -21,6 +25,53 @@ float lastAdaptedSetTemp = 0.0f;
 float cascadeBoxBaseline = 18.0f;
 bool cascadeBaselineInitialized = false;
 unsigned long lastBaselineISpindelMillis = 0;
+unsigned long lastTrendSampleMillis = 0;
+float lastTrendSampleTemp = 0.0f;
+float filteredFermenterRate = 0.0f;
+
+void updateFermenterTrend() {
+	if (!isISpindelActive() || lastISpindelMillis == lastTrendSampleMillis) {
+		return;
+	}
+
+	unsigned long sampleMillis = lastISpindelMillis;
+	float sampleTemp = iSpindelTemperature;
+	if (lastTrendSampleMillis != 0) {
+		unsigned long elapsedMillis = sampleMillis - lastTrendSampleMillis;
+		unsigned long maximumSampleGap = max(45UL * 60UL * 1000UL,
+		                                    static_cast<unsigned long>(iSpindelIntervalSec) * 2500UL);
+		if (elapsedMillis == 0 || elapsedMillis > maximumSampleGap) {
+			filteredFermenterRate = 0.0f;
+		} else {
+			float elapsedHours = static_cast<float>(elapsedMillis) / 3600000.0f;
+			float sampleRate = (sampleTemp - lastTrendSampleTemp) / elapsedHours;
+			sampleRate = constrain(sampleRate, -FERMENTER_MAX_RATE_C_PER_HOUR,
+			                       FERMENTER_MAX_RATE_C_PER_HOUR);
+			filteredFermenterRate += FERMENTER_RATE_FILTER_ALPHA *
+			                         (sampleRate - filteredFermenterRate);
+		}
+	} else {
+		filteredFermenterRate = 0.0f;
+	}
+
+	lastTrendSampleMillis = sampleMillis;
+	lastTrendSampleTemp = sampleTemp;
+	float predictedTemp = sampleTemp + filteredFermenterRate * FERMENTER_PREDICTION_HORIZON_HOURS;
+	Debug.addLine(String(F("iSpindel trend: liquid=")) + String(sampleTemp, 2) +
+	              F("C rate=") + String(filteredFermenterRate, 3) +
+	              F("C/h predicted=") + String(predictedTemp, 2) + F("C"));
+}
+
+float predictedFermenterTemp() {
+	if (!isISpindelActive()) {
+		return getFermenterTemp();
+	}
+
+	float prediction = filteredFermenterRate * FERMENTER_PREDICTION_HORIZON_HOURS;
+	prediction = constrain(prediction, -FERMENTER_MAX_PREDICTION_C,
+	                       FERMENTER_MAX_PREDICTION_C);
+	return iSpindelTemperature + prediction;
+}
 
 static inline bool isBoxTempValid() {
 	return (boxTemp > -50.0f && boxTemp < 100.0f && boxTemp != 0.0f);
@@ -160,6 +211,10 @@ float getFermenterTemp() {
 	return boxTemp;
 }
 
+float getPredictedFermenterTemp() {
+	return predictedFermenterTemp();
+}
+
 float getEffectiveBoxTarget() {
 	return effectiveBoxTarget;
 }
@@ -177,6 +232,8 @@ float getCascadeBoxBaseline() {
 }
 
 void updateCascadeTarget() {
+	updateFermenterTrend();
+
 	if (fabs(cascadeGain - lastConfiguredCascadeGain) >= 0.001f) {
 		resetCascadeAdaptation();
 	}
@@ -218,9 +275,12 @@ void updateCascadeTarget() {
 			}
 		}
 
+		// Forecast liquid temperature to account for the container's thermal lag.
+		float predictedError = setTemp - predictedFermenterTemp();
+
 		// Use separate learned gains because heating and cooling capacity differ.
-		float gain = error >= 0.0f ? heatingCascadeGain : coolingCascadeGain;
-		float offset = constrain(error * gain, -cascadeMaxOffset, cascadeMaxOffset);
+		float gain = predictedError >= 0.0f ? heatingCascadeGain : coolingCascadeGain;
+		float offset = constrain(predictedError * gain, -cascadeMaxOffset, cascadeMaxOffset);
 
 		// Box target is anchored at the thermal equilibrium baseline instead of hardcoded setTemp
 		effectiveBoxTarget = constrain(cascadeBoxBaseline + offset, setTemp - cascadeMaxOffset, setTemp + cascadeMaxOffset);
@@ -265,27 +325,28 @@ void processControl() {
 		 * Asymmetric Mode Switching & Cascade Safety Interlock
 		 * ======================================================
 		 * For outdoor balcony setups where ambient is cool and heating is 95% more powerful:
-		 * - While fermenter >= target: cooling is active; heating is strictly locked out.
-		 * - When fermenter drops below (target - hysteresis): gentle heating is engaged.
+		 * - Use the predicted fermenter temperature to select heating or cooling.
+		 * - Anticipate both falling liquid temperature and stored-heat overshoot.
 		 * - Dynamic fan stays ON until hot-side radiator drops to or below box temperature.
 		 */
 		bool isStopped = isCoolerStopped();
-		float controlTemp = getFermenterTemp();
+		float controlTemp = getPredictedFermenterTemp();
 
 		if (boxMode == 1 && !isStopped) {
 			if (boxSubMode == 3) { // Currently in Heating sub-mode
-				// Switch to Cooling only when control temperature rises above target by hysteresis
+				// Switch to cooling when forecast liquid temperature rises above target by hysteresis.
 				if (controlTemp >= (setTemp + DEFAULT_HYSTERESIS)) {
 					boxSubMode = 2; // Switch to Cooling
-					Debug.addLine(String(F("Control temp (")) + String(controlTemp, 2) +
+					Debug.addLine(String(F("Predicted fermenter temp (")) + String(controlTemp, 2) +
+					              F("°C; liquid=") + String(iSpindelTemperature, 2) +
 					              F("°C) >= target (") + String(setTemp + DEFAULT_HYSTERESIS, 2) + F("°C): switch to Cooling"));
 				}
 			} else { // Currently in Cooling sub-mode (boxSubMode == 2)
-				// Switch to Heating ONLY when control temperature drops below target by hysteresis.
-				// Heating is NEVER turned on while fermenter is at or above target!
+				// Switch to heating when forecast liquid temperature drops below target by hysteresis.
 				if (controlTemp < (setTemp - DEFAULT_HYSTERESIS)) {
 					boxSubMode = 3; // Switch to Heating
-					Debug.addLine(String(F("Control temp (")) + String(controlTemp, 2) +
+					Debug.addLine(String(F("Predicted fermenter temp (")) + String(controlTemp, 2) +
+					              F("°C; liquid=") + String(iSpindelTemperature, 2) +
 					              F("°C) < target (") + String(setTemp - DEFAULT_HYSTERESIS, 2) + F("°C): switch to Heating"));
 				}
 			}
@@ -305,7 +366,8 @@ void processControl() {
 		}
 
 		bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
-		bool fermenterNeedsHeating = !isISpindelActive() || (iSpindelTemperature <= (setTemp + DEFAULT_HYSTERESIS));
+		bool fermenterNeedsHeating = !isISpindelActive() ||
+		                             (getPredictedFermenterTemp() <= (setTemp + DEFAULT_HYSTERESIS));
 		bool fermenterNeedsCooling = !isISpindelActive() || (iSpindelTemperature > (setTemp - DEFAULT_HYSTERESIS));
 		bool isCooling = !isHeating && !isStopped && fermenterNeedsCooling;
 

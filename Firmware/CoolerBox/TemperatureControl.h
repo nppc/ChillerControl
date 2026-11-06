@@ -15,6 +15,7 @@ void processControl();
 void updateCascadeTarget();
 bool isISpindelActive();
 float getFermenterTemp();
+float getPredictedFermenterTemp();
 inline float getControlTemp() { return getFermenterTemp(); }
 float getEffectiveBoxTarget();
 float getHeatingCascadeGain();
