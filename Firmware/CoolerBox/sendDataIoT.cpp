@@ -244,7 +244,7 @@ uint8_t telemetryBackoffLevelMinutes() {
 }
 
 bool isTelemetryUploadDue() {
-	if (!clockValid() || telemetryQueuePending() == 0) {
+	if (!clockValid() || (telemetryQueuePending() == 0 && !telemetryFSHasData())) {
 		return false;
 	}
 	if (static_cast<long>(millis() - nextAllowedSend) < 0) {
@@ -277,7 +277,7 @@ bool sendTelemetry() {
 			return false;
 		}
 	}
-	if (!clockValid() || telemetryQueuePending() == 0) {
+	if (!clockValid()) {
 		return false;
 	}
 
@@ -291,6 +291,21 @@ bool sendTelemetry() {
 	}
 	if (!endpointAddress.startsWith("https://")) {
 		Debug.addLine(F("Endpoint address must use https://"));
+		return false;
+	}
+
+	// If there are accumulated files in LittleFS, ensure chronological ordering
+	if (telemetryFSHasData()) {
+		if (telemetryQueuePending() > 0) {
+			// RAM has newer records: spill them to LittleFS first so oldest files are sent first
+			telemetryFSSaveCurrentRAM();
+		}
+		if (!telemetryFSLoadOldestToRAM()) {
+			if (telemetryQueuePending() == 0) {
+				return false;
+			}
+		}
+	} else if (telemetryQueuePending() == 0) {
 		return false;
 	}
 
@@ -447,7 +462,7 @@ bool sendTelemetry() {
 		              F(" rem box=") + telemetryBoxPending() + F(" isp=") + telemetryISpindelPending() +
 		              F(" pcb=") + getTcpActivePcbCount() + F("/") + getTcpTwPcbCount());
 #endif
-		if (telemetryQueuePending() > 0) {
+		if (telemetryQueuePending() > 0 || telemetryFSHasData()) {
 			nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
 		}
 		return true;
@@ -457,7 +472,7 @@ bool sendTelemetry() {
 		Debug.addLine(String(F("dropped chunk, HTTP ")) + status);
 		telemetryISpindelPop(iSpindelCount);
 		telemetryBoxPop(boxCount);
-		if (telemetryQueuePending() > 0) {
+		if (telemetryQueuePending() > 0 || telemetryFSHasData()) {
 			nextAllowedSend = millis() + TELEMETRY_CHUNK_GAP_MS;
 		}
 		return false;

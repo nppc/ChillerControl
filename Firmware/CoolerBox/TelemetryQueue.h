@@ -46,13 +46,19 @@ int16_t telemetryFixedPoint(float value, int32_t scale);
 const char *telemetryStateToString(TelemetryState state);
 void captureTelemetrySnapshot();
 void telemetryISpindelPush(const TelemetryISpindelRecord &record);
-void telemetryQueueReset();
+inline void telemetryQueueReset() {}
 uint8_t telemetryQueuePending();
 uint8_t telemetryBoxPending();
 uint8_t telemetryISpindelPending();
-uint8_t telemetryBoxStride();
-uint8_t telemetryISpindelStride();
 const TelemetryBoxRecord &telemetryBoxPeek(uint8_t index);
 const TelemetryISpindelRecord &telemetryISpindelPeek(uint8_t index);
 void telemetryBoxPop(uint8_t count);
 void telemetryISpindelPop(uint8_t count);
+
+bool telemetryBoxIsFull();
+bool telemetryISpindelIsFull();
+bool telemetryFSHasData();
+size_t telemetryFSFileCount();
+void telemetryFSInit();
+bool telemetryFSSaveCurrentRAM();
+bool telemetryFSLoadOldestToRAM();

@@ -468,6 +468,7 @@ void setup() {
 	tzset();
 	maxVoltage_backup = maxVoltage; // update backup
 	initBootAutoStartState(useISpindelTemp);
+	telemetryFSInit();
 
 	initI2C();	// Detect I2C slave, sync initial voltage limits, and read initial telemetry
   	
@@ -514,11 +515,15 @@ void setup() {
 
 		if (WiFi.status() == WL_CONNECTED) {
 			wifiWasConnected = true;
+			wifiDropOccurred = false;
+			lastWifiDropMillis = 0;
 			Serial.print(F("Internet IP address: "));
 			Serial.println(WiFi.localIP());
 			Debug.addLine(String(F("Internet connected: ")) + WiFi.localIP().toString());
 		} else {
 			wifiWasConnected = false;
+			wifiDropOccurred = true;
+			lastWifiDropMillis = millis();
 			Serial.print(F("Internet connection failed."));
 			Serial.print(F(" Error is: "));
 			Serial.println(WiFi.status());
@@ -591,7 +596,8 @@ void loop() {
 #ifdef STALL_DEBUG
 	loopCycleCounter++;
 #endif
-	digitalWrite(LED_BUILTIN, ((millis() / 500) % 2 == 0) ? LOW : HIGH);
+	unsigned long cycleTime = telemetryFSHasData() ? 3500UL : 1000UL;
+	digitalWrite(LED_BUILTIN, (millis() % cycleTime < 500UL) ? LOW : HIGH);
 
 	if (Update.isRunning()) {
 		drd.stop();
@@ -634,16 +640,32 @@ void loop() {
 				wifiDropOccurred = true;
 				lastWifiDropMillis = millis();
 				Debug.addLine(F("Wi-Fi connection lost"));
+			} else if (lastWifiDropMillis == 0) {
+				lastWifiDropMillis = millis();
 			}
-			static unsigned long lastReconnectAttempt = 0;
-			if (millis() - lastReconnectAttempt > (60 * 1000UL)) {
-				lastReconnectAttempt = millis();
-				Debug.addLine(F("Wi-Fi disconnected: attempting reconnect"));
-				WiFi.reconnect();
+
+			// If external Wi-Fi is configured, manage periodic reconnection attempts
+			if (IntSSID[0] != '\0') {
+				static unsigned long lastReconnectAttempt = 0;
+				if (millis() - lastReconnectAttempt > (60 * 1000UL)) {
+					lastReconnectAttempt = millis();
+					static uint8_t reconnectCount = 0;
+					reconnectCount++;
+					if (reconnectCount % 5 == 0) {
+						Debug.addLine(F("Wi-Fi disconnected: cycling station connection"));
+						WiFi.disconnect(false);
+						WiFi.begin(IntSSID, IntPASS);
+					} else {
+						Debug.addLine(F("Wi-Fi disconnected: attempting reconnect"));
+						WiFi.reconnect();
+					}
+				}
 			}
 		} else {
 			if (!wifiWasConnected) {
 				wifiWasConnected = true;
+				wifiDropOccurred = false;
+				lastWifiDropMillis = 0;
 				Debug.addLine(String(F("Wi-Fi connected: ")) + WiFi.localIP().toString());
 			}
 

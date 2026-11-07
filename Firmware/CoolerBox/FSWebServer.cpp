@@ -12,6 +12,9 @@ String getContentType(const String &filename) {
 
 bool handleFileRead(String path) {
 	if (!path.startsWith("/")) path = "/" + path;
+	if (path.startsWith(F("/telemetry")) || path.startsWith(F("/tel_"))) {
+		return false;
+	}
 	String contentType = getContentType(path);
 	String pathWithGz = path + ".gz";
 	if (LittleFS.exists(pathWithGz) || LittleFS.exists(path)) {

@@ -464,6 +464,7 @@ void handleNetworkStore() {
 		return;
 	}
 	drd.stop();
+	telemetryFSSaveCurrentRAM();
 
 	if (!handleFileRead("/reboot.htm")) {
 		httpServer.send(200, "text/plain", "Settings saved. Rebooting...");
