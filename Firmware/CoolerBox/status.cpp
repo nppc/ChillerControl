@@ -52,7 +52,8 @@ void handleStatus() {
 	doc["iSpindelRssi"] = (isISpindelActive() && iSpindelRssi != 0) ? iSpindelRssi : 0;
 	unsigned long ageSec = (lastISpindelMillis > 0) ? (millis() - lastISpindelMillis) / 1000UL : 0;
 	doc["iSpindelAgeSec"] = ageSec;
-	doc["setHotPWM"] = String((int)round(setHotPWM * 100.0f / (float)maxHotPWM)) + "%";
+	float heaterPct = (maxHotPWM > 0) ? (setHotPWM * 100.0f / (float)maxHotPWM) : 0.0f;
+	doc["setHotPWM"] = String(heaterPct, 1) + "%";
 	doc["setTemp"] = String(setTemp, 1);
 	doc["rawSetTemp"] = String(setTemp, 1);
 	doc["Voltage"] = String(measuredVoltage, 1) + "V";
