@@ -78,10 +78,10 @@ int postTelemetryPayload(const String &url, const String &payload) {
 	BearSSL::WiFiClientSecure client;
 	client.setInsecure();
 	client.setBufferSizes(1024, 512);
-	client.setTimeout(1500);
+	client.setTimeout(5000);
 
 	HTTPClient https;
-	https.setTimeout(1500);
+	https.setTimeout(5000);
 	if (!https.begin(client, url)) {
 		Debug.addLine(F("HTTPS endpoint setup failed"));
 		return -1;
@@ -99,7 +99,33 @@ int postTelemetryPayload(const String &url, const String &payload) {
 #endif
 
 	if (status < 0) {
-		Debug.addLine(String(F("HTTPS POST failed: ")) + https.errorToString(status));
+		char sslErr[64] = "";
+		int sslCode = client.getLastSSLError(sslErr, sizeof(sslErr));
+		if (sslCode != 0) {
+			Debug.addLine(String(F("HTTPS POST failed: ")) + https.errorToString(status) +
+			              F(" (SSL: ") + sslErr + F(" [") + sslCode + F("])"));
+		} else {
+			String host = endpointAddress;
+			int schemeEnd = host.indexOf("://");
+			if (schemeEnd != -1) {
+				host = host.substring(schemeEnd + 3);
+			}
+			int pathStart = host.indexOf('/');
+			if (pathStart != -1) {
+				host = host.substring(0, pathStart);
+			}
+			int portStart = host.indexOf(':');
+			if (portStart != -1) {
+				host = host.substring(0, portStart);
+			}
+			IPAddress resolvedIp;
+			if (WiFi.hostByName(host.c_str(), resolvedIp) != 1) {
+				Debug.addLine(String(F("HTTPS POST failed: DNS lookup failed for ")) + host);
+			} else {
+				Debug.addLine(String(F("HTTPS POST failed: TCP connect failed to ")) + host +
+				              F(" (") + resolvedIp.toString() + F(")"));
+			}
+		}
 	} else if (status < 200 || status >= 300) {
 		Debug.addLine(String(F("HTTPS endpoint returned: ")) + status);
 	}
@@ -241,6 +267,12 @@ uint8_t telemetryBackoffLevelMinutes() {
 		index = TELEMETRY_BACKOFF_LEVEL_COUNT - 1;
 	}
 	return TELEMETRY_BACKOFF_LEVELS_MINUTES[index];
+}
+
+void resetTelemetryBackoff(unsigned long delayMs) {
+	consecutiveUploadFailures = 0;
+	failureBackoffActive = false;
+	nextAllowedSend = millis() + delayMs;
 }
 
 bool isTelemetryUploadDue() {

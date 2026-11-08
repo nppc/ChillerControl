@@ -122,6 +122,7 @@ void handleScript();
 bool sendTelemetry();
 bool isTelemetryUploadDue();
 uint8_t telemetryBackoffLevelMinutes();
+void resetTelemetryBackoff(unsigned long delayMs = 0);
 bool isWebClientAllowed();
 bool clockValid();
 uint32_t epochSeconds();

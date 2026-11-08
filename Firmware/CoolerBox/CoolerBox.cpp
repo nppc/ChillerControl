@@ -664,9 +664,8 @@ void loop() {
 		} else {
 			if (!wifiWasConnected) {
 				wifiWasConnected = true;
-				wifiDropOccurred = false;
-				lastWifiDropMillis = 0;
 				Debug.addLine(String(F("Wi-Fi connected: ")) + WiFi.localIP().toString());
+				resetTelemetryBackoff(3000UL);
 			}
 
 			// Ensure TX power remains at maximum (+20.5 dBm)

@@ -507,6 +507,7 @@ void handleUpdateUpload() {
 		updateFailed = false;
 		updateReceived = false;
 		drd.stop();
+		telemetryFSSaveCurrentRAM();
 
 		const bool filesystem = (httpServer.arg("type") == "filesystem" ||
 		                         upload.name == "filesystem" ||

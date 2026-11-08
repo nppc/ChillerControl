@@ -105,10 +105,7 @@ const char *telemetryStateToString(TelemetryState state) {
 void captureTelemetrySnapshot() {
 	static uint8_t previousPending = 0;
 	if (boxRing.isFull()) {
-		bool wifiOffline = (WiFi.status() != WL_CONNECTED || WiFi.localIP() == IPAddress(0, 0, 0, 0));
-		if (wifiOffline) {
-			telemetryFSSaveCurrentRAM();
-		}
+		telemetryFSSaveCurrentRAM();
 	}
 	TelemetryBoxRecord record = {};
 	record.t = epochSeconds();
@@ -131,20 +128,21 @@ void captureTelemetrySnapshot() {
 
 	uint8_t pending = boxRing.pending();
 	if (pending > 1 && pending > previousPending) {
-		Debug.addLine(String(F("Snap #")) + pending +
-		              F(" hp=") + ESP.getFreeHeap() +
-		              F(" blk=") + ESP.getMaxFreeBlockSize() +
-		              F(" stk=") + ESP.getFreeContStack());
+		uint8_t left = (pending < TELEMETRY_RAM_RECORDS) ? (TELEMETRY_RAM_RECORDS - pending) : 0;
+		String msg = String(F("Snap #")) + pending + F("/") + TELEMETRY_RAM_RECORDS +
+		             F(" (") + left + F(" left)");
+		size_t files = telemetryFSFileCount();
+		if (files > 0) {
+			msg += F(" [fs=") + String(files) + F("]");
+		}
+		Debug.addLine(msg);
 	}
 	previousPending = pending;
 }
 
 void telemetryISpindelPush(const TelemetryISpindelRecord &record) {
 	if (iSpindelRing.isFull()) {
-		bool wifiOffline = (WiFi.status() != WL_CONNECTED || WiFi.localIP() == IPAddress(0, 0, 0, 0));
-		if (wifiOffline) {
-			telemetryFSSaveCurrentRAM();
-		}
+		telemetryFSSaveCurrentRAM();
 	}
 	iSpindelRing.push(record);
 	Debug.addLine(String(F("iSpindel #")) + iSpindelRing.pending());
