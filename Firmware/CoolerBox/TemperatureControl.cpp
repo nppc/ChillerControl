@@ -14,7 +14,8 @@ const float FERMENTER_PREDICTION_HORIZON_HOURS = 1.0f;
 const float FERMENTER_MAX_RATE_C_PER_HOUR = 0.75f;
 const float FERMENTER_MAX_PREDICTION_C = 0.75f;
 const float FERMENTER_RATE_FILTER_ALPHA = 0.15f;
-const float BOX_TARGET_MAX_SLEW_UP_PER_SEC = 0.08f / 60.0f; // ~0.00133 °C/sec
+const float BOX_TARGET_MAX_SLEW_UP_PER_SEC = 0.08f / 60.0f; // ~0.00133 °C/sec (0.08 °C/min)
+const float BOX_TARGET_MAX_SLEW_DOWN_PER_SEC = 0.12f / 60.0f; // ~0.00200 °C/sec (0.12 °C/min)
 float heatingCascadeGain = DEFAULT_CASCADE_GAIN;
 float coolingCascadeGain = DEFAULT_CASCADE_GAIN * CASCADE_COOLING_GAIN_MULTIPLIER;
 float lastAdaptedLiquidError = 0.0f;
@@ -89,6 +90,7 @@ void resetCascadeAdaptation() {
 	lastAdaptedISpindelMillis = lastISpindelMillis;
 	lastConfiguredCascadeGain = cascadeGain;
 	lastAdaptedSetTemp = setTemp;
+	lastSlewMillis = 0;
 	if (isBoxTempValid()) {
 		cascadeBoxBaseline = boxTemp;
 		cascadeBaselineInitialized = true;
@@ -276,7 +278,9 @@ void updateCascadeTarget() {
 		float predictedError = setTemp - predictedFermenterTemp();
 
 		// Use separate learned gains because heating and cooling capacity differ.
-		float gain = predictedError >= 0.0f ? heatingCascadeGain : coolingCascadeGain;
+		// When heating, avoid using coolingCascadeGain (which is 2x higher for weak Peltier) on negative errors.
+		bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
+		float gain = (isHeating || predictedError >= 0.0f) ? heatingCascadeGain : coolingCascadeGain;
 		float offset = constrain(predictedError * gain, -cascadeMaxOffset, cascadeMaxOffset);
 
 		// Box target is anchored at the thermal equilibrium baseline instead of hardcoded setTemp
@@ -301,16 +305,13 @@ void updateCascadeTarget() {
 		float dt = static_cast<float>(now - lastSlewMillis) / 1000.0f;
 		lastSlewMillis = now;
 
-		if (targetRaw <= effectiveBoxTarget) {
-			effectiveBoxTarget = targetRaw; // Instantaneous drop downward to prevent overshoot
-		} else {
-			if (dt > 0.0f && dt < 10.0f) {
-				float maxStepUp = BOX_TARGET_MAX_SLEW_UP_PER_SEC * dt;
-				effectiveBoxTarget = min(targetRaw, effectiveBoxTarget + maxStepUp);
-			} else if (dt >= 10.0f) {
-				float maxStepUp = BOX_TARGET_MAX_SLEW_UP_PER_SEC * 10.0f;
-				effectiveBoxTarget = min(targetRaw, effectiveBoxTarget + maxStepUp);
-			}
+		float effectiveDt = (dt > 10.0f) ? 10.0f : (dt > 0.0f ? dt : 0.0f);
+		if (targetRaw > effectiveBoxTarget) {
+			float maxStepUp = BOX_TARGET_MAX_SLEW_UP_PER_SEC * effectiveDt;
+			effectiveBoxTarget = min(targetRaw, effectiveBoxTarget + maxStepUp);
+		} else if (targetRaw < effectiveBoxTarget) {
+			float maxStepDown = BOX_TARGET_MAX_SLEW_DOWN_PER_SEC * effectiveDt;
+			effectiveBoxTarget = max(targetRaw, effectiveBoxTarget - maxStepDown);
 		}
 	}
 	effectiveBoxTarget = constrain(effectiveBoxTarget, setTemp - cascadeMaxOffset, setTemp + cascadeMaxOffset);
