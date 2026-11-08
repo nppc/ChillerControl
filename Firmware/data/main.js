@@ -766,7 +766,6 @@ async function fetchDebug() {
     setIf('resetReason', data.resetReason);
     setIf('sensorCount', data.sensorCount);
     setIf('sensorTemps', data.sensorTemps || data.sensorCount);
-    setIf('dbgUptime', data.uptime);
 
     const debugLog = document.getElementById('debugLog');
     if (debugLog && data.debug !== undefined) debugLog.innerHTML = data.debug;

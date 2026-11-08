@@ -161,15 +161,6 @@ void handleApiDebug() {
 	doc["i2cStatus"] = I2C_PRESENT ? "Connected (0x5E)" : "Disconnected";
 	doc["resetReason"] = ESP.getResetReason();
 
-	unsigned long val = millis();
-	int tdays = val / 86400000;
-	unsigned long sec = val / 1000;
-	unsigned long min = sec / 60;
-	int hr = min / 60;
-	char upBuf[32];
-	snprintf(upBuf, sizeof(upBuf), "%dd %02d:%02lu:%02lu", tdays, hr % 24, min % 60, sec % 60);
-	doc["uptime"] = upBuf;
-
 	String sensStr;
 	if (DS18B20_count == 0) {
 		sensStr = F("None detected");
