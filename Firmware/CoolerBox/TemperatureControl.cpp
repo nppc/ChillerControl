@@ -13,7 +13,8 @@ const float DEFAULT_CASCADE_GAIN = 2.0f;
 const float FERMENTER_PREDICTION_HORIZON_HOURS = 1.0f;
 const float FERMENTER_MAX_RATE_C_PER_HOUR = 0.75f;
 const float FERMENTER_MAX_PREDICTION_C = 0.75f;
-const float FERMENTER_RATE_FILTER_ALPHA = 0.4f;
+const float FERMENTER_RATE_FILTER_ALPHA = 0.15f;
+const float BOX_TARGET_MAX_SLEW_UP_PER_SEC = 0.08f / 60.0f; // ~0.00133 °C/sec
 float heatingCascadeGain = DEFAULT_CASCADE_GAIN;
 float coolingCascadeGain = DEFAULT_CASCADE_GAIN * CASCADE_COOLING_GAIN_MULTIPLIER;
 float lastAdaptedLiquidError = 0.0f;
@@ -28,6 +29,7 @@ unsigned long lastBaselineISpindelMillis = 0;
 unsigned long lastTrendSampleMillis = 0;
 float lastTrendSampleTemp = 0.0f;
 float filteredFermenterRate = 0.0f;
+unsigned long lastSlewMillis = 0;
 
 void updateFermenterTrend() {
 	if (!isISpindelActive() || lastISpindelMillis == lastTrendSampleMillis) {
@@ -78,14 +80,14 @@ static inline bool isBoxTempValid() {
 }
 
 void resetCascadeAdaptation() {
-	heatingCascadeGain = constrain(DEFAULT_CASCADE_GAIN, CASCADE_GAIN_MIN, CASCADE_GAIN_MAX);
-	coolingCascadeGain = constrain(DEFAULT_CASCADE_GAIN * CASCADE_COOLING_GAIN_MULTIPLIER,
+	heatingCascadeGain = constrain(cascadeGain, CASCADE_GAIN_MIN, CASCADE_GAIN_MAX);
+	coolingCascadeGain = constrain(cascadeGain * CASCADE_COOLING_GAIN_MULTIPLIER,
 	                               CASCADE_GAIN_MIN, CASCADE_GAIN_MAX);
 	lastAdaptedLiquidError = 0.0f;
 	nonImprovingReadings = 0;
 	adaptationDirection = 0;
 	lastAdaptedISpindelMillis = lastISpindelMillis;
-	lastConfiguredCascadeGain = DEFAULT_CASCADE_GAIN;
+	lastConfiguredCascadeGain = cascadeGain;
 	lastAdaptedSetTemp = setTemp;
 	if (isBoxTempValid()) {
 		cascadeBoxBaseline = boxTemp;
@@ -186,6 +188,7 @@ int iSpindelIntervalSec = 900;  // 15 minutes default
 void initTemperatureControl() {
 	cascadeBaselineInitialized = false;
 	effectiveBoxTarget = setTemp;
+	lastSlewMillis = 0;
 	resetCascadeAdaptation();
 }
 
@@ -238,14 +241,7 @@ void updateCascadeTarget() {
 		resetCascadeAdaptation();
 	}
 	if (fabs(setTemp - lastAdaptedSetTemp) >= 0.01f) {
-		lastAdaptedSetTemp = setTemp;
-		if (isBoxTempValid()) {
-			cascadeBoxBaseline = boxTemp;
-			cascadeBaselineInitialized = true;
-		} else {
-			cascadeBoxBaseline = setTemp;
-			cascadeBaselineInitialized = false;
-		}
+		resetCascadeAdaptation();
 	}
 
 	// Latch real box temperature as initial baseline as soon as sensor reading becomes valid
@@ -254,6 +250,7 @@ void updateCascadeTarget() {
 		cascadeBaselineInitialized = true;
 	}
 
+	float targetRaw;
 	if (isISpindelActive()) {
 		adaptCascadeGain();
 
@@ -283,18 +280,40 @@ void updateCascadeTarget() {
 		float offset = constrain(predictedError * gain, -cascadeMaxOffset, cascadeMaxOffset);
 
 		// Box target is anchored at the thermal equilibrium baseline instead of hardcoded setTemp
-		effectiveBoxTarget = constrain(cascadeBoxBaseline + offset, setTemp - cascadeMaxOffset, setTemp + cascadeMaxOffset);
+		targetRaw = constrain(cascadeBoxBaseline + offset, setTemp - cascadeMaxOffset, setTemp + cascadeMaxOffset);
 	} else {
 		if (useISpindelTemp) {
 			// iSpindel is configured but waiting for first report or temporarily offline:
 			// anchor target to baseline/boxTemp so we don't blast heat/cool before receiving wort telemetry
-			effectiveBoxTarget = isBoxTempValid() ? cascadeBoxBaseline : setTemp;
+			targetRaw = isBoxTempValid() ? cascadeBoxBaseline : setTemp;
 		} else {
 			// Direct box control mode: user explicitly regulates box air to setTemp
-			effectiveBoxTarget = setTemp;
+			targetRaw = setTemp;
 			cascadeBoxBaseline = setTemp;
 		}
 	}
+
+	unsigned long now = millis();
+	if (lastSlewMillis == 0) {
+		lastSlewMillis = now;
+		effectiveBoxTarget = targetRaw;
+	} else {
+		float dt = static_cast<float>(now - lastSlewMillis) / 1000.0f;
+		lastSlewMillis = now;
+
+		if (targetRaw <= effectiveBoxTarget) {
+			effectiveBoxTarget = targetRaw; // Instantaneous drop downward to prevent overshoot
+		} else {
+			if (dt > 0.0f && dt < 10.0f) {
+				float maxStepUp = BOX_TARGET_MAX_SLEW_UP_PER_SEC * dt;
+				effectiveBoxTarget = min(targetRaw, effectiveBoxTarget + maxStepUp);
+			} else if (dt >= 10.0f) {
+				float maxStepUp = BOX_TARGET_MAX_SLEW_UP_PER_SEC * 10.0f;
+				effectiveBoxTarget = min(targetRaw, effectiveBoxTarget + maxStepUp);
+			}
+		}
+	}
+	effectiveBoxTarget = constrain(effectiveBoxTarget, setTemp - cascadeMaxOffset, setTemp + cascadeMaxOffset);
 }
 
 void processControl() {
