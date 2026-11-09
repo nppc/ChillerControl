@@ -14,6 +14,7 @@ const float FERMENTER_PREDICTION_HORIZON_HOURS = 1.0f;
 const float FERMENTER_MAX_RATE_C_PER_HOUR = 0.75f;
 const float FERMENTER_MAX_PREDICTION_C = 0.75f;
 const float FERMENTER_RATE_FILTER_ALPHA = 0.15f;
+const float FERMENTER_SAFETY_MARGIN = 0.25f; // Safety margin (°C) above/below setTemp for mode switching and emergency heater lockout
 const float BOX_TARGET_MAX_SLEW_UP_PER_SEC = 0.08f / 60.0f; // ~0.00133 °C/sec (0.08 °C/min)
 const float BOX_TARGET_MAX_SLEW_DOWN_PER_SEC = 0.12f / 60.0f; // ~0.00200 °C/sec (0.12 °C/min)
 float heatingCascadeGain = DEFAULT_CASCADE_GAIN;
@@ -354,20 +355,20 @@ void processControl() {
 
 		if (boxMode == 1 && !isStopped) {
 			if (boxSubMode == 3) { // Currently in Heating sub-mode
-				// Switch to cooling when forecast liquid temperature rises above target by hysteresis.
-				if (controlTemp >= (setTemp + DEFAULT_HYSTERESIS)) {
+				// Switch to cooling only when forecast liquid temperature genuinely exceeds target by safety margin
+				if (controlTemp >= (setTemp + FERMENTER_SAFETY_MARGIN)) {
 					boxSubMode = 2; // Switch to Cooling
 					Debug.addLine(String(F("Predicted fermenter temp (")) + String(controlTemp, 2) +
 					              F("°C; liquid=") + String(iSpindelTemperature, 2) +
-					              F("°C) >= target (") + String(setTemp + DEFAULT_HYSTERESIS, 2) + F("°C): switch to Cooling"));
+					              F("°C) >= target (") + String(setTemp + FERMENTER_SAFETY_MARGIN, 2) + F("°C): switch to Cooling"));
 				}
 			} else { // Currently in Cooling sub-mode (boxSubMode == 2)
-				// Switch to heating when forecast liquid temperature drops below target by hysteresis.
-				if (controlTemp < (setTemp - DEFAULT_HYSTERESIS)) {
+				// Switch to heating when forecast liquid temperature drops below target by safety margin
+				if (controlTemp < (setTemp - FERMENTER_SAFETY_MARGIN)) {
 					boxSubMode = 3; // Switch to Heating
 					Debug.addLine(String(F("Predicted fermenter temp (")) + String(controlTemp, 2) +
 					              F("°C; liquid=") + String(iSpindelTemperature, 2) +
-					              F("°C) < target (") + String(setTemp - DEFAULT_HYSTERESIS, 2) + F("°C): switch to Heating"));
+					              F("°C) < target (") + String(setTemp - FERMENTER_SAFETY_MARGIN, 2) + F("°C): switch to Heating"));
 				}
 			}
 
@@ -387,25 +388,22 @@ void processControl() {
 
 		bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
 		bool fermenterNeedsHeating = !isISpindelActive() ||
-		                             (getPredictedFermenterTemp() <= (setTemp + DEFAULT_HYSTERESIS));
-		bool fermenterNeedsCooling = !isISpindelActive() || (iSpindelTemperature > (setTemp - DEFAULT_HYSTERESIS));
+		                             (getPredictedFermenterTemp() <= (setTemp + FERMENTER_SAFETY_MARGIN));
+		bool fermenterNeedsCooling = !isISpindelActive() || (iSpindelTemperature > (setTemp - FERMENTER_SAFETY_MARGIN));
 		bool isCooling = !isHeating && !isStopped && fermenterNeedsCooling;
 
-		// Reset PID memory whenever transitioning into Heating mode
-		static bool wasHeating = false;
+		// Reset PID memory ONLY when resuming from stopped state or changing major operating mode
 		static bool wasStopped = true;
-		static int lastSubMode = -1;
+		static int lastMajorMode = -1;
 
-		bool enteredHeating = (!wasHeating && isHeating && !isStopped) ||
-		                      (wasStopped && !isStopped && isHeating) ||
-		                      (boxSubMode == 3 && lastSubMode != 3 && !isStopped);
+		bool enteredHeating = (wasStopped && !isStopped && isHeating) ||
+		                      (lastMajorMode != boxMode && isHeating && !isStopped);
 		if (enteredHeating) {
 			resetHeatingPID();
-			Debug.addLine(F("Switched to Heating: PID memory fully reset"));
+			Debug.addLine(F("Switched to Heating: PID memory initialized"));
 		}
-		wasHeating = isHeating;
 		wasStopped = isStopped;
-		lastSubMode = boxSubMode;
+		lastMajorMode = boxMode;
 
 		// Execute separated cooling logic (slave loop drives boxTemp to effectiveBoxTarget)
 		processCooling(boxTemp, HotTemp, effectiveBoxTarget, isCooling);
