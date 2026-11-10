@@ -14,7 +14,7 @@ const float FERMENTER_PREDICTION_HORIZON_HOURS = 1.0f;
 const float FERMENTER_MAX_RATE_C_PER_HOUR = 0.75f;
 const float FERMENTER_MAX_PREDICTION_C = 0.75f;
 const float FERMENTER_RATE_FILTER_ALPHA = 0.15f;
-const float FERMENTER_SAFETY_MARGIN = 0.25f; // Safety margin (°C) above/below setTemp for mode switching and emergency heater lockout
+const float FERMENTER_EMERGENCY_OVERTEMP = 0.1f;
 const float BOX_TARGET_MAX_SLEW_UP_PER_SEC = 0.08f / 60.0f; // ~0.00133 °C/sec (0.08 °C/min)
 const float BOX_TARGET_MAX_SLEW_DOWN_PER_SEC = 0.12f / 60.0f; // ~0.00200 °C/sec (0.12 °C/min)
 float heatingCascadeGain = DEFAULT_CASCADE_GAIN;
@@ -32,6 +32,8 @@ unsigned long lastTrendSampleMillis = 0;
 float lastTrendSampleTemp = 0.0f;
 float filteredFermenterRate = 0.0f;
 unsigned long lastSlewMillis = 0;
+bool slewInitialized = false;
+bool emergencyHeatLockout = false;
 
 void updateFermenterTrend() {
 	if (!isISpindelActive() || lastISpindelMillis == lastTrendSampleMillis) {
@@ -77,6 +79,28 @@ float predictedFermenterTemp() {
 	return iSpindelTemperature + prediction;
 }
 
+bool updateEmergencyHeatLockout() {
+	if (!isISpindelActive()) {
+		emergencyHeatLockout = false;
+		return false;
+	}
+
+	if (!emergencyHeatLockout &&
+	    iSpindelTemperature > setTemp + FERMENTER_EMERGENCY_OVERTEMP) {
+		emergencyHeatLockout = true;
+		Debug.addLine(String(F("Emergency heater cutoff: fermenter=")) +
+		              String(iSpindelTemperature, 2) + F("C target=") +
+		              String(setTemp, 2) + F("C"));
+	} else if (emergencyHeatLockout && iSpindelTemperature <= setTemp) {
+		emergencyHeatLockout = false;
+		Debug.addLine(String(F("Emergency heater cutoff released: fermenter=")) +
+		              String(iSpindelTemperature, 2) + F("C target=") +
+		              String(setTemp, 2) + F("C"));
+	}
+
+	return emergencyHeatLockout;
+}
+
 static inline bool isBoxTempValid() {
 	return (boxTemp > -50.0f && boxTemp < 100.0f && boxTemp != 0.0f);
 }
@@ -91,7 +115,6 @@ void resetCascadeAdaptation() {
 	lastAdaptedISpindelMillis = lastISpindelMillis;
 	lastConfiguredCascadeGain = cascadeGain;
 	lastAdaptedSetTemp = setTemp;
-	lastSlewMillis = 0;
 	if (isBoxTempValid()) {
 		cascadeBoxBaseline = boxTemp;
 		cascadeBaselineInitialized = true;
@@ -299,8 +322,9 @@ void updateCascadeTarget() {
 	}
 
 	unsigned long now = millis();
-	if (lastSlewMillis == 0) {
+	if (!slewInitialized) {
 		lastSlewMillis = now;
+		slewInitialized = true;
 		effectiveBoxTarget = targetRaw;
 	} else {
 		float dt = static_cast<float>(now - lastSlewMillis) / 1000.0f;
@@ -315,7 +339,6 @@ void updateCascadeTarget() {
 			effectiveBoxTarget = max(targetRaw, effectiveBoxTarget - maxStepDown);
 		}
 	}
-	effectiveBoxTarget = constrain(effectiveBoxTarget, setTemp - cascadeMaxOffset, setTemp + cascadeMaxOffset);
 }
 
 void processControl() {
@@ -351,24 +374,24 @@ void processControl() {
 		 * - Dynamic fan stays ON until hot-side radiator drops to or below box temperature.
 		 */
 		bool isStopped = isCoolerStopped();
-		float controlTemp = getPredictedFermenterTemp();
+		bool emergencyCutoff = updateEmergencyHeatLockout();
+		float controlTemp = getFermenterTemp();
 
 		if (boxMode == 1 && !isStopped) {
 			if (boxSubMode == 3) { // Currently in Heating sub-mode
-				// Switch to cooling only when forecast liquid temperature genuinely exceeds target by safety margin
-				if (controlTemp >= (setTemp + FERMENTER_SAFETY_MARGIN)) {
+				// Switch to cooling only after the measured liquid exceeds target by the emergency margin.
+				if (controlTemp > (setTemp + FERMENTER_EMERGENCY_OVERTEMP)) {
 					boxSubMode = 2; // Switch to Cooling
-					Debug.addLine(String(F("Predicted fermenter temp (")) + String(controlTemp, 2) +
-					              F("°C; liquid=") + String(iSpindelTemperature, 2) +
-					              F("°C) >= target (") + String(setTemp + FERMENTER_SAFETY_MARGIN, 2) + F("°C): switch to Cooling"));
+					Debug.addLine(String(F("Fermenter temp (")) + String(controlTemp, 2) +
+					              F("°C) > target + ") + String(FERMENTER_EMERGENCY_OVERTEMP, 2) +
+					              F("°C: switch to Cooling"));
 				}
 			} else { // Currently in Cooling sub-mode (boxSubMode == 2)
-				// Switch to heating when forecast liquid temperature drops below target by safety margin
-				if (controlTemp < (setTemp - FERMENTER_SAFETY_MARGIN)) {
+				// Use a 0.1°C return band to avoid switching back and forth at the setpoint.
+				if (controlTemp <= setTemp) {
 					boxSubMode = 3; // Switch to Heating
-					Debug.addLine(String(F("Predicted fermenter temp (")) + String(controlTemp, 2) +
-					              F("°C; liquid=") + String(iSpindelTemperature, 2) +
-					              F("°C) < target (") + String(setTemp - FERMENTER_SAFETY_MARGIN, 2) + F("°C): switch to Heating"));
+					Debug.addLine(String(F("Fermenter returned to target: liquid=")) +
+					              String(controlTemp, 2) + F("C, switch to Heating"));
 				}
 			}
 
@@ -387,9 +410,8 @@ void processControl() {
 		}
 
 		bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
-		bool fermenterNeedsHeating = !isISpindelActive() ||
-		                             (getPredictedFermenterTemp() <= (setTemp + FERMENTER_SAFETY_MARGIN));
-		bool fermenterNeedsCooling = !isISpindelActive() || (iSpindelTemperature > (setTemp - FERMENTER_SAFETY_MARGIN));
+		bool fermenterNeedsHeating = !isISpindelActive() || !emergencyCutoff;
+		bool fermenterNeedsCooling = !isISpindelActive() || (iSpindelTemperature > setTemp);
 		bool isCooling = !isHeating && !isStopped && fermenterNeedsCooling;
 
 		// Reset PID memory ONLY when resuming from stopped state or changing major operating mode
