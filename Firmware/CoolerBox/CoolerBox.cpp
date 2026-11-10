@@ -464,6 +464,7 @@ void setup() {
 	Serial.begin(115200);
 
 	restoreSettings();	// restore PID, boxMode, and voltage limits first
+	initTemperatureControl();
 	setenv("TZ", tzSetting, 1);
 	tzset();
 	maxVoltage_backup = maxVoltage; // update backup

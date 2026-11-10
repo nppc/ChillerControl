@@ -34,6 +34,8 @@ float filteredFermenterRate = 0.0f;
 unsigned long lastSlewMillis = 0;
 bool slewInitialized = false;
 bool emergencyHeatLockout = false;
+unsigned long lastRampStepMillis = 0;
+bool rampInitialized = false;
 
 void updateFermenterTrend() {
 	if (!isISpindelActive() || lastISpindelMillis == lastTrendSampleMillis) {
@@ -210,12 +212,92 @@ float cascadeMaxOffset = CASCADE_MAX_OFFSET;
 float cascadeGain = DEFAULT_CASCADE_GAIN;
 float effectiveBoxTarget = 19.0f;
 int iSpindelIntervalSec = 900;  // 15 minutes default
+float rampTargetTemp = 19.0f;
+float rampStepC = 0.1f;
+uint16_t rampIntervalMinutes = 120;
+
+bool setTemperatureTarget(float target, bool immediate, float stepC, uint16_t intervalMinutes) {
+	if (!isfinite(target) || target < 0.0f || target > 45.0f) {
+		return false;
+	}
+	if (!immediate && (!isfinite(stepC) || stepC < 0.01f || stepC > 5.0f ||
+	                   intervalMinutes < 1 || intervalMinutes > 10080)) {
+		return false;
+	}
+
+	rampTargetTemp = target;
+	if (immediate) {
+		setTemp = target;
+	} else {
+		rampStepC = stepC;
+		rampIntervalMinutes = intervalMinutes;
+	}
+	lastRampStepMillis = millis();
+	rampInitialized = true;
+	return true;
+}
+
+float getRampTargetTemp() {
+	return rampTargetTemp;
+}
+
+float getRampStepC() {
+	return rampStepC;
+}
+
+uint16_t getRampIntervalMinutes() {
+	return rampIntervalMinutes;
+}
+
+bool isSetTempRamping() {
+	return fabs(rampTargetTemp - setTemp) >= 0.001f;
+}
 
 void initTemperatureControl() {
 	cascadeBaselineInitialized = false;
 	effectiveBoxTarget = setTemp;
 	lastSlewMillis = 0;
+	lastRampStepMillis = millis();
+	rampInitialized = true;
 	resetCascadeAdaptation();
+}
+
+static void updateSetTempRamp() {
+	if (!rampInitialized) {
+		lastRampStepMillis = millis();
+		rampInitialized = true;
+		return;
+	}
+
+	if (!isSetTempRamping()) {
+		bool targetChanged = setTemp != rampTargetTemp;
+		setTemp = rampTargetTemp;
+		lastRampStepMillis = millis();
+		if (targetChanged) {
+			saveSettings();
+		}
+		return;
+	}
+
+	unsigned long now = millis();
+	unsigned long intervalMs = static_cast<unsigned long>(rampIntervalMinutes) * 60000UL;
+	unsigned long elapsedMs = now - lastRampStepMillis;
+	unsigned long steps = elapsedMs / intervalMs;
+	if (steps == 0) {
+		return;
+	}
+
+	lastRampStepMillis += steps * intervalMs;
+	float change = rampStepC * static_cast<float>(steps);
+	if (rampTargetTemp > setTemp) {
+		setTemp = min(rampTargetTemp, setTemp + change);
+	} else {
+		setTemp = max(rampTargetTemp, setTemp - change);
+	}
+	if (!isSetTempRamping()) {
+		setTemp = rampTargetTemp;
+		saveSettings();
+	}
 }
 
 bool isISpindelActive() {
@@ -261,6 +343,7 @@ float getCascadeBoxBaseline() {
 }
 
 void updateCascadeTarget() {
+	updateSetTempRamp();
 	updateFermenterTrend();
 
 	if (fabs(cascadeGain - lastConfiguredCascadeGain) >= 0.001f) {

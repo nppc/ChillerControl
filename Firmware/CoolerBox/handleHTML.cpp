@@ -32,7 +32,6 @@ void handleDebug() {
 }
 
 void handleApiSettings() {
-	restoreSettingsFromEEPROM();
 	INIT_DS18B20();
 
 	JsonDocument doc;
@@ -310,22 +309,39 @@ void handleAutotune() {
 }
 
 void handleSetTemp() {
-	if (httpServer.hasArg("Temp")) {
-		float tmpTemp = httpServer.arg("Temp").toFloat();
-		if (tmpTemp >= 0.0f && tmpTemp <= 45.0f) {
-			setTemp = tmpTemp;
-			updateCascadeTarget();
-			if (boxMode == 1) {
-				float cTemp = getControlTemp();
-				if (cTemp < setTemp) {
-					boxSubMode = 3; // Immediately switch to Heating
-				} else if (cTemp > setTemp) {
-					boxSubMode = 2; // Immediately switch to Cooling
-				}
-			}
-			saveSettings();
+	String tempArg = httpServer.arg("Temp");
+	char *parseEnd = nullptr;
+	float tmpTemp = strtof(tempArg.c_str(), &parseEnd);
+	bool validTemp = httpServer.hasArg("Temp") && parseEnd != tempArg.c_str() &&
+	                 *parseEnd == '\0' && isfinite(tmpTemp) && tmpTemp >= 0.0f && tmpTemp <= 45.0f;
+	String rampMode = httpServer.arg("rampMode");
+	bool immediate = !httpServer.hasArg("rampMode") || rampMode == "immediate";
+	float stepC = httpServer.arg("rampStepC").toFloat();
+	int intervalMinutes = httpServer.arg("rampIntervalMinutes").toInt();
+	if (!httpServer.hasArg("rampStepC")) stepC = 0.1f;
+	if (!httpServer.hasArg("rampIntervalMinutes")) intervalMinutes = 120;
+	bool validRamp = immediate ||
+	                 (rampMode == "rate" && httpServer.hasArg("rampStepC") &&
+	                  httpServer.hasArg("rampIntervalMinutes") &&
+	                  isfinite(stepC) && stepC >= 0.01f && stepC <= 5.0f &&
+	                  intervalMinutes >= 1 && intervalMinutes <= 10080);
+	if (!validTemp || !validRamp ||
+	    !setTemperatureTarget(tmpTemp, immediate, stepC,
+	                          static_cast<uint16_t>(intervalMinutes))) {
+		httpServer.send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid temperature or ramp settings\"}");
+		return;
+	}
+
+	updateCascadeTarget();
+	if (boxMode == 1) {
+		float cTemp = getControlTemp();
+		if (cTemp < tmpTemp) {
+			boxSubMode = 3; // Immediately switch to Heating
+		} else if (cTemp > tmpTemp) {
+			boxSubMode = 2; // Immediately switch to Cooling
 		}
 	}
+	saveSettings();
 	setCoolerStopped(LOW);
 	delay(50);
 	updateCoolingOutput();
@@ -333,6 +349,7 @@ void handleSetTemp() {
 	JsonDocument doc;
 	doc["status"] = "ok";
 	doc["setTemp"] = setTemp;
+	doc["rampTargetTemp"] = getRampTargetTemp();
 	String json;
 	serializeJson(doc, json);
 	httpServer.sendHeader("Connection", "close");

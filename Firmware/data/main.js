@@ -1,3 +1,7 @@
+let requestedSetTemp = null;
+const RAMP_UP_ICON = '<svg class="target-ramp-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 3.5h14M4 15.5l4-3.5 3 1 4.5-7"/><path d="M12.5 6H16v3.5"/></svg>';
+const RAMP_DOWN_ICON = '<svg class="target-ramp-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 16.5h14M4 4.5l4 3.5 3-1 4.5 7"/><path d="M12.5 14H16v-3.5"/></svg>';
+
 function NumberChange(n, i) {
   const el = document.getElementById(i);
   if (!el) return;
@@ -194,9 +198,20 @@ function openTempModal() {
   if (!backdrop) return;
   const tempInput = document.getElementById('Temp');
   const setTempEl = document.getElementById('setTemp');
-  if (tempInput && setTempEl) {
-    const current = parseFloat(setTempEl.textContent);
+  if (tempInput) {
+    const current = requestedSetTemp !== null
+      ? requestedSetTemp
+      : (setTempEl ? parseFloat(setTempEl.textContent) : NaN);
     if (!isNaN(current)) tempInput.value = current.toFixed(1);
+  }
+  const rampMode = document.querySelector('input[name="rampMode"]:checked');
+  const rampFields = document.getElementById('rampRateFields');
+  if (rampFields) {
+    const ramping = rampMode && rampMode.value === 'rate';
+    rampFields.hidden = !ramping;
+    rampFields.querySelectorAll('input').forEach(input => {
+      input.disabled = !ramping;
+    });
   }
   backdrop.style.display = 'flex';
   setTimeout(() => {
@@ -362,6 +377,33 @@ async function updateStatus() {
     if (setTempEl && data.setTemp !== undefined) {
       setTempEl.textContent = data.setTemp;
     }
+    if (data.rawSetTemp !== undefined) {
+      requestedSetTemp = parseFloat(data.rawSetTemp);
+    }
+    const rampStatus = document.getElementById('targetRampStatus');
+    const rampIcon = document.getElementById('targetRampIcon');
+    const rampRate = document.getElementById('targetRampRate');
+    const targetDisplayLabel = document.getElementById('targetTempLabel');
+    if (rampStatus && rampIcon && rampRate && targetDisplayLabel) {
+      const stepC = Number(data.rampStepC);
+      const intervalMinutes = Number(data.rampIntervalMinutes);
+      const rampTargetTemp = Number(data.rampTargetTemp);
+      const currentSetTemp = Number(data.setTemp);
+      const isRamping = data.isSetTempRamping === true &&
+        Number.isFinite(stepC) && Number.isFinite(intervalMinutes) &&
+        Number.isFinite(rampTargetTemp) && Number.isFinite(currentSetTemp);
+      rampStatus.hidden = !isRamping;
+      if (isRamping) {
+        const stepText = stepC.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+        rampRate.textContent = `${stepText}\u00B0C / ${intervalMinutes} min`;
+        targetDisplayLabel.textContent = `Target: ${rampTargetTemp.toFixed(1)}\u00B0C`;
+        const rampingUp = rampTargetTemp > currentSetTemp;
+        rampIcon.innerHTML = rampingUp ? RAMP_UP_ICON : RAMP_DOWN_ICON;
+      } else {
+        rampIcon.textContent = '';
+        targetDisplayLabel.textContent = data.isISpindelActive ? 'Fermenter Target' : 'Target';
+      }
+    }
 
     const controlBtn = document.getElementById('controlBtn');
     const controlForm = document.getElementById('controlForm');
@@ -417,15 +459,18 @@ function setupIndexPage() {
       const setBtn = tempForm.querySelector('button[type="submit"]');
       if (setBtn) setBtn.disabled = true;
 
-      const setTempEl = document.getElementById('setTemp');
-      if (setTempEl) setTempEl.textContent = val.toFixed(1);
-
       try {
-        const res = await fetch('/setTemp?Temp=' + encodeURIComponent(val.toFixed(1)));
+        const params = new URLSearchParams(new FormData(tempForm));
+        params.set('Temp', val.toFixed(1));
+        const res = await fetch('/setTemp?' + params.toString());
         if (res.ok) {
           closeTempModal();
+        } else {
+          const error = await res.json().catch(() => null);
+          alert(error && error.message ? error.message : 'Unable to set temperature.');
         }
       } catch (err) {
+        alert('Unable to reach the chiller. Please try again.');
       } finally {
         if (setBtn) setBtn.disabled = false;
         await updateStatus();
@@ -434,6 +479,19 @@ function setupIndexPage() {
   }
 
   const controlForm = document.getElementById('controlForm');
+  const rampModes = tempForm.querySelectorAll('input[name="rampMode"]');
+  const rampFields = document.getElementById('rampRateFields');
+  if (rampFields) {
+    rampModes.forEach(rampMode => {
+      rampMode.addEventListener('change', () => {
+        const ramping = rampMode.value === 'rate';
+        rampFields.hidden = !ramping;
+        rampFields.querySelectorAll('input').forEach(input => {
+          input.disabled = !ramping;
+        });
+      });
+    });
+  }
   if (controlForm) {
     controlForm.addEventListener('submit', async (e) => {
       e.preventDefault();

@@ -40,6 +40,10 @@
 <div class="target-reading">
 <div class="temperature-label" id="targetTempLabel">Target</div>
 <div class="target-value" onclick="openTempModal()" style="cursor: pointer;" title="Click to set temperature"><span id="setTemp">--</span>&deg;C</div>
+<div class="target-ramp-status" id="targetRampStatus" role="status" hidden>
+<span id="targetRampIcon" aria-hidden="true"></span>
+<span id="targetRampRate"></span>
+</div>
 <button type="button" class="btn btn_target_set" onclick="openTempModal()" aria-label="Set temperature">
 <svg viewBox="0 0 20 20" fill="currentColor" class="btn-icon" aria-hidden="true"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
 Set
@@ -129,6 +133,28 @@ Set
           <span class="modal-unit">&deg;C</span>
         </div>
         <div class="modal-hint">Allowed range: 0.0 &ndash; 45.0 &deg;C</div>
+        <fieldset class="ramp-mode-options">
+          <legend class="modal-label ramp-mode-label">How should the target change?</legend>
+          <label class="ramp-mode-option">
+            <input type="radio" name="rampMode" value="immediate" checked>
+            <span>Set immediately</span>
+          </label>
+          <label class="ramp-mode-option">
+            <input type="radio" name="rampMode" value="rate">
+            <span>Change gradually</span>
+          </label>
+        </fieldset>
+        <div id="rampRateFields" class="ramp-rate-fields" hidden>
+          <label class="ramp-rate-field">
+            <span>Change by (&deg;C)</span>
+            <input type="number" id="rampStepC" name="rampStepC" min="0.01" max="5" step="0.01" value="0.10">
+          </label>
+          <label class="ramp-rate-field">
+            <span>Every (minutes)</span>
+            <input type="number" id="rampIntervalMinutes" name="rampIntervalMinutes" min="1" max="10080" step="1" value="120">
+          </label>
+          <div class="modal-hint">The setpoint changes by this amount at each interval.</div>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn_muted modal-btn" onclick="closeTempModal()">Cancel</button>

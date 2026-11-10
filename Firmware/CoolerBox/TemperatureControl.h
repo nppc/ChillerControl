@@ -11,6 +11,11 @@ extern float effectiveBoxTarget;// Current computed target setpoint for the box 
 extern int iSpindelIntervalSec; // Reported iSpindel interval in seconds (default 900)
 
 void initTemperatureControl();
+bool setTemperatureTarget(float target, bool immediate, float stepC, uint16_t intervalMinutes);
+float getRampTargetTemp();
+float getRampStepC();
+uint16_t getRampIntervalMinutes();
+bool isSetTempRamping();
 void processControl();
 void updateCascadeTarget();
 bool isISpindelActive();

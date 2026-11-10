@@ -16,6 +16,11 @@ $pio = Join-Path $env:USERPROFILE ".platformio\penv\Scripts\platformio.exe"
 The regular PlatformIO Build action also regenerates the LittleFS filesystem
 image from `data`, as well as building the firmware.
 
+On the home page, use **Set** to apply a target immediately or ramp it by a
+specified temperature increment and interval (for example, 0.1 °C every
+120 minutes). The ramp target and rate are saved; after a reboot, an active
+ramp resumes from the saved setpoint and starts a fresh interval.
+
 The PlatformIO IDE installs its Core in this virtual environment. A bare
 `python -m platformio` uses whichever Python happens to be on `PATH` and can
 fail with `No module named platformio`; use the executable above instead.

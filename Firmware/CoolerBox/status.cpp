@@ -55,7 +55,11 @@ void handleStatus() {
 	float heaterPct = (maxHotPWM > 0) ? (setHotPWM * 100.0f / (float)maxHotPWM) : 0.0f;
 	doc["setHotPWM"] = String(heaterPct, 1) + "%";
 	doc["setTemp"] = String(setTemp, 1);
-	doc["rawSetTemp"] = String(setTemp, 1);
+	doc["rawSetTemp"] = String(getRampTargetTemp(), 1);
+	doc["rampTargetTemp"] = String(getRampTargetTemp(), 1);
+	doc["rampStepC"] = getRampStepC();
+	doc["rampIntervalMinutes"] = getRampIntervalMinutes();
+	doc["isSetTempRamping"] = isSetTempRamping();
 	doc["Voltage"] = String(measuredVoltage, 1) + "V";
 	doc["Current"] = String(measuredCurrent, 1) + "A";
 	doc["Fan"] = digitalRead(HOT_FAN) ? "On" : "Off";

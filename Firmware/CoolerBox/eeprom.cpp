@@ -59,6 +59,12 @@ void applySettings(JsonDocument &doc) {
 		sendInterval = 60;
 	}
 	setTemp = doc["setTemp"];
+	float savedRampTarget = doc["rampTargetTemp"] | setTemp;
+	float savedRampStep = doc["rampStepC"] | 0.1f;
+	uint16_t savedRampInterval = doc["rampIntervalMinutes"] | 120;
+	if (!setTemperatureTarget(savedRampTarget, false, savedRampStep, savedRampInterval)) {
+		setTemperatureTarget(setTemp, true, 0.1f, 120);
+	}
 	hotPID_kP = doc["hotPID_kP"];
 	hotPID_kI = doc["hotPID_kI"];
 	hotPID_kD = doc["hotPID_kD"];
@@ -130,6 +136,7 @@ void initDefaultSettings() {
 	endpointPath = "/telemetry";
 	sendInterval = 60;
 	setTemp = 19.0;
+	setTemperatureTarget(setTemp, true, 0.1f, 120);
 	hotPID_kP = DEFAULT_PID_KP;
 	hotPID_kI = DEFAULT_PID_KI;
 	hotPID_kD = DEFAULT_PID_KD;
@@ -172,6 +179,9 @@ void saveSettings(){
 	doc["endpointPath"] = endpointPath;
 	doc["sendInterval"] = sendInterval;
 	doc["setTemp"] = setTemp;
+	doc["rampTargetTemp"] = getRampTargetTemp();
+	doc["rampStepC"] = getRampStepC();
+	doc["rampIntervalMinutes"] = getRampIntervalMinutes();
 	doc["hotPID_kP"] = hotPID_kP;
 	doc["hotPID_kI"] = hotPID_kI;
 	doc["hotPID_kD"] = hotPID_kD;

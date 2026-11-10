@@ -1430,6 +1430,105 @@ input[type="number"] {
   color: var(--text-muted);
 }
 
+.ramp-mode-label {
+  margin: 22px 0 8px;
+}
+
+.ramp-mode-options {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ramp-mode-options legend {
+  width: 100%;
+}
+
+.ramp-mode-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  background: var(--surface-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ramp-mode-option input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.ramp-rate-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 16px;
+  text-align: left;
+}
+
+.ramp-rate-fields[hidden] {
+  display: none;
+}
+
+.ramp-rate-field span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.ramp-rate-field input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--surface-muted);
+  font: inherit;
+  text-align: center;
+}
+
+.ramp-rate-fields .modal-hint {
+  grid-column: 1 / -1;
+  margin-top: 0;
+  text-align: center;
+}
+
+.target-ramp-status {
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.target-ramp-status:not([hidden]) {
+  display: flex;
+}
+
+.target-ramp-icon {
+  flex: 0 0 15px;
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .modal-footer {
   display: flex;
   gap: 12px;
