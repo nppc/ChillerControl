@@ -215,6 +215,7 @@ int iSpindelIntervalSec = 900;  // 15 minutes default
 float rampTargetTemp = 19.0f;
 float rampStepC = 0.1f;
 uint16_t rampIntervalMinutes = 120;
+bool rampBootSyncDone = false;
 
 bool setTemperatureTarget(float target, bool immediate, float stepC, uint16_t intervalMinutes) {
 	if (!isfinite(target) || target < 0.0f || target > 45.0f) {
@@ -259,6 +260,7 @@ void initTemperatureControl() {
 	lastSlewMillis = 0;
 	lastRampStepMillis = millis();
 	rampInitialized = true;
+	rampBootSyncDone = false;
 	resetCascadeAdaptation();
 }
 
@@ -276,6 +278,24 @@ static void updateSetTempRamp() {
 		if (targetChanged) {
 			saveSettings();
 		}
+		return;
+	}
+
+	// On first call after boot where iSpindel is active, snap setTemp to one
+	// step ahead of the fermenter temperature so the ramp resumes near where
+	// it was interrupted rather than restarting from the saved start point.
+	if (!rampBootSyncDone && isISpindelActive()) {
+		rampBootSyncDone = true;
+		if (rampTargetTemp > setTemp) {
+			// Rising ramp: resume from fermenter + one step, clamped to [setTemp, rampTargetTemp]
+			float resumeFrom = iSpindelTemperature + rampStepC;
+			setTemp = min(rampTargetTemp, max(setTemp, resumeFrom));
+		} else {
+			// Falling ramp: resume from fermenter - one step, clamped to [rampTargetTemp, setTemp]
+			float resumeFrom = iSpindelTemperature - rampStepC;
+			setTemp = max(rampTargetTemp, min(setTemp, resumeFrom));
+		}
+		lastRampStepMillis = millis();
 		return;
 	}
 
