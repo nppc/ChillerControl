@@ -541,8 +541,16 @@ void processControl() {
 		processCooling(boxTemp, HotTemp, effectiveBoxTarget, isCooling);
 
 		// Execute separated heating logic (strictly locked out while fermenter is at/above target)
+		// Peltier interlock: running the heater simultaneously with an active Peltier would brownout
+		// the shared power supply. The interlock uses setVoltage (the value commanded this cycle,
+		// set by processCooling just above) as the primary gate. measuredVoltage is only an additional
+		// guard when the Peltier IS commanded — it can lag by up to I2C_INTERVAL seconds and would
+		// spuriously block heating in heating-only mode if the board reports a residual/hardware-floor
+		// voltage while the Peltier is commanded off.
 		float safePeltierThreshold = max(2.5f, minVoltage + 0.5f);
-		bool heatingAllowed = !isStopped && fermenterNeedsHeating && (measuredVoltage < safePeltierThreshold) && isHeating;
+		bool peltierCommanded = (setVoltage >= minVoltage);
+		bool peltierSafe = !I2C_PRESENT || !peltierCommanded || (measuredVoltage < safePeltierThreshold);
+		bool heatingAllowed = !isStopped && fermenterNeedsHeating && peltierSafe && isHeating;
 		processHeating(boxTemp, effectiveBoxTarget, heatingAllowed);
 
 		// Log control state changes
