@@ -482,7 +482,8 @@ void processControl() {
 
 		if (boxMode == 1 && !isStopped) {
 			if (boxSubMode == 3) { // Currently in Heating sub-mode
-				// Switch to cooling only after the measured liquid exceeds target by the emergency margin.
+				// Switch to cooling only after the measured liquid (or box air when no iSpindel) exceeds
+				// target by the emergency margin.
 				if (controlTemp > (setTemp + FERMENTER_EMERGENCY_OVERTEMP)) {
 					boxSubMode = 2; // Switch to Cooling
 					Debug.addLine(String(F("Fermenter temp (")) + String(controlTemp, 2) +
@@ -513,7 +514,13 @@ void processControl() {
 		}
 
 		bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
-		bool fermenterNeedsHeating = !isISpindelActive() || !emergencyCutoff;
+		// In Heating-only mode (boxMode == 3) the cascade already manages the transition: when
+		// the fermenter reaches setTemp the cascade pulls effectiveBoxTarget down and the PID
+		// reduces output naturally. Applying the emergency hard-cutoff on top would abruptly
+		// zero the heater the instant iSpindel crosses setTemp+0.1°C, which is exactly the
+		// symptom reported. Reserve the hard cutoff for Auto mode (boxMode == 1) where it guards
+		// the gap between the fermenter probe crossing and the sub-mode switch completing.
+		bool fermenterNeedsHeating = !isISpindelActive() || (boxMode != 1) || !emergencyCutoff;
 		bool fermenterNeedsCooling = !isISpindelActive() || (iSpindelTemperature > setTemp);
 		bool isCooling = !isHeating && !isStopped && fermenterNeedsCooling;
 
