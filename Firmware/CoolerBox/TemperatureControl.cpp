@@ -10,12 +10,11 @@ const float CASCADE_ADAPT_DEADBAND = 0.15f;
 const uint8_t CASCADE_ADAPT_READINGS = 3;
 
 const float DEFAULT_CASCADE_GAIN = 2.0f;
-const float FERMENTER_PREDICTION_HORIZON_HOURS = 1.0f;
+const float FERMENTER_PREDICTION_HORIZON_HOURS = 0.5f;
 const float FERMENTER_MAX_RATE_C_PER_HOUR = 0.75f;
 const float FERMENTER_MAX_PREDICTION_C = 0.75f;
 const float FERMENTER_RATE_FILTER_ALPHA = 0.15f;
 const float FERMENTER_EMERGENCY_OVERTEMP = 0.1f;
-const float CASCADE_COOLING_INHIBIT_MARGIN = 0.1f; // Don't pull box_target down when fermenter is this far below setTemp
 const float BOX_TARGET_MAX_SLEW_UP_PER_SEC = 0.08f / 60.0f; // ~0.00133 °C/sec (0.08 °C/min)
 const float BOX_TARGET_MAX_SLEW_DOWN_PER_SEC = 0.12f / 60.0f; // ~0.00200 °C/sec (0.12 °C/min)
 float heatingCascadeGain = DEFAULT_CASCADE_GAIN;
@@ -410,13 +409,6 @@ void updateCascadeTarget() {
 		bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
 		float gain = (isHeating || predictedError >= 0.0f) ? heatingCascadeGain : coolingCascadeGain;
 		float offset = constrain(predictedError * gain, -cascadeMaxOffset, cascadeMaxOffset);
-
-		// Inhibit cooling offset when fermenter is still well below setTemp.
-		// Trend prediction can flip the predicted error negative even when the actual
-		// fermenter is behind target, causing an unwarranted box_target drop.
-		if (iSpindelTemperature < setTemp - CASCADE_COOLING_INHIBIT_MARGIN) {
-			offset = max(offset, 0.0f);
-		}
 
 		// Box target is anchored at the thermal equilibrium baseline instead of hardcoded setTemp
 		targetRaw = constrain(cascadeBoxBaseline + offset, setTemp - cascadeMaxOffset, setTemp + cascadeMaxOffset);
