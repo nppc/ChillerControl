@@ -17,6 +17,85 @@ static TempConversionState tempConvState = TEMP_CONV_IDLE;
 static unsigned long tempRequestStartTime = 0;
 const unsigned long TEMP_CONVERSION_DELAY_MS = 1200; // 1200ms provides generous margin for slow clone ICs at cold temperatures
 
+#ifdef DEBUG_TEMPERATURE_SENSORS
+namespace {
+const unsigned long DEBUG_TEMPERATURE_CYCLE_MS = 24UL * 60UL * 60UL * 1000UL;
+const unsigned long DEBUG_ISPINDEL_FIRST_REPORT_DELAY_MS = 20UL * 1000UL;
+const unsigned long DEBUG_ISPINDEL_REPORT_INTERVAL_MS = 5UL * 60UL * 1000UL;
+const float DEBUG_BOX_BASE_TEMPERATURE_C = 16.0f;
+const float DEBUG_BOX_DRIFT_C = 2.0f;
+const float DEBUG_HEATER_C_PER_MINUTE_AT_100_PERCENT = 1.0f;
+const float DEBUG_LIQUID_HEATER_C_PER_MINUTE_PER_PERCENT = 0.005f;
+const float DEBUG_ISPINDEL_MAX_RATE_C_PER_HOUR = 1.0f;
+bool debugSensorsInitialized = false;
+unsigned long debugStartMillis = 0;
+unsigned long debugLastUpdateMillis = 0;
+unsigned long debugLastISpindelReportMillis = 0;
+bool debugFirstISpindelReportSent = false;
+float debugHeaterRiseC = 0.0f;
+float debugLiquidHeaterRiseC = 0.0f;
+
+void updateDebugTemperatureSensors() {
+	unsigned long now = millis();
+	if (!debugSensorsInitialized) {
+		debugSensorsInitialized = true;
+		debugStartMillis = now;
+		debugLastUpdateMillis = now;
+		debugLastISpindelReportMillis = now;
+		debugFirstISpindelReportSent = false;
+		debugHeaterRiseC = 0.0f;
+		debugLiquidHeaterRiseC = 0.0f;
+		boxTemp = DEBUG_BOX_BASE_TEMPERATURE_C;
+		HotTemp = boxTemp;
+		iSpindelTemperature = 18.0f;
+		iSpindelIntervalSec = DEBUG_ISPINDEL_REPORT_INTERVAL_MS / 1000UL;
+		useISpindelTemp = true;
+		lastISpindelMillis = 0;
+		Debug.addLine(F("DEBUG temperature simulation enabled: box=16C, iSpindel=18C"));
+		return;
+	}
+
+	unsigned long elapsedMillis = now - debugLastUpdateMillis;
+	debugLastUpdateMillis = now;
+	float elapsedMinutes = static_cast<float>(elapsedMillis) / 60000.0f;
+	float heatingPercent = maxHotPWM > 0
+		? constrain(setHotPWM * 100.0f / static_cast<float>(maxHotPWM), 0.0f, 100.0f)
+		: 0.0f;
+	debugHeaterRiseC += heatingPercent *
+	                    DEBUG_HEATER_C_PER_MINUTE_AT_100_PERCENT / 100.0f *
+	                    elapsedMinutes;
+	debugLiquidHeaterRiseC += heatingPercent *
+	                         DEBUG_LIQUID_HEATER_C_PER_MINUTE_PER_PERCENT *
+	                         elapsedMinutes;
+
+	unsigned long phaseMillis = (now - debugStartMillis) % DEBUG_TEMPERATURE_CYCLE_MS;
+	float phaseHours = static_cast<float>(phaseMillis) / 3600000.0f;
+	float driftC = phaseHours <= 12.0f
+		? DEBUG_BOX_DRIFT_C * phaseHours / 12.0f
+		: DEBUG_BOX_DRIFT_C * (24.0f - phaseHours) / 12.0f;
+	boxTemp = DEBUG_BOX_BASE_TEMPERATURE_C + driftC + debugHeaterRiseC;
+	HotTemp = boxTemp;
+
+	unsigned long reportInterval = debugFirstISpindelReportSent
+		? DEBUG_ISPINDEL_REPORT_INTERVAL_MS
+		: DEBUG_ISPINDEL_FIRST_REPORT_DELAY_MS;
+	if (now - debugLastISpindelReportMillis >= reportInterval) {
+		unsigned long reportElapsedMillis = now - debugLastISpindelReportMillis;
+		float reportElapsedHours = static_cast<float>(reportElapsedMillis) / 3600000.0f;
+		float liquidRate = constrain(boxTemp - iSpindelTemperature,
+		                             -DEBUG_ISPINDEL_MAX_RATE_C_PER_HOUR,
+		                             DEBUG_ISPINDEL_MAX_RATE_C_PER_HOUR);
+		iSpindelTemperature += liquidRate * reportElapsedHours +
+		                       debugLiquidHeaterRiseC;
+		debugLiquidHeaterRiseC = 0.0f;
+		debugLastISpindelReportMillis = now;
+		debugFirstISpindelReportSent = true;
+		lastISpindelMillis = now == 0 ? 1 : now;
+	}
+}
+}
+#endif
+
 // smooth algorithm for ADC reading
 int digitalSmooth(int rawIn, int *sensSmoothArray) {
 	int j, k, temp, top, bottom;
@@ -98,6 +177,7 @@ void INIT_DS18B20() {
 	}
 }
 
+#ifndef DEBUG_TEMPERATURE_SENSORS
 static bool isTemperatureValid(float temp) {
 	return (temp != DEVICE_DISCONNECTED_C && temp != 85.0f && temp > -55.0f && temp < 125.0f);
 }
@@ -124,8 +204,12 @@ static float fetchSensorTemperature(int sensorId, const char* sensorName) {
 	Debug.addLine(String(F("Notice: ")) + sensorName + F(" sensor read retry failed (raw=") + String(temp, 1) + F(")"));
 	return temp;
 }
+#endif
 
 void readDS18B20Temperatures() {
+#ifdef DEBUG_TEMPERATURE_SENSORS
+	updateDebugTemperatureSensors();
+#else
 	oneWire.reset(); // Pre-settle OneWire bus after conversion sleep to avoid clone wake-up timeout
 	delay(5);
 	float rawCold = fetchSensorTemperature(ColdSensorId, "Cold");
@@ -166,6 +250,7 @@ void readDS18B20Temperatures() {
 		Debug.addLine(F("Warn: Hot sensor read failed"));
 		hotFailLogged = true;
 	}
+#endif
 }
 
 void primeDS18B20() {
@@ -194,4 +279,3 @@ bool updateDS18B20() {
 	}
 	return false;
 }
-

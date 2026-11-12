@@ -310,6 +310,11 @@ ESP8266WebServer::THandlerFunction guardedHandler(ESP8266WebServer::THandlerFunc
 }
 
 void handleISpindel() {
+#ifdef DEBUG_TEMPERATURE_SENSORS
+	httpServer.send(200, "text/plain", "DEBUG temperature simulation active; iSpindel report ignored");
+	return;
+#endif
+
 	if (!httpServer.hasArg("plain")) {
 		httpServer.send(400, "text/plain", "Missing body");
 		return;

@@ -25,6 +25,18 @@ For the iSpindel outer PID, configurable parameters, and mode/safety conditions,
 see [CASCADE_LOGIC.md](./CASCADE_LOGIC.md). Outer PID tuning and the box-target
 offset limit are available on the PID Settings page and are saved in EEPROM.
 
+For bench testing without temperature probes or an iSpindel, uncomment
+`DEBUG_TEMPERATURE_SENSORS` in `CoolerBox/Globals.h`. The simulator starts the
+box at 16 °C and the fermenter at 18 °C, drifts the box reference from 16 °C to
+18 °C over 12 hours and back to 16 °C over the next 12 hours, and adds
+0.01 °C/min to the simulated box for every percent of heater output. The first
+simulated iSpindel report arrives after 20 seconds, then reports are generated
+every 5 minutes. The liquid follows the box with a one-hour response time
+capped at 1 °C/hour, and separately gains 0.005 °C/min for every percent of
+heater output. Incoming iSpindel reports are ignored while simulation is
+enabled. This mode substitutes sensor values; it does not disable physical
+heater or cooler outputs.
+
 The PlatformIO IDE installs its Core in this virtual environment. A bare
 `python -m platformio` uses whichever Python happens to be on `PATH` and can
 fail with `No module named platformio`; use the executable above instead.
