@@ -17,24 +17,80 @@
 </td></tr></table>
 <BR>
 <form action="/pids_store" method="get">
+<div class="values_header" style="padding: 8px; margin-bottom: 8px;">Outer PID (fermenter temperature to box target)</div>
+<p style="font-size: 13px; color: #555;">
+  This slow loop changes the box-air target to control the fermenter. Tune from real temperature logs, one setting at a time; make small changes and wait several iSpindel reports before judging the result. Defaults are conservative starting values, not guaranteed final tuning.
+</p>
 <TABLE class="values_table">
-<tr class="values_header"><td style="width: 80px;">Parameter</td><td>Value</td></tr>
+<tr class="values_header"><td style="width: 180px;">Parameter</td><td>Value and effect</td></tr>
+<tr>
+  <td style="font-weight: bold; padding: 12px 16px;">P (Kp)</td>
+  <td style="padding: 12px 16px;">
+    <input type="number" name="outerPID_kP" id="outerPID_kP" class="inputtext" style="width: 120px;" min="0.1" max="10.0" step="0.1" value="2.0"/>
+    <div style="font-size: 12px; color: #555; margin-top: 6px;">Immediate response to liquid temperature error. Higher Kp moves the box target farther for the same error, correcting faster but increasing the risk of overshoot or oscillation. If the response is too aggressive, lower Kp.</div>
+  </td>
+</tr>
+<tr>
+  <td style="font-weight: bold; padding: 12px 16px;">I (Ki per hour)</td>
+  <td style="padding: 12px 16px;">
+    <input type="number" name="outerPID_kIPerHour" id="outerPID_kIPerHour" class="inputtext" style="width: 120px;" min="0.001" max="2.0" step="0.001" value="0.4"/>
+    <div style="font-size: 12px; color: #555; margin-top: 6px;">Slowly builds a box-target offset to compensate for persistent error and changing ambient conditions. Higher Ki removes a lasting error sooner, but can cause overshoot as the liquid responds slowly. If it crosses the setpoint or keeps drifting after reaching it, lower Ki. Ki must be greater than zero.</div>
+  </td>
+</tr>
+<tr>
+  <td style="font-weight: bold; padding: 12px 16px;">D horizon (Td, hours)</td>
+  <td style="padding: 12px 16px;">
+    <input type="number" name="outerPID_tdHours" id="outerPID_tdHours" class="inputtext" style="width: 120px;" min="0.0" max="6.0" step="0.1" value="0.5"/>
+    <div style="font-size: 12px; color: #555; margin-top: 6px;">How far ahead the filtered liquid-temperature trend is projected. A larger Td makes D counteract a rise or fall earlier and more strongly; too much may slow correction. Set to 0 to turn off D.</div>
+  </td>
+</tr>
+<tr>
+  <td style="font-weight: bold; padding: 12px 16px;">D forecast limit (&deg;C)</td>
+  <td style="padding: 12px 16px;">
+    <input type="number" name="outerPID_forecastLimitC" id="outerPID_forecastLimitC" class="inputtext" style="width: 120px;" min="0.0" max="2.0" step="0.05" value="0.25"/>
+    <div style="font-size: 12px; color: #555; margin-top: 6px;">Caps the predicted temperature change used by D, which also caps D's influence on the box target. Raise it for more trend compensation; lower it if D weakens heating/cooling too much. Set to 0 to remove D output.</div>
+  </td>
+</tr>
+<tr>
+  <td style="font-weight: bold; padding: 12px 16px;">I freeze rate (&deg;C/hour)</td>
+  <td style="padding: 12px 16px;">
+    <input type="number" name="outerPID_freezeRateCPerHour" id="outerPID_freezeRateCPerHour" class="inputtext" style="width: 120px;" min="0.0" max="2.0" step="0.05" value="0.1"/>
+    <div style="font-size: 12px; color: #555; margin-top: 6px;">When the liquid is moving toward its target faster than this rate, I is paused to avoid accumulating extra correction during the slow thermal response. Lower values pause I more often; higher values let I continue longer. Set to 0 to disable this trend-based freeze.</div>
+  </td>
+</tr>
+<tr>
+  <td style="font-weight: bold; padding: 12px 16px;">Max box target offset (&deg;C)</td>
+  <td style="padding: 12px 16px;">
+    <input type="number" name="cascadeMaxOffset" id="cascadeMaxOffset" class="inputtext" style="width: 120px;" min="1.0" max="10.0" step="0.1" value="4.0"/>
+    <div style="font-size: 12px; color: #555; margin-top: 6px;">Hard limit on how far the outer loop may set the box target above or below the fermenter setpoint. A higher limit permits stronger correction but allows more extreme box targets; keep it within safe limits for the contents and hardware. This is separate from the box-target slew rate below.</div>
+  </td>
+</tr>
+</TABLE>
+<p style="font-size: 12px; color: #555;">D is calculated from the filtered iSpindel trend, not from raw differences between reports. Its contribution is approximately −Kp &times; the limited predicted temperature change. The box target also has a separate rate-of-change limit, so it may move gradually even when the PID asks for a larger change.</p>
+<BR>
+<div class="values_header" style="padding: 8px; margin-bottom: 8px;">Inner heater PID (box air temperature to heater PWM)</div>
+<p style="font-size: 13px; color: #555;">These settings tune only the fast air-temperature heater loop. They do not tune the fermenter outer PID above. Use the Heating Autotune below as a starting point, then verify carefully; changes can affect heater response and safety.</p>
+<TABLE class="values_table">
+<tr class="values_header"><td style="width: 180px;">Parameter</td><td>Value</td></tr>
 <tr>
   <td style="font-weight: bold; padding: 12px 16px;">P</td>
   <td style="padding: 12px 16px;">
     <input type="number" name="hotPID_kP" id="hotPID_kP" class="inputtext" style="width: 120px;" min="0.0" max="300.0" step="0.1" value="0.0"/>
+    <div style="font-size: 12px; color: #555; margin-top: 6px;">How strongly heater PWM responds to the current box-air temperature error. Higher P gives a stronger immediate response, but too much can cause rapid swings.</div>
   </td>
 </tr>
 <tr>
   <td style="font-weight: bold; padding: 12px 16px;">I</td>
   <td style="padding: 12px 16px;">
     <input type="number" name="hotPID_kI" id="hotPID_kI" class="inputtext" style="width: 120px;" min="0.0" max="100.0" step="0.001" value="0.0"/>
+    <div style="font-size: 12px; color: #555; margin-top: 6px;">Accumulates persistent box-air error to reduce steady offsets. Higher I corrects them faster but may keep heating after the target is reached.</div>
   </td>
 </tr>
 <tr>
   <td style="font-weight: bold; padding: 12px 16px;">D</td>
   <td style="padding: 12px 16px;">
     <input type="number" name="hotPID_kD" id="hotPID_kD" class="inputtext" style="width: 120px;" min="0.0" max="300.0" step="0.1" value="0.0"/>
+    <div style="font-size: 12px; color: #555; margin-top: 6px;">Responds to how quickly box-air temperature is changing to reduce heater output before overshoot. Too much D can make output sensitive to sensor noise.</div>
   </td>
 </tr>
 </TABLE>

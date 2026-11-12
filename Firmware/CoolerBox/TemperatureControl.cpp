@@ -2,33 +2,39 @@
 #include "CoolerBox.h"
 
 namespace {
-const float CASCADE_GAIN_MIN = 0.5f;
-const float CASCADE_GAIN_MAX = 5.0f;
-const float CASCADE_GAIN_STEP = 0.1f;
-const float CASCADE_COOLING_GAIN_MULTIPLIER = 1.5f;
-const float CASCADE_ADAPT_DEADBAND = 0.15f;
-const float CASCADE_TARGET_RELEASE_DEADBAND = 0.1f;
-const uint8_t CASCADE_ADAPT_READINGS = 3;
-
-const float DEFAULT_CASCADE_GAIN = 2.0f;
-const float FERMENTER_PREDICTION_HORIZON_HOURS = 0.5f;
+const float DEFAULT_OUTER_KP = 2.0f;
+const float DEFAULT_OUTER_KI_PER_HOUR = 0.4f;
+const float DEFAULT_OUTER_TD_HOURS = 0.5f;
+const float DEFAULT_OUTER_FORECAST_LIMIT_C = 0.25f;
+const float DEFAULT_OUTER_FREEZE_RATE_C_PER_H = 0.1f;
+const float DEFAULT_CASCADE_MAX_OFFSET = 4.0f;
+const float OUTER_KP_MIN = 0.1f;
+const float OUTER_KP_MAX = 10.0f;
+const float OUTER_KI_MIN_PER_HOUR = 0.001f;
+const float OUTER_KI_MAX_PER_HOUR = 2.0f;
+const float OUTER_TD_MAX_HOURS = 6.0f;
+const float OUTER_FORECAST_LIMIT_MAX_C = 2.0f;
+const float OUTER_FREEZE_RATE_MAX_C_PER_H = 2.0f;
+const float CASCADE_MAX_OFFSET_MIN = 1.0f;
+const float CASCADE_MAX_OFFSET_MAX = 10.0f;
 const float FERMENTER_MAX_RATE_C_PER_HOUR = 0.75f;
-const float FERMENTER_MAX_PREDICTION_C = 0.75f;
 const float FERMENTER_RATE_FILTER_ALPHA = 0.15f;
 const float FERMENTER_EMERGENCY_OVERTEMP = 0.1f;
 const float BOX_TARGET_MAX_SLEW_UP_PER_SEC = 0.08f / 60.0f; // ~0.00133 °C/sec (0.08 °C/min)
 const float BOX_TARGET_MAX_SLEW_DOWN_PER_SEC = 0.12f / 60.0f; // ~0.00200 °C/sec (0.12 °C/min)
-float heatingCascadeGain = DEFAULT_CASCADE_GAIN;
-float coolingCascadeGain = DEFAULT_CASCADE_GAIN * CASCADE_COOLING_GAIN_MULTIPLIER;
-float lastAdaptedLiquidError = 0.0f;
-uint8_t nonImprovingReadings = 0;
-int8_t adaptationDirection = 0;
-unsigned long lastAdaptedISpindelMillis = 0;
-float lastConfiguredCascadeGain = -1.0f;
-float lastAdaptedSetTemp = 0.0f;
-float cascadeBoxBaseline = 18.0f;
-bool cascadeBaselineInitialized = false;
-unsigned long lastBaselineISpindelMillis = 0;
+float outerInput = 0.0f;
+float outerOutput = 0.0f;
+float outerSetpoint = 0.0f;
+QuickPID outerPID(&outerInput, &outerOutput, &outerSetpoint,
+                  DEFAULT_OUTER_KP, DEFAULT_OUTER_KI_PER_HOUR, 0.0f,
+                  QuickPID::pMode::pOnError,
+                  QuickPID::dMode::dOnMeas,
+                  QuickPID::iAwMode::iAwClamp,
+                  QuickPID::Action::direct);
+bool outerPIDInitialized = false;
+bool outerPIDNeedsBoxInitialization = true;
+unsigned long lastOuterPIDISpindelMillis = 0;
+bool lastUseISpindelTemp = false;
 unsigned long lastTrendSampleMillis = 0;
 float lastTrendSampleTemp = 0.0f;
 float filteredFermenterRate = 0.0f;
@@ -37,6 +43,36 @@ bool slewInitialized = false;
 bool emergencyHeatLockout = false;
 unsigned long lastRampStepMillis = 0;
 bool rampInitialized = false;
+
+bool isDirectionAvailable(int8_t direction) {
+	if (isCoolerStopped()) {
+		return false;
+	}
+	if (boxMode == 1) {
+		return direction > 0 ? boxSubMode == 3 : boxSubMode == 2;
+	}
+	return direction > 0 ? boxMode == 3 : boxMode == 2;
+}
+
+bool isBoxTempValid() {
+	return (boxTemp > -50.0f && boxTemp < 100.0f && boxTemp != 0.0f);
+}
+
+void initializeOuterPIDFromBox() {
+	if (!isBoxTempValid()) {
+		if (!outerPIDInitialized) {
+			outerOutput = 0.0f;
+			outerPID.Initialize();
+			outerPIDInitialized = true;
+		}
+		return;
+	}
+
+	outerOutput = constrain(boxTemp - setTemp, -cascadeMaxOffset, cascadeMaxOffset);
+	outerPID.Initialize();
+	outerPIDInitialized = true;
+	outerPIDNeedsBoxInitialization = false;
+}
 
 void updateFermenterTrend() {
 	if (!isISpindelActive() || lastISpindelMillis == lastTrendSampleMillis) {
@@ -65,7 +101,7 @@ void updateFermenterTrend() {
 
 	lastTrendSampleMillis = sampleMillis;
 	lastTrendSampleTemp = sampleTemp;
-	float predictedTemp = sampleTemp + filteredFermenterRate * FERMENTER_PREDICTION_HORIZON_HOURS;
+	float predictedTemp = sampleTemp + filteredFermenterRate * outerPID_tdHours;
 	Debug.addLine(String(F("iSpindel trend: liquid=")) + String(sampleTemp, 2) +
 	              F("C rate=") + String(filteredFermenterRate, 3) +
 	              F("C/h predicted=") + String(predictedTemp, 2) + F("C"));
@@ -76,9 +112,9 @@ float predictedFermenterTemp() {
 		return getFermenterTemp();
 	}
 
-	float prediction = filteredFermenterRate * FERMENTER_PREDICTION_HORIZON_HOURS;
-	prediction = constrain(prediction, -FERMENTER_MAX_PREDICTION_C,
-	                       FERMENTER_MAX_PREDICTION_C);
+	float prediction = filteredFermenterRate * outerPID_tdHours;
+	prediction = constrain(prediction, -outerPID_forecastLimitC,
+	                       outerPID_forecastLimitC);
 	return iSpindelTemperature + prediction;
 }
 
@@ -103,114 +139,15 @@ bool updateEmergencyHeatLockout() {
 
 	return emergencyHeatLockout;
 }
-
-static inline bool isBoxTempValid() {
-	return (boxTemp > -50.0f && boxTemp < 100.0f && boxTemp != 0.0f);
-}
-
-void resetCascadeAdaptation() {
-	heatingCascadeGain = constrain(cascadeGain, CASCADE_GAIN_MIN, CASCADE_GAIN_MAX);
-	coolingCascadeGain = constrain(cascadeGain * CASCADE_COOLING_GAIN_MULTIPLIER,
-	                               CASCADE_GAIN_MIN, CASCADE_GAIN_MAX);
-	lastAdaptedLiquidError = 0.0f;
-	nonImprovingReadings = 0;
-	adaptationDirection = 0;
-	lastAdaptedISpindelMillis = lastISpindelMillis;
-	lastConfiguredCascadeGain = cascadeGain;
-	lastAdaptedSetTemp = setTemp;
-	if (isBoxTempValid()) {
-		cascadeBoxBaseline = boxTemp;
-		cascadeBaselineInitialized = true;
-	} else {
-		cascadeBoxBaseline = setTemp;
-		cascadeBaselineInitialized = false;
-	}
-	lastBaselineISpindelMillis = lastISpindelMillis;
-}
-
-float &gainForDirection(int8_t direction) {
-	return direction > 0 ? heatingCascadeGain : coolingCascadeGain;
-}
-
-bool isDirectionAvailable(int8_t direction) {
-	if (isCoolerStopped()) {
-		return false;
-	}
-	if (boxMode == 1) {
-		return direction > 0 ? boxSubMode == 3 : boxSubMode == 2;
-	}
-	return direction > 0 ? boxMode == 3 : boxMode == 2;
-}
-
-void adjustCascadeGain(int8_t direction, float adjustment, const char *reason) {
-	float &gain = gainForDirection(direction);
-	float adjustedGain = constrain(gain + adjustment, CASCADE_GAIN_MIN, CASCADE_GAIN_MAX);
-	if (adjustedGain == gain) {
-		return;
-	}
-	gain = adjustedGain;
-	Debug.addLine(String(F("Cascade ")) + (direction > 0 ? F("heating") : F("cooling")) +
-	              F(" gain ") + String(gain, 1) + F(": ") + reason);
-}
-
-void adaptCascadeGain() {
-	if (!isISpindelActive() || lastISpindelMillis == lastAdaptedISpindelMillis) {
-		return;
-	}
-	unsigned long sampleGap = lastISpindelMillis - lastAdaptedISpindelMillis;
-	unsigned long maximumSampleGap = max(45UL * 60UL * 1000UL,
-	                                    static_cast<unsigned long>(iSpindelIntervalSec) * 2500UL);
-	lastAdaptedISpindelMillis = lastISpindelMillis;
-	if (sampleGap >= maximumSampleGap || fabs(setTemp - lastAdaptedSetTemp) >= 0.01f) {
-		nonImprovingReadings = 0;
-		adaptationDirection = 0;
-		lastAdaptedSetTemp = setTemp;
-	}
-
-	float liquidError = setTemp - iSpindelTemperature;
-	if (fabs(liquidError) < CASCADE_ADAPT_DEADBAND) {
-		nonImprovingReadings = 0;
-		return;
-	}
-
-	int8_t direction = liquidError > 0.0f ? 1 : -1;
-	if (adaptationDirection != 0 && direction != adaptationDirection) {
-		adjustCascadeGain(adaptationDirection, -CASCADE_GAIN_STEP, "liquid temperature crossed setpoint");
-		nonImprovingReadings = 0;
-		adaptationDirection = direction;
-		lastAdaptedLiquidError = liquidError;
-		return;
-	}
-
-	if (!isDirectionAvailable(direction)) {
-		nonImprovingReadings = 0;
-		adaptationDirection = 0;
-		lastAdaptedLiquidError = liquidError;
-		return;
-	}
-
-	adaptationDirection = direction;
-	bool errorNotImproving = nonImprovingReadings > 0 &&
-	                         fabs(liquidError) >= fabs(lastAdaptedLiquidError);
-	nonImprovingReadings = errorNotImproving
-		? static_cast<uint8_t>(nonImprovingReadings + 1)
-		: 1;
-	lastAdaptedLiquidError = liquidError;
-
-	if (nonImprovingReadings >= CASCADE_ADAPT_READINGS) {
-		float rawOffset = liquidError * gainForDirection(direction);
-		bool offsetSaturated = fabs(rawOffset) >= cascadeMaxOffset;
-		if (!offsetSaturated) {
-			adjustCascadeGain(direction, CASCADE_GAIN_STEP, "liquid error not improving across 3 reports");
-		}
-		nonImprovingReadings = 0;
-	}
-}
 }
 
 const float CASCADE_MAX_OFFSET = 4.0f;  // Maximum offset (°C) box air is allowed to depart from setTemp
 float cascadeMaxOffset = CASCADE_MAX_OFFSET;
-float cascadeGain = DEFAULT_CASCADE_GAIN;
+float outerPID_kP = DEFAULT_OUTER_KP;
+float outerPID_kIPerHour = DEFAULT_OUTER_KI_PER_HOUR;
+float outerPID_tdHours = DEFAULT_OUTER_TD_HOURS;
+float outerPID_forecastLimitC = DEFAULT_OUTER_FORECAST_LIMIT_C;
+float outerPID_freezeRateCPerHour = DEFAULT_OUTER_FREEZE_RATE_C_PER_H;
 float effectiveBoxTarget = 19.0f;
 int iSpindelIntervalSec = 900;  // 15 minutes default
 float rampTargetTemp = 19.0f;
@@ -255,14 +192,53 @@ bool isSetTempRamping() {
 	return fabs(rampTargetTemp - setTemp) >= 0.001f;
 }
 
+bool setOuterPIDSettings(float kp, float kiPerHour, float tdHours,
+                         float forecastLimitC, float freezeRateCPerHour,
+                         float maxOffset) {
+	if (!isfinite(kp) || kp < OUTER_KP_MIN || kp > OUTER_KP_MAX ||
+	    !isfinite(kiPerHour) || kiPerHour < OUTER_KI_MIN_PER_HOUR ||
+	    kiPerHour > OUTER_KI_MAX_PER_HOUR ||
+	    !isfinite(tdHours) || tdHours < 0.0f || tdHours > OUTER_TD_MAX_HOURS ||
+	    !isfinite(forecastLimitC) || forecastLimitC < 0.0f ||
+	    forecastLimitC > OUTER_FORECAST_LIMIT_MAX_C ||
+	    !isfinite(freezeRateCPerHour) || freezeRateCPerHour < 0.0f ||
+	    freezeRateCPerHour > OUTER_FREEZE_RATE_MAX_C_PER_H ||
+	    !isfinite(maxOffset) || maxOffset < CASCADE_MAX_OFFSET_MIN ||
+	    maxOffset > CASCADE_MAX_OFFSET_MAX) {
+		return false;
+	}
+
+	outerPID_kP = kp;
+	outerPID_kIPerHour = kiPerHour;
+	outerPID_tdHours = tdHours;
+	outerPID_forecastLimitC = forecastLimitC;
+	outerPID_freezeRateCPerHour = freezeRateCPerHour;
+	cascadeMaxOffset = maxOffset;
+	outerPID.SetOutputLimits(-cascadeMaxOffset, cascadeMaxOffset);
+	return true;
+}
+
+void resetOuterPIDSettings() {
+	setOuterPIDSettings(DEFAULT_OUTER_KP, DEFAULT_OUTER_KI_PER_HOUR,
+	                    DEFAULT_OUTER_TD_HOURS, DEFAULT_OUTER_FORECAST_LIMIT_C,
+	                    DEFAULT_OUTER_FREEZE_RATE_C_PER_H,
+	                    DEFAULT_CASCADE_MAX_OFFSET);
+}
+
 void initTemperatureControl() {
-	cascadeBaselineInitialized = false;
+	outerPID.SetOutputLimits(-cascadeMaxOffset, cascadeMaxOffset);
+	outerPID.SetSampleTimeUs(1000000UL);
+	outerPID.SetMode(QuickPID::Control::timer);
+	outerPIDInitialized = false;
+	outerPIDNeedsBoxInitialization = true;
+	lastOuterPIDISpindelMillis = 0;
+	lastUseISpindelTemp = useISpindelTemp;
+	initializeOuterPIDFromBox();
 	effectiveBoxTarget = setTemp;
 	lastSlewMillis = 0;
 	lastRampStepMillis = millis();
 	rampInitialized = true;
 	rampBootSyncDone = false;
-	resetCascadeAdaptation();
 }
 
 static void updateSetTempRamp() {
@@ -328,7 +304,7 @@ bool isISpindelActive() {
 	// Fallback timeout: 2.5x the iSpindel interval or at least 45 minutes
 	unsigned long timeoutMs = max(45UL * 60UL * 1000UL, (unsigned long)iSpindelIntervalSec * 2500UL);
 	return (millis() - lastISpindelMillis < timeoutMs) &&
-	       (iSpindelTemperature > -50.0f && iSpindelTemperature < 100.0f && iSpindelTemperature != 0.0f);
+	       (iSpindelTemperature > -50.0f && iSpindelTemperature < 100.0f);
 }
 
 float getFermenterTemp() {
@@ -352,85 +328,99 @@ float getEffectiveBoxTarget() {
 }
 
 float getHeatingCascadeGain() {
-	return heatingCascadeGain;
+	return outerPID_kP;
 }
 
 float getCoolingCascadeGain() {
-	return coolingCascadeGain;
+	return outerPID_kP;
 }
 
 float getCascadeBoxBaseline() {
-	return cascadeBoxBaseline;
+	return setTemp + outerPID.GetOutputSum();
 }
 
 void updateCascadeTarget() {
 	updateSetTempRamp();
 	updateFermenterTrend();
 
-	if (fabs(cascadeGain - lastConfiguredCascadeGain) >= 0.001f) {
-		resetCascadeAdaptation();
+	if (useISpindelTemp && !lastUseISpindelTemp) {
+		outerPIDInitialized = false;
+		outerPIDNeedsBoxInitialization = true;
+		lastOuterPIDISpindelMillis = 0;
 	}
-	if (fabs(setTemp - lastAdaptedSetTemp) >= 0.01f) {
-		resetCascadeAdaptation();
-	}
-
-	// Latch real box temperature as initial baseline as soon as sensor reading becomes valid
-	if (!cascadeBaselineInitialized && isBoxTempValid()) {
-		cascadeBoxBaseline = boxTemp;
-		cascadeBaselineInitialized = true;
+	lastUseISpindelTemp = useISpindelTemp;
+	if (!outerPIDInitialized || (outerPIDNeedsBoxInitialization && isBoxTempValid())) {
+		initializeOuterPIDFromBox();
 	}
 
 	float targetRaw;
 	if (isISpindelActive()) {
-		adaptCascadeGain();
-
-		float error = setTemp - iSpindelTemperature;
-
-		// Adapt thermal baseline when liquid is holding near target (|error| <= CASCADE_ADAPT_DEADBAND)
-		// and a new iSpindel report has arrived.
-		if (lastISpindelMillis != lastBaselineISpindelMillis) {
-			lastBaselineISpindelMillis = lastISpindelMillis;
-			if (isBoxTempValid()) {
-				if (!cascadeBaselineInitialized) {
-					cascadeBoxBaseline = boxTemp;
-					cascadeBaselineInitialized = true;
-				} else if (fabs(error) <= CASCADE_ADAPT_DEADBAND) {
-					// Smoothly adapt baseline toward current steady box air temperature (15% per report)
-					cascadeBoxBaseline = 0.85f * cascadeBoxBaseline + 0.15f * boxTemp;
-				}
-				cascadeBoxBaseline = constrain(cascadeBoxBaseline, setTemp - cascadeMaxOffset, setTemp + cascadeMaxOffset);
+		if (lastISpindelMillis != lastOuterPIDISpindelMillis) {
+			unsigned long intervalSeconds = static_cast<unsigned long>(max(iSpindelIntervalSec, 30));
+			unsigned long elapsedMillis = intervalSeconds * 1000UL;
+			if (lastOuterPIDISpindelMillis != 0) {
+				elapsedMillis = lastISpindelMillis - lastOuterPIDISpindelMillis;
 			}
+			float maxDtHours = 1.5f * static_cast<float>(intervalSeconds) / 3600.0f;
+			float dtHours = static_cast<float>(elapsedMillis) / 3600000.0f;
+			dtHours = constrain(dtHours, 30.0f / 3600.0f, maxDtHours);
+
+			outerInput = iSpindelTemperature;
+			outerSetpoint = setTemp;
+			outerPID.SetTunings(outerPID_kP, outerPID_kIPerHour * dtHours, 0.0f);
+
+			float error = setTemp - iSpindelTemperature;
+			bool directionAvailable = isDirectionAvailable(error > 0.0f ? 1 : -1);
+			bool heatingAutoTuning = isHeatingAutoTuning();
+			bool trendFreeze = error * filteredFermenterRate > 0.0f &&
+			                   fabs(filteredFermenterRate) > outerPID_freezeRateCPerHour;
+			bool freezeIntegral = !directionAvailable || heatingAutoTuning || trendFreeze;
+			String freezeReason;
+			if (!freezeIntegral) {
+				freezeReason = F("none");
+			}
+			if (!directionAvailable) {
+				freezeReason = F("direction unavailable");
+			}
+			if (heatingAutoTuning) {
+				if (freezeReason.length() > 0) freezeReason += F(", ");
+				freezeReason += F("heating autotune");
+			}
+			if (trendFreeze) {
+				if (freezeReason.length() > 0) freezeReason += F(", ");
+				freezeReason += F("liquid trending toward target");
+			}
+
+			float sumBefore = outerPID.GetOutputSum();
+			outerPID.Compute();
+			if (freezeIntegral) {
+				outerPID.SetOutputSum(sumBefore);
+				outerOutput = constrain(sumBefore + outerPID.GetPterm(),
+				                        -cascadeMaxOffset, cascadeMaxOffset);
+			}
+
+			float derivative = -outerPID_kP * constrain(outerPID_tdHours * filteredFermenterRate,
+			                                             -outerPID_forecastLimitC,
+			                                             outerPID_forecastLimitC);
+			float offset = constrain(outerOutput + derivative,
+			                         -cascadeMaxOffset, cascadeMaxOffset);
+			outerOutput = offset;
+			lastOuterPIDISpindelMillis = lastISpindelMillis;
+
+			Debug.addLine(String(F("Outer PID: e=")) + String(error, 3) +
+			              F(" rate=") + String(filteredFermenterRate, 3) +
+			              F(" P=") + String(outerPID.GetPterm(), 3) +
+			              F(" I=") + String(outerPID.GetOutputSum(), 3) +
+			              F(" D=") + String(derivative, 3) +
+			              F(" u=") + String(offset, 3) +
+			              F(" freeze=") + freezeReason);
 		}
-
-		// Forecast liquid temperature to account for the container's thermal lag.
-		float predictedError = setTemp - predictedFermenterTemp();
-
-		// Use separate learned gains because heating and cooling capacity differ.
-		// When heating, avoid using coolingCascadeGain (which is 2x higher for weak Peltier) on negative errors.
-		bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
-		float gain = (isHeating || predictedError >= 0.0f) ? heatingCascadeGain : coolingCascadeGain;
-		float offset = constrain(predictedError * gain, -cascadeMaxOffset, cascadeMaxOffset);
-
-		// Keep a minimum heating boost from the actual liquid error while it is
-		// outside the release deadband, even if the trend prediction reduces it.
-		if (error > CASCADE_TARGET_RELEASE_DEADBAND) {
-			float minimumHeatingOffset = min(
-				(error - CASCADE_TARGET_RELEASE_DEADBAND) * heatingCascadeGain,
-				cascadeMaxOffset);
-			offset = max(offset, minimumHeatingOffset);
-		}
-
-		// Box target is anchored at the thermal equilibrium baseline instead of hardcoded setTemp
-		targetRaw = constrain(cascadeBoxBaseline + offset, setTemp - cascadeMaxOffset, setTemp + cascadeMaxOffset);
+		targetRaw = setTemp + outerOutput;
 	} else {
 		if (useISpindelTemp) {
-			// iSpindel is configured but waiting for first report or temporarily offline:
-			// anchor target to baseline/boxTemp so we don't blast heat/cool before receiving wort telemetry
-			targetRaw = isBoxTempValid() ? cascadeBoxBaseline : setTemp;
+			targetRaw = setTemp + outerPID.GetOutputSum();
 		} else {
-			// Direct box control mode: user explicitly regulates box air to setTemp
 			targetRaw = setTemp;
-			cascadeBoxBaseline = setTemp;
 		}
 	}
 

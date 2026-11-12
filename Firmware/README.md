@@ -21,8 +21,21 @@ specified temperature increment and interval (for example, 0.1 °C every
 120 minutes). The ramp target and rate are saved; after a reboot, an active
 ramp resumes from the saved setpoint and starts a fresh interval.
 
-For the iSpindel cascade's target calculation, adaptive gains, constants, and
-mode/safety conditions, see [CASCADE_LOGIC.md](./CASCADE_LOGIC.md).
+For the iSpindel outer PID, configurable parameters, and mode/safety conditions,
+see [CASCADE_LOGIC.md](./CASCADE_LOGIC.md). Outer PID tuning and the box-target
+offset limit are available on the PID Settings page and are saved in EEPROM.
+
+For bench testing without temperature probes or an iSpindel, uncomment
+`DEBUG_TEMPERATURE_SENSORS` in `CoolerBox/Globals.h`. The simulator starts the
+box at 16 °C and the fermenter at 18 °C, drifts the box reference from 16 °C to
+18 °C over 12 hours and back to 16 °C over the next 12 hours, and adds
+0.01 °C/min to the simulated box for every percent of heater output. The first
+simulated iSpindel report arrives after 20 seconds, then reports are generated
+every 5 minutes. The liquid follows the box with a one-hour response time
+capped at 1 °C/hour, and separately gains 0.005 °C/min for every percent of
+heater output. Incoming iSpindel reports are ignored while simulation is
+enabled. This mode substitutes sensor values; it does not disable physical
+heater or cooler outputs.
 
 The PlatformIO IDE installs its Core in this virtual environment. A bare
 `python -m platformio` uses whichever Python happens to be on `PATH` and can
@@ -172,35 +185,18 @@ only once every 5 - 10 minutes. Feeding this slow, infrequent reading directly i
 2-second PID loop causes severe overshooting, oscillations, or integral windup.
 
 ### 2. Master Loop (Liquid Error $\rightarrow$ Dynamic Box Air Setpoint)
-When an iSpindel packet arrives via `POST /ispindel` or `POST /api/ispindel`, or when
-the user changes the target temperature, the master loop executes:
+On each new active iSpindel report, the outer controller updates once and
+computes `effectiveBoxTarget = setTemp + u`. The proportional and integral
+terms use QuickPID; the integral stores the learned air-temperature offset from
+the current setpoint. The manually calculated D contribution uses the existing
+filtered liquid-temperature rate, avoiding noisy differentiation of sparse
+individual reports.
 
-$$\text{effectiveBoxTarget} = T_{\text{baseline}} + K_{\text{direction}} \times (\text{setTemp} - T_{\text{liquid}})$$
-
-- **Thermal Equilibrium Baseline ($T_{\text{baseline}}$)**: In real-world environments (such as a cooler
-  box on a cold balcony), the natural passive air temperature settles between the fermenter and ambient
-  (for example, ~16.7°C when ambient is 14°C and wort is 18.0°C). Rather than hardcoding the air target baseline
-  to `setTemp` (which would demand 18°C air and trigger violent heating bursts when wort drops to 17.9°C), the master
-  loop smoothly adapts $T_{\text{baseline}}$ toward the steady-state box temperature when holding near target.
-  The cascade offset then adjusts gently relative to this true thermal balance point.
-- **`cascadeGain`** (default `1.5`, adjustable in Settings `0.5`–`5.0`): Sets the
-  base heating gain. Heating starts at this value; cooling starts at twice this value
-  (capped at `5.0`) to account for the much lower cooling capacity. The two active
-  gains adapt independently within `0.5`–`5.0`.
-- **Online gain adaptation**: Uses only new, active iSpindel readings. If the liquid
-  error is at least `0.15°C` and is not improving over three consecutive readings,
-  the gain for the active direction increases by `0.1`. If the liquid crosses the
-  setpoint, the previous direction's gain decreases by `0.1`. Adaptation is skipped
-  when that direction is not available in the selected control mode or its requested
-  box target has already reached the configured offset limit. Learned gains are
-  runtime-only and restart from the configured base gain after reboot.
-- Example: with an `18.0°C` target and liquid at `18.5°C`, cooling starts with gain
-  `3.0`, giving a box target of `16.5°C` before the safety clamp is applied.
-- **`cascadeMaxOffset`** (default $\pm 4.0^\circ\text{C}$, adjustable `1.0`–`10.0`):
-  Enforces a strict safety envelope around `setTemp`:
-  $$\text{effectiveBoxTarget} \in [\text{setTemp} - \text{cascadeMaxOffset},\, \text{setTemp} + \text{cascadeMaxOffset}]$$
-  This prevents extreme air temperatures that could stress yeast, freeze liquid, or
-  cause excessive overshoot.
+The PID Settings page configures `Kp`, `Ki` per hour, D forecast horizon `Td`,
+the D forecast limit, the rate threshold for freezing integration, and the
+maximum box-target offset. Set `Td` to zero to disable the D contribution. All
+outer PID settings and the offset limit are persisted in EEPROM; the former
+adaptive `cascadeGain` setting is no longer used.
 
 ### 3. Slave Loop (Box Air $\rightarrow$ Physical Actuators)
 The slave loop runs on a fast, deterministic 2-second cycle (`PIDCOMPUTE_INTERVAL`):

@@ -33,8 +33,17 @@ void applySettings(JsonDocument &doc) {
 	apHidden = doc["apHidden"] | false;
 	allowApWeb = doc["allowApWeb"] | false;
 	useISpindelTemp = doc["useISpindelTemp"] | true;
-	cascadeMaxOffset = CASCADE_MAX_OFFSET;
-	cascadeGain = 2.0f;
+	resetOuterPIDSettings();
+	if (!setOuterPIDSettings(
+	        doc["outerPID_kP"] | outerPID_kP,
+	        doc["outerPID_kIPerHour"] | outerPID_kIPerHour,
+	        doc["outerPID_tdHours"] | outerPID_tdHours,
+	        doc["outerPID_forecastLimitC"] | outerPID_forecastLimitC,
+	        doc["outerPID_freezeRateCPerHour"] | outerPID_freezeRateCPerHour,
+	        doc["cascadeMaxOffset"] | cascadeMaxOffset)) {
+		Debug.addLine(F("Invalid outer PID settings in EEPROM; using defaults"));
+		resetOuterPIDSettings();
+	}
 	String tzSettingValue = doc["timezone"] | "";
 	tzSettingValue.trim();
 	bool validTzSetting = !tzSettingValue.isEmpty() && tzSettingValue.length() < sizeof(tzSetting);
@@ -125,8 +134,7 @@ void initDefaultSettings() {
 	apHidden = false;
 	allowApWeb = false;
 	useISpindelTemp = true;
-	cascadeMaxOffset = CASCADE_MAX_OFFSET;
-	cascadeGain = 2.0f;
+	resetOuterPIDSettings();
 	strncpy(tzSetting, DEFAULT_TIMEZONE, sizeof(tzSetting));
 	tzSetting[sizeof(tzSetting) - 1] = '\0';
 	IntSSID[0] = '\0';
@@ -171,7 +179,11 @@ void saveSettings(){
 	doc["useISpindelTemp"] = useISpindelTemp;
 	doc["timezone"] = tzSetting;
 	doc["cascadeMaxOffset"] = cascadeMaxOffset;
-	doc["cascadeGain"] = cascadeGain;
+	doc["outerPID_kP"] = outerPID_kP;
+	doc["outerPID_kIPerHour"] = outerPID_kIPerHour;
+	doc["outerPID_tdHours"] = outerPID_tdHours;
+	doc["outerPID_forecastLimitC"] = outerPID_forecastLimitC;
+	doc["outerPID_freezeRateCPerHour"] = outerPID_freezeRateCPerHour;
 	doc["IntSSID"] = String(IntSSID);
 	doc["IntPASS"] = String(IntPASS);
 	doc["endpointAddress"] = endpointAddress;
