@@ -21,6 +21,9 @@ specified temperature increment and interval (for example, 0.1 °C every
 120 minutes). The ramp target and rate are saved; after a reboot, an active
 ramp resumes from the saved setpoint and starts a fresh interval.
 
+For the iSpindel cascade's target calculation, adaptive gains, constants, and
+mode/safety conditions, see [CASCADE_LOGIC.md](./CASCADE_LOGIC.md).
+
 The PlatformIO IDE installs its Core in this virtual environment. A bare
 `python -m platformio` uses whichever Python happens to be on `PATH` and can
 fail with `No module named platformio`; use the executable above instead.
