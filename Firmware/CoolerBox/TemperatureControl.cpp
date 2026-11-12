@@ -7,6 +7,7 @@ const float CASCADE_GAIN_MAX = 5.0f;
 const float CASCADE_GAIN_STEP = 0.1f;
 const float CASCADE_COOLING_GAIN_MULTIPLIER = 1.5f;
 const float CASCADE_ADAPT_DEADBAND = 0.15f;
+const float CASCADE_TARGET_RELEASE_DEADBAND = 0.1f;
 const uint8_t CASCADE_ADAPT_READINGS = 3;
 
 const float DEFAULT_CASCADE_GAIN = 2.0f;
@@ -409,6 +410,15 @@ void updateCascadeTarget() {
 		bool isHeating = (boxMode == 3) || (boxMode == 1 && boxSubMode == 3);
 		float gain = (isHeating || predictedError >= 0.0f) ? heatingCascadeGain : coolingCascadeGain;
 		float offset = constrain(predictedError * gain, -cascadeMaxOffset, cascadeMaxOffset);
+
+		// Keep a minimum heating boost from the actual liquid error while it is
+		// outside the release deadband, even if the trend prediction reduces it.
+		if (error > CASCADE_TARGET_RELEASE_DEADBAND) {
+			float minimumHeatingOffset = min(
+				(error - CASCADE_TARGET_RELEASE_DEADBAND) * heatingCascadeGain,
+				cascadeMaxOffset);
+			offset = max(offset, minimumHeatingOffset);
+		}
 
 		// Box target is anchored at the thermal equilibrium baseline instead of hardcoded setTemp
 		targetRaw = constrain(cascadeBoxBaseline + offset, setTemp - cascadeMaxOffset, setTemp + cascadeMaxOffset);
