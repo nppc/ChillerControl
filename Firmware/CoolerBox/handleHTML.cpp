@@ -1,5 +1,20 @@
 #include "CoolerBox.h"
 
+#include <stdlib.h>
+
+namespace {
+bool parseFloatArgument(uint8_t index, float &value) {
+	String argument = httpServer.arg(index);
+	argument.trim();
+	if (argument.isEmpty()) {
+		return false;
+	}
+
+	char *end = nullptr;
+	value = strtof(argument.c_str(), &end);
+	return end != argument.c_str() && *end == '\0' && isfinite(value);
+}
+}
 
 void handleRoot() {
 	if (!handleFileRead("/index.htm")) {
@@ -69,6 +84,12 @@ void handleApiPIDs() {
 	doc["hotPID_kP"] = hotPID_kP;
 	doc["hotPID_kI"] = hotPID_kI;
 	doc["hotPID_kD"] = hotPID_kD;
+	doc["outerPID_kP"] = outerPID_kP;
+	doc["outerPID_kIPerHour"] = outerPID_kIPerHour;
+	doc["outerPID_tdHours"] = outerPID_tdHours;
+	doc["outerPID_forecastLimitC"] = outerPID_forecastLimitC;
+	doc["outerPID_freezeRateCPerHour"] = outerPID_freezeRateCPerHour;
+	doc["cascadeMaxOffset"] = cascadeMaxOffset;
 	doc["setTemp"] = setTemp;
 	doc["targetTemp"] = getHeatingAutoTuneTargetTemp();
 
@@ -227,19 +248,63 @@ void handleSettingsStore() {
 }
 
 void handlePIDsStore() {
+	float outerKp = outerPID_kP;
+	float outerKiPerHour = outerPID_kIPerHour;
+	float outerTdHours = outerPID_tdHours;
+	float outerForecastLimitC = outerPID_forecastLimitC;
+	float outerFreezeRateCPerHour = outerPID_freezeRateCPerHour;
+	float maxOffset = cascadeMaxOffset;
+	float heatingKp = hotPID_kP;
+	float heatingKi = hotPID_kI;
+	float heatingKd = hotPID_kD;
+	bool outerSettingsProvided = false;
+
 	if (httpServer.args() > 0) {
 		for (uint8_t i = 0; i < httpServer.args(); i++) {
-			if (httpServer.argName(i) == "hotPID_kP") {
-				hotPID_kP = httpServer.arg(i).toFloat();
+			String name = httpServer.argName(i);
+			float *outerSetting = nullptr;
+			if (name == "outerPID_kP") {
+				outerSetting = &outerKp;
+			} else if (name == "outerPID_kIPerHour") {
+				outerSetting = &outerKiPerHour;
+			} else if (name == "outerPID_tdHours") {
+				outerSetting = &outerTdHours;
+			} else if (name == "outerPID_forecastLimitC") {
+				outerSetting = &outerForecastLimitC;
+			} else if (name == "outerPID_freezeRateCPerHour") {
+				outerSetting = &outerFreezeRateCPerHour;
+			} else if (name == "cascadeMaxOffset") {
+				outerSetting = &maxOffset;
 			}
-			if (httpServer.argName(i) == "hotPID_kI") {
-				hotPID_kI = httpServer.arg(i).toFloat();
+			if (outerSetting) {
+				outerSettingsProvided = true;
+				if (!parseFloatArgument(i, *outerSetting)) {
+					httpServer.send(400, "text/plain", "Invalid outer PID setting");
+					return;
+				}
 			}
-			if (httpServer.argName(i) == "hotPID_kD") {
-				hotPID_kD = httpServer.arg(i).toFloat();
+
+			if (name == "hotPID_kP") {
+				heatingKp = httpServer.arg(i).toFloat();
+			}
+			if (name == "hotPID_kI") {
+				heatingKi = httpServer.arg(i).toFloat();
+			}
+			if (name == "hotPID_kD") {
+				heatingKd = httpServer.arg(i).toFloat();
 			}
 		}
 	}
+	if (outerSettingsProvided &&
+	    !setOuterPIDSettings(outerKp, outerKiPerHour, outerTdHours,
+	                         outerForecastLimitC, outerFreezeRateCPerHour,
+	                         maxOffset)) {
+		httpServer.send(400, "text/plain", "Outer PID setting is outside the allowed range");
+		return;
+	}
+	hotPID_kP = heatingKp;
+	hotPID_kI = heatingKi;
+	hotPID_kD = heatingKd;
 	setHeatingTunings(hotPID_kP, hotPID_kI, hotPID_kD);
 	saveSettings();
 

@@ -17,8 +17,51 @@
 </td></tr></table>
 <BR>
 <form action="/pids_store" method="get">
+<div class="values_header" style="padding: 8px; margin-bottom: 8px;">Outer PID (fermenter temperature to box target)</div>
+<p style="font-size: 13px; color: #555;">D uses the filtered liquid temperature trend instead of raw sample differences. Td = 0 disables D.</p>
 <TABLE class="values_table">
-<tr class="values_header"><td style="width: 80px;">Parameter</td><td>Value</td></tr>
+<tr class="values_header"><td style="width: 180px;">Parameter</td><td>Value</td></tr>
+<tr>
+  <td style="font-weight: bold; padding: 12px 16px;">P (Kp)</td>
+  <td style="padding: 12px 16px;">
+    <input type="number" name="outerPID_kP" id="outerPID_kP" class="inputtext" style="width: 120px;" min="0.1" max="10.0" step="0.1" value="2.0"/>
+  </td>
+</tr>
+<tr>
+  <td style="font-weight: bold; padding: 12px 16px;">I (Ki per hour)</td>
+  <td style="padding: 12px 16px;">
+    <input type="number" name="outerPID_kIPerHour" id="outerPID_kIPerHour" class="inputtext" style="width: 120px;" min="0.001" max="2.0" step="0.01" value="0.4"/>
+  </td>
+</tr>
+<tr>
+  <td style="font-weight: bold; padding: 12px 16px;">D horizon (Td, hours)</td>
+  <td style="padding: 12px 16px;">
+    <input type="number" name="outerPID_tdHours" id="outerPID_tdHours" class="inputtext" style="width: 120px;" min="0.0" max="6.0" step="0.1" value="0.5"/>
+  </td>
+</tr>
+<tr>
+  <td style="font-weight: bold; padding: 12px 16px;">D forecast limit (&deg;C)</td>
+  <td style="padding: 12px 16px;">
+    <input type="number" name="outerPID_forecastLimitC" id="outerPID_forecastLimitC" class="inputtext" style="width: 120px;" min="0.0" max="2.0" step="0.05" value="0.25"/>
+  </td>
+</tr>
+<tr>
+  <td style="font-weight: bold; padding: 12px 16px;">I freeze rate (&deg;C/hour)</td>
+  <td style="padding: 12px 16px;">
+    <input type="number" name="outerPID_freezeRateCPerHour" id="outerPID_freezeRateCPerHour" class="inputtext" style="width: 120px;" min="0.0" max="2.0" step="0.05" value="0.1"/>
+  </td>
+</tr>
+<tr>
+  <td style="font-weight: bold; padding: 12px 16px;">Max box target offset (&deg;C)</td>
+  <td style="padding: 12px 16px;">
+    <input type="number" name="cascadeMaxOffset" id="cascadeMaxOffset" class="inputtext" style="width: 120px;" min="1.0" max="10.0" step="0.1" value="4.0"/>
+  </td>
+</tr>
+</TABLE>
+<BR>
+<div class="values_header" style="padding: 8px; margin-bottom: 8px;">Inner heater PID (box air temperature to heater PWM)</div>
+<TABLE class="values_table">
+<tr class="values_header"><td style="width: 180px;">Parameter</td><td>Value</td></tr>
 <tr>
   <td style="font-weight: bold; padding: 12px 16px;">P</td>
   <td style="padding: 12px 16px;">

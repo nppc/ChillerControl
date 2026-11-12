@@ -735,6 +735,12 @@ async function setupPidsPage() {
     setIf('hotPID_kP', data.hotPID_kP);
     setIf('hotPID_kI', data.hotPID_kI);
     setIf('hotPID_kD', data.hotPID_kD);
+    setIf('outerPID_kP', data.outerPID_kP);
+    setIf('outerPID_kIPerHour', data.outerPID_kIPerHour);
+    setIf('outerPID_tdHours', data.outerPID_tdHours);
+    setIf('outerPID_forecastLimitC', data.outerPID_forecastLimitC);
+    setIf('outerPID_freezeRateCPerHour', data.outerPID_freezeRateCPerHour);
+    setIf('cascadeMaxOffset', data.cascadeMaxOffset);
 
     initAutotuneTarget(data.targetTemp || data.setTemp);
     initAutotunePwm(300);

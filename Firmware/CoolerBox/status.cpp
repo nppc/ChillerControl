@@ -45,7 +45,11 @@ void handleStatus() {
 	doc["cascadeCoolingGain"] = getCoolingCascadeGain();
 	doc["cascadeBoxBaseline"] = String(getCascadeBoxBaseline(), 1);
 	doc["controlSource"] = isISpindelActive() ? "Cascade (iSpindel)" : "Box Sensor";
-	doc["iSpindelTemp"] = (iSpindelTemperature != 0.0f) ? String(iSpindelTemperature, 1) : "--";
+	doc["iSpindelTemp"] = (lastISpindelMillis > 0 &&
+	                       iSpindelTemperature > -50.0f &&
+	                       iSpindelTemperature < 100.0f)
+		? String(iSpindelTemperature, 1)
+		: "--";
 	doc["isISpindelActive"] = isISpindelActive();
 	doc["useISpindelTemp"] = useISpindelTemp;
 	doc["iSpindelInterval"] = iSpindelIntervalSec;
