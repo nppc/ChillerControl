@@ -104,7 +104,7 @@ void handleApiNetwork() {
 	doc["Caption"] = emergencyMode ? "Network (Recovery Mode)" : "Network";
 	doc["emergencyMode"] = emergencyMode;
 	doc["apSSID"] = apSSID;
-	doc["apPassword"] = apPassword;
+	doc["apPassword"] = apPassword[0] != '\0' ? "********" : "";
 	doc["apHidden"] = apHidden;
 	doc["allowApWeb"] = allowApWeb;
 	doc["IntSSID"] = IntSSID;
@@ -475,7 +475,9 @@ void handleNetworkStore() {
 			}
 			if (httpServer.argName(i) == "apPassword" || httpServer.argName(i) == "apPASS") {
 				s.trim();
-				if (s.isEmpty() || s.length() >= 8) {
+				if (s == "********") {
+					// Sentinel value — password unchanged, keep existing
+				} else if (s.isEmpty() || s.length() >= 8) {
 					if (s != apPassword) otherNetworkSettingsChanged = true;
 					s.toCharArray(apPassword, sizeof(apPassword));
 				} else {

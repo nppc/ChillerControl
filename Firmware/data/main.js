@@ -783,7 +783,10 @@ async function setupNetworkPage() {
       if (el && val !== undefined) el.value = val;
     };
     setIf('apSSID', data.apSSID);
-    setIf('apPassword', data.apPassword);
+    if (data.apPassword) {
+      const el = document.querySelector('input[name="apPassword"]');
+      if (el) el.placeholder = '(password set — leave blank to keep)';
+    }
     setIf('IntSSID', data.IntSSID);
     setIf('IntPASS', data.IntPASS);
     setIf('endpointAddress', data.endpointAddress);
