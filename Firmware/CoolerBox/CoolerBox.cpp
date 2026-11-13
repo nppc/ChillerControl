@@ -338,8 +338,8 @@ void handleISpindel() {
 	} else if (localDoc["rssi"].is<int>()) {
 		iSpindelRssi = localDoc["rssi"].as<int>();
 	}
-	if (localDoc["Plato"].is<float>()) {
-		iSpindelPlato = localDoc["Plato"].as<float>();
+	if (localDoc["gravity"].is<float>()) {
+		iSpindelPlato = localDoc["gravity"].as<float>();
 	}
 	uint32_t reportedInterval = 0;
 	if (localDoc["interval"].is<int>()) {
