@@ -201,16 +201,19 @@ function updateHeaderStatus(data) {
       if (ispindelFermentStatus) {
         if (data.fermentationComplete === true) {
           ispindelFermentStatus.className = 'ferment-done-tag';
-          ispindelFermentStatus.textContent = 'Done';
+          ispindelFermentStatus.textContent = 'Finished';
           ispindelFermentStatus.title = 'Fermentation stable for 48h';
           ispindelFermentStatus.style.display = 'inline-block';
         } else if (Number.isFinite(Number(data.stableHours)) && Number(data.stableHours) > 0) {
           ispindelFermentStatus.className = 'ferment-stable-tag';
-          ispindelFermentStatus.textContent = `(stable: ${data.stableHours}h)`;
+          ispindelFermentStatus.textContent = `(Stable: ${data.stableHours}h)`;
           ispindelFermentStatus.title = `Plato stable for ${data.stableHours} hours`;
           ispindelFermentStatus.style.display = 'inline-block';
         } else {
-          ispindelFermentStatus.style.display = 'none';
+          ispindelFermentStatus.className = 'ferment-stable-tag';
+          ispindelFermentStatus.textContent = '(Fermenting)';
+          ispindelFermentStatus.title = 'Fermentation active';
+          ispindelFermentStatus.style.display = 'inline-block';
         }
       }
     } else {

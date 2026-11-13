@@ -203,13 +203,18 @@ bool formatISpindelRecord(char *buffer, size_t capacity, const TelemetryISpindel
 		hasField = true;
 	}
 	if (record.stableHours == -1) {
-		if (!appendFormat(buffer, capacity, length, "%s\"ispindel_fermentation\":\"Done\"",
+		if (!appendFormat(buffer, capacity, length, "%s\"ispindel_fermentation\":\"Finished\"",
 		                  hasField ? "," : "")) {
 			return false;
 		}
 	} else if (record.stableHours > 0) {
-		if (!appendFormat(buffer, capacity, length, "%s\"ispindel_fermentation\":\"stable: %dh\"",
+		if (!appendFormat(buffer, capacity, length, "%s\"ispindel_fermentation\":\"Stable: %dh\"",
 		                  hasField ? "," : "", static_cast<int>(record.stableHours))) {
+			return false;
+		}
+	} else {
+		if (!appendFormat(buffer, capacity, length, "%s\"ispindel_fermentation\":\"Fermenting\"",
+		                  hasField ? "," : "")) {
 			return false;
 		}
 	}

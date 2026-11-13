@@ -38,7 +38,7 @@ struct TelemetryISpindelRecord {
 	int16_t angle;
 	int16_t battery;
 	int8_t rssi;
-	int8_t stableHours; // consecutive stable hours; -1 = complete (Done)
+	int8_t stableHours; // consecutive stable hours; -1 = complete (Finished)
 };
 
 static_assert(sizeof(TelemetryBoxRecord) == 24, "Telemetry box record must remain 24 bytes");
