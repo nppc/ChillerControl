@@ -44,6 +44,7 @@ bool emergencyHeatLockout = false;
 unsigned long lastRampStepMillis = 0;
 bool rampInitialized = false;
 
+/*
 bool isDirectionAvailable(int8_t direction) {
 	if (isCoolerStopped()) {
 		return false;
@@ -53,6 +54,26 @@ bool isDirectionAvailable(int8_t direction) {
 	}
 	return direction > 0 ? boxMode == 3 : boxMode == 2;
 }
+*/
+
+// Can a change of the box target still influence the liquid in the direction the error demands?
+//   error < 0: liquid is too warm -> we need a LOWER box target
+//   error > 0: liquid is too cold -> we need a HIGHER box target
+bool canActuateTowards(float error) {
+	if (isCoolerStopped()) {
+		return false;
+	}
+	if (boxMode == 1) {
+		return true; // Auto: both heating and cooling are available
+	}
+	if (error < 0.0f) {
+		// Heating-only can only lower its output while the heater is still running.
+		return boxMode == 2 || setHotPWM > 0.0f;
+	}
+	// Cooling-only can only ease the Peltier while it is still cooling.
+	return boxMode == 3 || isCoolingDemanded();
+}
+
 
 bool isBoxTempValid() {
 	return (boxTemp > -50.0f && boxTemp < 100.0f && boxTemp != 0.0f);
@@ -370,7 +391,7 @@ void updateCascadeTarget() {
 			outerPID.SetTunings(outerPID_kP, outerPID_kIPerHour * dtHours, 0.0f);
 
 			float error = setTemp - iSpindelTemperature;
-			bool directionAvailable = isDirectionAvailable(error > 0.0f ? 1 : -1);
+			bool directionAvailable = canActuateTowards(error);
 			bool heatingAutoTuning = isHeatingAutoTuning();
 			bool trendFreeze = error * filteredFermenterRate > 0.0f &&
 			                   fabs(filteredFermenterRate) > outerPID_freezeRateCPerHour;
