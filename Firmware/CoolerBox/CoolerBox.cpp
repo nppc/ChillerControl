@@ -97,10 +97,6 @@ float boxTemp = 0.0f;	// current measured temperature inside the box
 float HotTemp = 0.0f;	// current measured temperature of hot radiator
 float setTemp = 19.0f;	// preset temperature
 bool useISpindelTemp = true;
-float iSpindelTemperature = 0.0f;
-float iSpindelPlato = -1.0f;   // last received Plato reading; <0 = no data
-unsigned long lastISpindelMillis = 0;
-int iSpindelRssi = 0;
 float measuredVoltage = 0.0f; 
 float measuredCurrent = 0.0f; 
 
@@ -136,6 +132,7 @@ int boxMode = 0; // 1-Cooling/Heating, 2-Cooling, 3-Heating
 int boxSubMode = 3; // 2-Cooling, 3-Heating
 
 // Define a web server at port 80 for HTTP
+volatile bool sendTelemetryNow = false;
 ESP8266WebServer httpServer(80);
 
 namespace {
@@ -145,7 +142,6 @@ WiFiEventHandler staGotIpHandler;
 #ifdef WIFI_DEBUG
 WiFiEventHandler apStationConnectedHandler;
 #endif
-volatile bool sendTelemetryNow = false;
 bool apStarted = false;
 IPAddress configuredApIP(0, 0, 0, 0);
 IPAddress configuredApDns(0, 0, 0, 0);
@@ -309,93 +305,6 @@ ESP8266WebServer::THandlerFunction guardedHandler(ESP8266WebServer::THandlerFunc
 	};
 }
 }
-
-void handleISpindel() {
-#ifdef DEBUG_TEMPERATURE_SENSORS
-	httpServer.send(200, "text/plain", "DEBUG temperature simulation active; iSpindel report ignored");
-	return;
-#endif
-
-	if (!httpServer.hasArg("plain")) {
-		httpServer.send(400, "text/plain", "Missing body");
-		return;
-	}
-
-	JsonDocument localDoc;
-	DeserializationError error = deserializeJson(localDoc, httpServer.arg("plain"));
-	if (error) {
-		httpServer.send(400, "text/plain", "JSON parse error");
-		return;
-	}
-
-	// Update the values used by control and wake-window scheduling.
-	if (localDoc["temperature"].is<float>()) {
-		iSpindelTemperature = localDoc["temperature"].as<float>();
-		lastISpindelMillis = millis();
-	}
-	if (localDoc["RSSI"].is<int>()) {
-		iSpindelRssi = localDoc["RSSI"].as<int>();
-	} else if (localDoc["rssi"].is<int>()) {
-		iSpindelRssi = localDoc["rssi"].as<int>();
-	}
-	if (localDoc["gravity"].is<float>()) {
-		iSpindelPlato = localDoc["gravity"].as<float>();
-	}
-	uint32_t reportedInterval = 0;
-	if (localDoc["interval"].is<int>()) {
-		int repInterval = localDoc["interval"].as<int>();
-		if (repInterval >= 30 && repInterval <= 86400) {
-			iSpindelIntervalSec = repInterval;
-			reportedInterval = static_cast<uint32_t>(repInterval);
-		}
-	}
-
-	if (clockValid()) {
-		TelemetryISpindelRecord record = {};
-		record.t = epochSeconds();
-		record.interval = reportedInterval;
-		record.temperature = localDoc["temperature"].is<float>()
-			? telemetryFixedPoint(localDoc["temperature"].as<float>(), 100) : INT16_MIN;
-		record.gravity = localDoc["gravity"].is<float>()
-			? telemetryFixedPoint(localDoc["gravity"].as<float>(), 1000) : INT16_MIN;
-		record.angle = localDoc["angle"].is<float>()
-			? telemetryFixedPoint(localDoc["angle"].as<float>(), 100) : INT16_MIN;
-		record.battery = localDoc["battery"].is<float>()
-			? telemetryFixedPoint(localDoc["battery"].as<float>(), 100) : INT16_MIN;
-		if (localDoc["RSSI"].is<int>()) {
-			int rssi = localDoc["RSSI"].as<int>();
-			record.rssi = static_cast<int8_t>(constrain(rssi, INT8_MIN + 1, INT8_MAX));
-		} else if (localDoc["rssi"].is<int>()) {
-			int rssi = localDoc["rssi"].as<int>();
-			record.rssi = static_cast<int8_t>(constrain(rssi, INT8_MIN + 1, INT8_MAX));
-		} else {
-			record.rssi = INT8_MIN;
-		}
-		telemetryISpindelPush(record);
-		sendTelemetryNow = true;
-	}
-	if (isBootAutoStartPending()) {
-		cancelBootAutoStart();
-		setCoolerStopped(LOW);
-	}
-	updateCascadeTarget();
-	httpServer.send(200, "text/plain", "OK");
-
-#ifdef WIFI_DEBUG
-	String clientMac = getISpindelClientMac();
-	String logMsg = F("iSpindel data received: MAC=");
-	logMsg += (clientMac.length() > 0 ? clientMac : F("unknown"));
-	if (iSpindelRssi != 0) {
-		logMsg += F(", RSSI=");
-		logMsg += String(iSpindelRssi);
-		logMsg += F("dBm");
-	}
-	Debug.addLine(logMsg);
-#else
-	Debug.addLine(F("iSpindel data received"));
-#endif
-}
-
 
 bool isWebClientAllowed() {
 	if (emergencyMode || allowApWeb) {
@@ -596,6 +505,7 @@ void setup() {
 
 void handleTemperatureControl() {
 	checkBootAutoStartTimeout();
+	updatePlatoStability();
 	if (updateDS18B20()) {
 		processControl();
 	}

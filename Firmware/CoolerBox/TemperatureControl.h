@@ -2,12 +2,12 @@
 
 #include <Arduino.h>
 #include "Globals.h"
+#include "iSpindel.h"
 
 // Cascade tuning parameters
 extern const float CASCADE_MAX_OFFSET;
 extern float cascadeMaxOffset;  // Max temperature offset (°C) box is allowed to depart from setTemp (e.g. 4.0)
 extern float effectiveBoxTarget;// Current computed target setpoint for the box air loop
-extern int iSpindelIntervalSec; // Reported iSpindel interval in seconds (default 900)
 extern float outerPID_kP;
 extern float outerPID_kIPerHour;
 extern float outerPID_tdHours;

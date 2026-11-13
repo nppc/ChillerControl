@@ -170,7 +170,6 @@ float outerPID_tdHours = DEFAULT_OUTER_TD_HOURS;
 float outerPID_forecastLimitC = DEFAULT_OUTER_FORECAST_LIMIT_C;
 float outerPID_freezeRateCPerHour = DEFAULT_OUTER_FREEZE_RATE_C_PER_H;
 float effectiveBoxTarget = 19.0f;
-int iSpindelIntervalSec = 900;  // 15 minutes default
 float rampTargetTemp = 19.0f;
 float rampStepC = 0.1f;
 uint16_t rampIntervalMinutes = 120;

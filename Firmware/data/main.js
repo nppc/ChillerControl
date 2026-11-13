@@ -173,6 +173,7 @@ function updateHeaderStatus(data) {
   const ispindelStatus = document.getElementById('ispindelWifiStatus');
   const ispindelRssiValue = document.getElementById('ispindelRssiValue');
   const ispindelPlatoValue = document.getElementById('ispindelPlatoValue');
+  const ispindelFermentStatus = document.getElementById('ispindelFermentStatus');
   if (ispindelStatus && ispindelRssiValue) {
     if (data.useISpindelTemp && data.isISpindelActive) {
       ispindelStatus.style.display = 'inline-flex';
@@ -197,9 +198,25 @@ function updateHeaderStatus(data) {
           ispindelPlatoValue.style.display = 'none';
         }
       }
+      if (ispindelFermentStatus) {
+        if (data.fermentationComplete === true) {
+          ispindelFermentStatus.className = 'ferment-done-tag';
+          ispindelFermentStatus.textContent = 'Done';
+          ispindelFermentStatus.title = 'Fermentation stable for 48h';
+          ispindelFermentStatus.style.display = 'inline-block';
+        } else if (Number.isFinite(Number(data.stableHours)) && Number(data.stableHours) > 0) {
+          ispindelFermentStatus.className = 'ferment-stable-tag';
+          ispindelFermentStatus.textContent = `(stable: ${data.stableHours}h)`;
+          ispindelFermentStatus.title = `Plato stable for ${data.stableHours} hours`;
+          ispindelFermentStatus.style.display = 'inline-block';
+        } else {
+          ispindelFermentStatus.style.display = 'none';
+        }
+      }
     } else {
       ispindelStatus.style.display = 'none';
       if (ispindelPlatoValue) ispindelPlatoValue.style.display = 'none';
+      if (ispindelFermentStatus) ispindelFermentStatus.style.display = 'none';
     }
   }
 }

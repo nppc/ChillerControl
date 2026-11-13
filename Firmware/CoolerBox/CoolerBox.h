@@ -19,6 +19,7 @@
 #include "TemperatureControl.h"
 #include "DebugHTML.h"
 #include "DoubleResetDetector.h"
+#include "iSpindel.h"
 #include "TelemetryQueue.h"
 
 #define I2C_ADDRESS 0x5E
@@ -37,8 +38,6 @@ extern float boxTemp;
 extern float HotTemp;
 extern float setTemp;
 extern bool useISpindelTemp;
-extern float iSpindelTemperature;
-extern float iSpindelPlato;    // last received Plato reading; <0 = no data
 extern byte i2c_PWM_value;
 extern float measuredVoltage;
 extern float measuredCurrent;
@@ -51,6 +50,7 @@ extern unsigned long millisSendDataInterval;
 extern unsigned long millisReadI2CDataInterval;
 extern unsigned long millisWIFIcheckInterval;
 extern unsigned long lastWifiDropMillis;
+extern volatile bool sendTelemetryNow;
 extern bool wifiDropOccurred;
 extern bool wifiWasConnected;
 extern int ColdSensorId;
@@ -131,7 +131,3 @@ uint32_t epochSeconds();
 uint8_t getTcpActivePcbCount();
 uint8_t getTcpTwPcbCount();
 #endif
-// iSpindel data used by control and wake-window scheduling.
-extern unsigned long lastISpindelMillis;
-extern int iSpindelRssi;
-void handleISpindel();

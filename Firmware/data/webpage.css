@@ -643,6 +643,27 @@ button.btn_target_set:active,
   height: 14px;
 }
 
+.ferment-done-tag {
+  display: inline-block;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 4px;
+  background-color: #2ea043;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.ferment-stable-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  line-height: 1.2;
+}
+
 .btn_action_control.btn_red {
   border: 1px solid rgba(200, 61, 71, 0.35);
   background: rgba(200, 61, 71, 0.1);
