@@ -54,6 +54,9 @@ void handleStatus() {
 	doc["useISpindelTemp"] = useISpindelTemp;
 	doc["iSpindelInterval"] = iSpindelIntervalSec;
 	doc["iSpindelRssi"] = (isISpindelActive() && iSpindelRssi != 0) ? iSpindelRssi : 0;
+	doc["iSpindelPlato"] = (lastISpindelMillis > 0 && iSpindelPlato >= 0.0f)
+		? String(iSpindelPlato, 1)
+		: "";
 	unsigned long ageSec = (lastISpindelMillis > 0) ? (millis() - lastISpindelMillis) / 1000UL : 0;
 	doc["iSpindelAgeSec"] = ageSec;
 	float heaterPct = (maxHotPWM > 0) ? (setHotPWM * 100.0f / (float)maxHotPWM) : 0.0f;

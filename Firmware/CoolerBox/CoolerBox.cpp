@@ -98,6 +98,7 @@ float HotTemp = 0.0f;	// current measured temperature of hot radiator
 float setTemp = 19.0f;	// preset temperature
 bool useISpindelTemp = true;
 float iSpindelTemperature = 0.0f;
+float iSpindelPlato = -1.0f;   // last received Plato reading; <0 = no data
 unsigned long lastISpindelMillis = 0;
 int iSpindelRssi = 0;
 float measuredVoltage = 0.0f; 
@@ -336,6 +337,9 @@ void handleISpindel() {
 		iSpindelRssi = localDoc["RSSI"].as<int>();
 	} else if (localDoc["rssi"].is<int>()) {
 		iSpindelRssi = localDoc["rssi"].as<int>();
+	}
+	if (localDoc["Plato"].is<float>()) {
+		iSpindelPlato = localDoc["Plato"].as<float>();
 	}
 	uint32_t reportedInterval = 0;
 	if (localDoc["interval"].is<int>()) {

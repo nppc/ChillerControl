@@ -172,6 +172,7 @@ function updateHeaderStatus(data) {
 
   const ispindelStatus = document.getElementById('ispindelWifiStatus');
   const ispindelRssiValue = document.getElementById('ispindelRssiValue');
+  const ispindelPlatoValue = document.getElementById('ispindelPlatoValue');
   if (ispindelStatus && ispindelRssiValue) {
     if (data.useISpindelTemp && data.isISpindelActive) {
       ispindelStatus.style.display = 'inline-flex';
@@ -187,8 +188,18 @@ function updateHeaderStatus(data) {
         ispindelStatus.setAttribute('aria-label', 'iSpindel offline');
         ispindelRssiValue.textContent = 'online';
       }
+      if (ispindelPlatoValue) {
+        const plato = data.iSpindelPlato && data.iSpindelPlato !== '' ? data.iSpindelPlato : null;
+        if (plato !== null) {
+          ispindelPlatoValue.textContent = `${plato}°P`;
+          ispindelPlatoValue.style.display = 'inline';
+        } else {
+          ispindelPlatoValue.style.display = 'none';
+        }
+      }
     } else {
       ispindelStatus.style.display = 'none';
+      if (ispindelPlatoValue) ispindelPlatoValue.style.display = 'none';
     }
   }
 }

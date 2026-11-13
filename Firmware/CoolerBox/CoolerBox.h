@@ -38,6 +38,7 @@ extern float HotTemp;
 extern float setTemp;
 extern bool useISpindelTemp;
 extern float iSpindelTemperature;
+extern float iSpindelPlato;    // last received Plato reading; <0 = no data
 extern byte i2c_PWM_value;
 extern float measuredVoltage;
 extern float measuredCurrent;
