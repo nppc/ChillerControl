@@ -210,7 +210,7 @@ function updateHeaderStatus(data) {
           ispindelFermentStatus.style.display = 'inline-block';
         } else if (Number.isFinite(Number(data.fermentationHours)) && Number(data.fermentationHours) < 6) {
           ispindelFermentStatus.className = 'ferment-stable-tag';
-          ispindelFermentStatus.textContent = 'Calculating';
+          ispindelFermentStatus.textContent = 'Gathering history';
           ispindelFermentStatus.title = `Gathering initial history (${data.fermentationHours || 0}/6h)`;
           ispindelFermentStatus.style.display = 'inline-block';
         } else if (Number.isFinite(Number(data.stableHours)) && Number(data.stableHours) >= 6) {

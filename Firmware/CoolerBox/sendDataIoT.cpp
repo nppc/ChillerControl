@@ -208,7 +208,7 @@ bool formatISpindelRecord(char *buffer, size_t capacity, const TelemetryISpindel
 			return false;
 		}
 	} else if (record.stableHours == -2) {
-		if (!appendFormat(buffer, capacity, length, "%s\"ispindel_fermentation\":\"Calculating\"",
+		if (!appendFormat(buffer, capacity, length, "%s\"ispindel_fermentation\":\"Gathering history\"",
 		                  hasField ? "," : "")) {
 			return false;
 		}
