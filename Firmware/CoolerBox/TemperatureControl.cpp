@@ -2,8 +2,8 @@
 #include "CoolerBox.h"
 
 namespace {
-const float DEFAULT_OUTER_KP = 2.0f;
-const float DEFAULT_OUTER_KI_PER_HOUR = 0.4f;
+const float DEFAULT_OUTER_KP = 3.0f;
+const float DEFAULT_OUTER_KI_PER_HOUR = 1.0f;
 const float DEFAULT_OUTER_TD_HOURS = 0.5f;
 const float DEFAULT_OUTER_FORECAST_LIMIT_C = 0.25f;
 const float DEFAULT_OUTER_FREEZE_RATE_C_PER_H = 0.1f;
