@@ -174,6 +174,7 @@ function updateHeaderStatus(data) {
   const ispindelRssiValue = document.getElementById('ispindelRssiValue');
   const ispindelPlatoValue = document.getElementById('ispindelPlatoValue');
   const ispindelFermentStatus = document.getElementById('ispindelFermentStatus');
+  const ispindelFermentInfo = document.getElementById('ispindelFermentInfo');
   if (ispindelStatus && ispindelRssiValue) {
     if (data.useISpindelTemp && data.isISpindelActive) {
       ispindelStatus.style.display = 'inline-flex';
@@ -189,10 +190,13 @@ function updateHeaderStatus(data) {
         ispindelStatus.setAttribute('aria-label', 'iSpindel offline');
         ispindelRssiValue.textContent = 'online';
       }
+      if (ispindelFermentInfo) {
+        ispindelFermentInfo.style.display = 'inline-flex';
+      }
       if (ispindelPlatoValue) {
         const plato = data.iSpindelPlato && data.iSpindelPlato !== '' ? data.iSpindelPlato : null;
         if (plato !== null) {
-          ispindelPlatoValue.textContent = `${plato}°P`;
+          ispindelPlatoValue.textContent = `(${plato}\u00B0P)`;
           ispindelPlatoValue.style.display = 'inline';
         } else {
           ispindelPlatoValue.style.display = 'none';
@@ -206,18 +210,19 @@ function updateHeaderStatus(data) {
           ispindelFermentStatus.style.display = 'inline-block';
         } else if (Number.isFinite(Number(data.stableHours)) && Number(data.stableHours) > 0) {
           ispindelFermentStatus.className = 'ferment-stable-tag';
-          ispindelFermentStatus.textContent = `(Stable: ${data.stableHours}h)`;
+          ispindelFermentStatus.textContent = `Stable: ${data.stableHours}h`;
           ispindelFermentStatus.title = `Plato stable for ${data.stableHours} hours`;
           ispindelFermentStatus.style.display = 'inline-block';
         } else {
           ispindelFermentStatus.className = 'ferment-stable-tag';
-          ispindelFermentStatus.textContent = '(Fermenting)';
+          ispindelFermentStatus.textContent = 'Fermenting';
           ispindelFermentStatus.title = 'Fermentation active';
           ispindelFermentStatus.style.display = 'inline-block';
         }
       }
     } else {
       ispindelStatus.style.display = 'none';
+      if (ispindelFermentInfo) ispindelFermentInfo.style.display = 'none';
       if (ispindelPlatoValue) ispindelPlatoValue.style.display = 'none';
       if (ispindelFermentStatus) ispindelFermentStatus.style.display = 'none';
     }
@@ -345,14 +350,12 @@ async function updateStatus() {
     if (boxModeCard) boxModeCard.className = `box-mode-card ${activeProcess}`;
     const boxModePill = document.getElementById('boxModePill');
     if (boxModePill) boxModePill.className = `box-mode-pill ${activeProcess}`;
-    const coolingCard = document.getElementById('coolingCard');
-    const heatingCard = document.getElementById('heatingCard');
     const coolingActive = data.activeProcess === 'cooling';
     const heatingActive = data.activeProcess === 'heating';
-    if (coolingCard) coolingCard.classList.toggle('active', coolingActive);
-    if (heatingCard) heatingCard.classList.toggle('active', heatingActive);
-    setIf('coolingState', coolingActive ? data.processDetail : 'Inactive');
-    setIf('heatingState', heatingActive ? data.processDetail : 'Inactive');
+    const heatingMetrics = document.getElementById('heatingMetrics');
+    const coolingMetrics = document.getElementById('coolingMetrics');
+    if (heatingMetrics) heatingMetrics.style.display = heatingActive ? 'inline-flex' : 'none';
+    if (coolingMetrics) coolingMetrics.style.display = coolingActive ? 'inline-flex' : 'none';
     setIf('I2CStatus', data.I2CStatus);
     setIf('HotTemp', data.HotTemp);
     setIf('boxTemp', data.boxTemp);
@@ -363,13 +366,15 @@ async function updateStatus() {
 
     const isISpindel = data.isISpindelActive === true;
     const primaryLabel = document.getElementById('primaryTempLabel');
+    const primaryBaseLabel = document.getElementById('primaryTempBaseLabel');
     const primaryVal = document.getElementById('primaryTemp');
     const primarySub = document.getElementById('primaryTempSub');
     const targetLabel = document.getElementById('targetTempLabel');
     const cascadeBar = document.getElementById('cascadeBar');
 
     if (isISpindel) {
-      if (primaryLabel) primaryLabel.textContent = 'Fermenter (iSpindel)';
+      if (primaryBaseLabel) primaryBaseLabel.textContent = 'Fermenter ';
+      else if (primaryLabel) primaryLabel.textContent = 'Fermenter ';
       if (primaryVal) primaryVal.textContent = data.iSpindelTemp;
       if (targetLabel) targetLabel.textContent = 'Fermenter Target';
       if (primarySub) {
@@ -379,7 +384,8 @@ async function updateStatus() {
       }
       if (cascadeBar) cascadeBar.style.display = 'flex';
     } else {
-      if (primaryLabel) primaryLabel.textContent = 'Box Temperature';
+      if (primaryBaseLabel) primaryBaseLabel.textContent = 'Box Temperature';
+      else if (primaryLabel) primaryLabel.textContent = 'Box Temperature';
       if (primaryVal) primaryVal.textContent = data.boxTemp;
       if (targetLabel) targetLabel.textContent = 'Target';
       if (primarySub) {

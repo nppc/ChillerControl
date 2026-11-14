@@ -291,9 +291,8 @@ table {
 
 .box-mode-card {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
   margin-top: 10px;
   padding: 12px 18px;
   border: 1.5px solid var(--border);
@@ -318,12 +317,48 @@ table {
   box-shadow: 0 2px 10px rgba(200, 61, 71, 0.08);
 }
 
+.box-mode-top {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  width: 100%;
+}
+
 .box-mode-left {
   display: flex;
   align-items: center;
   gap: 12px;
-  flex-grow: 1;
-  min-width: 0;
+  flex-shrink: 0;
+}
+
+.cooler-metrics {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.heater-metrics {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #c76b1f;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.box-action-form {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.box-mode-card.heating .heater-icon {
+  color: #e88736;
+}
+
+.box-mode-card.cooling .process-icon {
+  color: var(--accent);
 }
 
 .box-mode-pill {
@@ -411,21 +446,44 @@ table {
 }
 
 @media (max-width: 520px) {
+  .temperature-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+  }
   .box-mode-card {
+    gap: 8px;
+    padding: 10px 14px;
+  }
+  .box-mode-top {
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 8px 12px;
   }
   .box-mode-left {
-    flex-wrap: wrap;
     gap: 8px;
+  }
+  .box-mode-card.cooling .box-mode-left {
+    order: 1;
+  }
+  .box-mode-card.cooling .box-action-form {
+    order: 2;
+    margin-left: auto;
+  }
+  .box-mode-card.cooling .cooler-metrics {
+    order: 3;
     width: 100%;
+    margin-top: 2px;
+    gap: 10px;
+    justify-content: flex-start;
   }
   .box-readings {
-    order: 3;
+    order: 4;
     width: 100%;
     justify-content: flex-start;
     padding-top: 6px;
     border-top: 1px dashed var(--border);
+    flex-wrap: wrap;
+    font-size: 12.5px;
   }
 }
 
@@ -624,23 +682,35 @@ button.btn_target_set:active,
 .temperature-header-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+}
+
+.ispindel-ferment-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
 .ispindel-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  margin-left: 2px;
 }
 
 .ispindel-badge .wifi-icon {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
+  vertical-align: -1px;
 }
 
 .ferment-done-tag {

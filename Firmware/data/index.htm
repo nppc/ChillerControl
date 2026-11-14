@@ -23,17 +23,19 @@
 <div class="temperature-main-row">
 <div class="temperature-reading">
 <div class="temperature-header-row">
-<div class="temperature-label" id="primaryTempLabel">Box Temperature</div>
-<div class="wifi-status signal-0 ispindel-badge" id="ispindelWifiStatus" aria-label="iSpindel offline" title="iSpindel Wi-Fi" style="display:none;">
-<span id="ispindelFermentStatus" class="ferment-done-tag" style="display:none;" title="Fermentation stable for 48h">Finished</span>
-<span id="ispindelPlatoValue" style="display:none;"></span>
-<svg class="wifi-icon" viewBox="0 0 32 32" aria-hidden="true">
+<div class="temperature-label" id="primaryTempLabel">
+<span id="primaryTempBaseLabel">Box Temperature</span>
+<span class="wifi-status signal-0 ispindel-badge" id="ispindelWifiStatus" aria-label="iSpindel offline" title="iSpindel Wi-Fi" style="display:none;">(iSpindel <svg class="wifi-icon" viewBox="0 0 32 32" aria-hidden="true">
 <path class="wifi-arc wifi-arc-outer" d="M3 11.5a19 19 0 0 1 26 0"/>
 <path class="wifi-arc wifi-arc-middle" d="M7.5 16a12.5 12.5 0 0 1 17 0"/>
 <path class="wifi-arc wifi-arc-inner" d="M12 20.5a6 6 0 0 1 8 0"/>
 <circle class="wifi-dot" cx="16" cy="25" r="2.2"/>
 </svg>
-<span id="ispindelRssiValue">-- dBm</span>
+<span id="ispindelRssiValue">-- dBm</span>)</span>
+</div>
+<div class="ispindel-ferment-info" id="ispindelFermentInfo" style="display:none;">
+<span id="ispindelFermentStatus" class="ferment-done-tag" style="display:none;" title="Fermentation stable for 48h">Finished</span>
+<span id="ispindelPlatoValue" style="display:none;"></span>
 </div>
 </div>
 <div class="temperature-value"><span id="primaryTemp">--</span><span class="temperature-unit">&deg;C</span></div>
@@ -54,29 +56,22 @@ Set
 </div>
 </div>
 <div class="box-mode-card" id="boxModeCard">
+<div class="box-mode-top">
 <div class="box-mode-left">
 <div class="box-mode-pill" id="boxModePill">
 <span class="mode-dot"></span>
 <span id="operationLabel">Checking</span>
 </div>
-<div class="box-readings" id="cascadeBar" style="display:none;">
-<div class="box-reading-item"><span class="box-reading-label">Box Air:</span> <span class="box-temp-val"><span id="boxTemp">--</span>&deg;C</span></div>
-<span class="box-arrow">&rarr;</span>
-<div class="box-reading-item"><span class="box-reading-label">Box Target:</span> <span class="box-target-val highlighted"><span id="effectiveBoxTarget">--</span>&deg;C</span></div>
+<div class="process-item heater-metrics" id="heatingMetrics" style="display:none;" title="Heater output">
+<svg class="process-icon heater-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<path d="M7 19c1.5-1.5 2-3.5 2-5.5s-2-3.5-2-5.5 1.5-3 2-4"/>
+<path d="M12 19c1.5-1.5 2-3.5 2-5.5s-2-3.5-2-5.5 1.5-3 2-4"/>
+<path d="M17 19c1.5-1.5 2-3.5 2-5.5s-2-3.5-2-5.5 1.5-3 2-4"/>
+</svg>
+<span id="setHotPWM">--</span>
 </div>
 </div>
-<form id="controlForm" action="/stop" method="get" class="box-action-form">
-  <button type="submit" id="controlBtn" class="btn btn_action_control btn_red">STOP</button>
-</form>
-</div>
-</section>
-<section class="process-grid" aria-label="Process readings">
-<article class="process-card" id="coolingCard">
-<header class="process-card-header">
-<h2>Cooler</h2>
-<span class="process-state" id="coolingState">Inactive</span>
-</header>
-<div class="process-row">
+<div class="cooler-metrics" id="coolingMetrics" style="display:none;">
 <div class="process-item" title="Cold-side voltage">
 <svg class="process-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 <path d="M13 2L4 13h7l-1 9 10-12h-8l1-8z"/>
@@ -102,23 +97,16 @@ Set
 <span class="fan-badge" id="Fan">--</span>
 </div>
 </div>
-</article>
-<article class="process-card" id="heatingCard">
-<header class="process-card-header">
-<h2>Heater</h2>
-<span class="process-state" id="heatingState">Inactive</span>
-</header>
-<div class="process-row">
-<div class="process-item" title="Heater output">
-<svg class="process-icon heater-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-<path d="M7 19c1.5-1.5 2-3.5 2-5.5s-2-3.5-2-5.5 1.5-3 2-4"/>
-<path d="M12 19c1.5-1.5 2-3.5 2-5.5s-2-3.5-2-5.5 1.5-3 2-4"/>
-<path d="M17 19c1.5-1.5 2-3.5 2-5.5s-2-3.5-2-5.5 1.5-3 2-4"/>
-</svg>
-<span id="setHotPWM">--</span>
+<form id="controlForm" action="/stop" method="get" class="box-action-form">
+  <button type="submit" id="controlBtn" class="btn btn_action_control btn_red">STOP</button>
+</form>
+</div>
+<div class="box-readings" id="cascadeBar" style="display:none;">
+<div class="box-reading-item"><span class="box-reading-label">Box Air:</span> <span class="box-temp-val"><span id="boxTemp">--</span>&deg;C</span></div>
+<span class="box-arrow">&rarr;</span>
+<div class="box-reading-item"><span class="box-reading-label">Box Target:</span> <span class="box-target-val highlighted"><span id="effectiveBoxTarget">--</span>&deg;C</span></div>
 </div>
 </div>
-</article>
 </section>
 
 <div id="tempModalBackdrop" class="modal-backdrop" style="display:none;" onclick="closeTempModal(event)">
