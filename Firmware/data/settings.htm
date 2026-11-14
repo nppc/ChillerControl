@@ -50,6 +50,18 @@
 </div>
 </section>
 
+<section class="network-section" aria-labelledby="fermentSettingsHeading">
+<h2 id="fermentSettingsHeading">Fermentation Stability</h2>
+<p class="settings-section-description">Sensitivity threshold to determine when Plato is no longer dropping.</p>
+<div class="settings-fields">
+<div class="network-field">
+<label for="platoSlope">Max Plato drop per day (&deg;P/day)</label>
+<input type="number" name="platoSlope" id="platoSlope" min="0.01" max="2.0" step="0.01" placeholder="0.10" value="0.10"/>
+<p>Daily drop rate below which fermentation is considered stable (e.g. 0.10 &deg;P/day for low-attenuating/slow beers, 0.20 for faster finishes).</p>
+</div>
+</div>
+</section>
+
 <section class="network-section" aria-labelledby="modeSettingsHeading">
 <h2 id="modeSettingsHeading">Cooling/Heating</h2>
 <p class="settings-section-description">Choose whether the device can cool, heat, or both.</p>

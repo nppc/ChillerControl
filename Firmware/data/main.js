@@ -208,7 +208,12 @@ function updateHeaderStatus(data) {
           ispindelFermentStatus.textContent = 'Finished';
           ispindelFermentStatus.title = 'Fermentation stable for 48h';
           ispindelFermentStatus.style.display = 'inline-block';
-        } else if (Number.isFinite(Number(data.stableHours)) && Number(data.stableHours) > 0) {
+        } else if (Number.isFinite(Number(data.fermentationHours)) && Number(data.fermentationHours) < 6) {
+          ispindelFermentStatus.className = 'ferment-stable-tag';
+          ispindelFermentStatus.textContent = 'Calculating';
+          ispindelFermentStatus.title = `Gathering initial history (${data.fermentationHours || 0}/6h)`;
+          ispindelFermentStatus.style.display = 'inline-block';
+        } else if (Number.isFinite(Number(data.stableHours)) && Number(data.stableHours) >= 6) {
           ispindelFermentStatus.className = 'ferment-stable-tag';
           ispindelFermentStatus.textContent = `Stable: ${data.stableHours}h`;
           ispindelFermentStatus.title = `Plato stable for ${data.stableHours} hours`;
@@ -577,6 +582,7 @@ async function setupSettingsPage() {
     setIf('VoltChange', data.changeVoltageSpeed);
     setIf('VoltMin', data.minVoltage);
     setIf('VoltMax', data.maxVoltage);
+    setIf('platoSlope', data.platoStabilitySlopePerDay !== undefined ? Number(data.platoStabilitySlopePerDay).toFixed(2) : '0.10');
 
     if (data.boxMode) {
       const radio = document.querySelector(`input[name="boxMode"][value="${data.boxMode}"]`);

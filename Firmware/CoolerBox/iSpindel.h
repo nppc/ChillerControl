@@ -8,6 +8,7 @@ extern float iSpindelPlato;
 extern unsigned long lastISpindelMillis;
 extern int iSpindelRssi;
 extern int iSpindelIntervalSec;
+extern float platoStabilitySlopePerDay; // Max °P drop per 24h to consider stable (default 0.10)
 
 // Web server handler for iSpindel HTTP reports
 void handleISpindel();

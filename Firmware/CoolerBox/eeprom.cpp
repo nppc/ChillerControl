@@ -33,6 +33,10 @@ void applySettings(JsonDocument &doc) {
 	apHidden = doc["apHidden"] | false;
 	allowApWeb = doc["allowApWeb"] | false;
 	useISpindelTemp = doc["useISpindelTemp"] | true;
+	platoStabilitySlopePerDay = doc["platoStabilitySlopePerDay"] | 0.10f;
+	if (platoStabilitySlopePerDay < 0.01f || platoStabilitySlopePerDay > 2.0f) {
+		platoStabilitySlopePerDay = 0.10f;
+	}
 	resetOuterPIDSettings();
 	if (!setOuterPIDSettings(
 	        doc["outerPID_kP"] | outerPID_kP,
@@ -177,6 +181,7 @@ void saveSettings(){
 	doc["apHidden"] = apHidden;
 	doc["allowApWeb"] = allowApWeb;
 	doc["useISpindelTemp"] = useISpindelTemp;
+	doc["platoStabilitySlopePerDay"] = platoStabilitySlopePerDay;
 	doc["timezone"] = tzSetting;
 	doc["cascadeMaxOffset"] = cascadeMaxOffset;
 	doc["outerPID_kP"] = outerPID_kP;

@@ -56,6 +56,7 @@ void handleApiSettings() {
 	doc["maxVoltage"] = maxVoltage;
 	doc["boxMode"] = boxMode;
 	doc["useISpindelTemp"] = useISpindelTemp;
+	doc["platoStabilitySlopePerDay"] = platoStabilitySlopePerDay;
 	doc["ColdSensorId"] = ColdSensorId;
 	doc["HotSensorId"] = HotSensorId;
 
@@ -231,6 +232,12 @@ void handleSettingsStore() {
 			}
 			if (httpServer.argName(i) == "useISpindel") {
 				useISpindelTemp = (httpServer.arg(i).toInt() != 0);
+			}
+			if (httpServer.argName(i) == "platoSlope") {
+				float s = httpServer.arg(i).toFloat();
+				if (s >= 0.01f && s <= 2.0f) {
+					platoStabilitySlopePerDay = s;
+				}
 			}
 		}
 	}

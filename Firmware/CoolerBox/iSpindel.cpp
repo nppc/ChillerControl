@@ -10,6 +10,7 @@ float iSpindelPlato = -1.0f; // last received Plato reading; < 0 = no data
 unsigned long lastISpindelMillis = 0;
 int iSpindelRssi = 0;
 int iSpindelIntervalSec = 900; // default 15 minutes
+float platoStabilitySlopePerDay = 0.10f; // Max °P drop per 24h to consider stable (default 0.10)
 
 // -----------------------------------------------------------------------------
 // Plato 48-hour Stability Tracking (Option A: 48 hourly buckets stored as int16_t)
@@ -77,27 +78,43 @@ void updatePlatoStability() {
 				platoHistoryCount++;
 			}
 
-			// Calculate consecutive stable hours looking backwards
-			if (platoHistoryCount >= 2) {
+			// Calculate consecutive stable hours using linear regression over windows >= 6 hours
+			float maxDropPerHour = platoStabilitySlopePerDay / 24.0f;
+			if (platoHistoryCount < 6) {
+				// During first 6 hours of data, indicate calculating/insufficient history
+				stableHoursCount = 0;
+			} else {
 				uint8_t count = 0;
-				// Newest bucket index
-				int newest = (platoHistoryHead + PLATO_HISTORY_CAPACITY - 1) % PLATO_HISTORY_CAPACITY;
-				int16_t currentVal = platoHourlyHistory[newest];
+				// Check increasing window sizes from 6 hours up to platoHistoryCount
+				for (uint8_t w = 6; w <= platoHistoryCount; ++w) {
+					// Window of size w ends at newest bucket
+					// x = 0 .. (w - 1), where x = 0 is oldest in window, x = w - 1 is newest
+					int64_t sumX = (static_cast<int64_t>(w - 1) * w) / 2;
+					int64_t sumX2 = (static_cast<int64_t>(w - 1) * w * (2 * w - 1)) / 6;
+					int64_t denom = static_cast<int64_t>(w) * sumX2 - sumX * sumX;
 
-				// Step backward through history and check if earlier hours are within ±0.20 °P
-				for (uint8_t h = 1; h < platoHistoryCount; ++h) {
-					int prev = (newest - h + PLATO_HISTORY_CAPACITY) % PLATO_HISTORY_CAPACITY;
-					int16_t prevVal = platoHourlyHistory[prev];
-					int16_t diff = prevVal - currentVal; // positive if it was higher (dropped)
-					// If previous hour was higher than current by more than 0.20 °P, stability broke
-					if (diff > 20 || diff < -50) {
+					int64_t sumY = 0;
+					int64_t sumXY = 0;
+					for (uint8_t i = 0; i < w; ++i) {
+						// Oldest in this window of size w
+						int offsetFromNewest = w - 1 - i;
+						int idx = (platoHistoryHead - 1 - offsetFromNewest + PLATO_HISTORY_CAPACITY * 2) % PLATO_HISTORY_CAPACITY;
+						int32_t y = platoHourlyHistory[idx]; // in 0.01 °P units
+						sumY += y;
+						sumXY += static_cast<int64_t>(i) * y;
+					}
+
+					int64_t num = static_cast<int64_t>(w) * sumXY - sumX * sumY;
+					// slope in °P/hour: (num / denom) / 100.0
+					float windowSlope = static_cast<float>(num) / (static_cast<float>(denom) * 100.0f);
+
+					// If trendline drops faster than allowed slope, window is NOT stable
+					if (windowSlope < -maxDropPerHour) {
 						break;
 					}
-					count = h;
+					count = w;
 				}
 				stableHoursCount = count;
-			} else {
-				stableHoursCount = 0;
 			}
 
 			// Evaluate stability once we have the full 48-hour window
@@ -123,8 +140,10 @@ void updatePlatoStability() {
 				int64_t numerator = (48LL * sumXY) - (1128LL * sumY);
 				lastCalculatedSlope = static_cast<float>(numerator) / 44217600.0f;
 
-				bool flatDelta = (lastCalculatedDelta < 0.20f) && (lastCalculatedDelta > -0.50f);
-				bool flatSlope = (lastCalculatedSlope > -0.005f);
+				// Over 48h (2 days): total drop < (2 * platoStabilitySlopePerDay)
+				float maxDelta48h = 2.0f * platoStabilitySlopePerDay;
+				bool flatDelta = (lastCalculatedDelta < maxDelta48h) && (lastCalculatedDelta > -0.50f);
+				bool flatSlope = (lastCalculatedSlope > -maxDropPerHour);
 
 				if (flatDelta && flatSlope) {
 					if (!fermentationFinished) {
@@ -230,7 +249,13 @@ void handleISpindel() {
 		} else {
 			record.rssi = INT8_MIN;
 		}
-		record.stableHours = isFermentationComplete() ? -1 : static_cast<int8_t>(min<int>(getPlatoStableHours(), 127));
+		if (isFermentationComplete()) {
+			record.stableHours = -1;
+		} else if (getPlatoHistoryHours() < 6) {
+			record.stableHours = -2; // -2 represents "Calculating" during initial 6 hours
+		} else {
+			record.stableHours = static_cast<int8_t>(min<int>(getPlatoStableHours(), 127));
+		}
 		telemetryISpindelPush(record);
 		sendTelemetryNow = true;
 	}
