@@ -441,7 +441,7 @@ table {
 }
 
 .box-action-form {
-  margin: 0;
+  margin-left: auto;
   flex-shrink: 0;
 }
 
