@@ -23,20 +23,12 @@ void handleStatus() {
 	const bool bootWait = isBootAutoStartPending();
 	const unsigned long bootSec = getBootAutoStartRemainingSec();
 	const bool heatingMode = autoTune || boxMode == 3 || (boxMode == 1 && boxSubMode == 3);
-	const bool heatingWaiting = heatingMode && !stopped && !autoTune && I2C_PRESENT &&
-		measuredVoltage >= max(2.5f, minVoltage + 0.5f);
 	doc["stopping"] = stopped;
 	doc["autoTuning"] = autoTune;
 	doc["pendingBootAutoStart"] = bootWait;
 	doc["bootAutoStartSec"] = bootSec;
 	doc["controlMode"] = boxMode == 1 ? "Automatic" : boxMode == 2 ? "Cooling only" : "Heating only";
 	doc["activeProcess"] = autoTune ? "heating" : stopped ? "stopped" : heatingMode ? "heating" : "cooling";
-	doc["processDetail"] = autoTune ? getHeatingAutoTuneStatus().message :
-		bootWait ? ("Waiting for iSpindel (" + String((bootSec + 59) / 60) + "m)") :
-		stopped ? "Stopped" : heatingWaiting ? "Waiting for safe voltage" :
-		heatingMode ? (setHotPWM > 0.0f ? "Heating" : "Holding target") :
-		(isCoolingDemanded() ? "Cooling" : "Holding target");
-	doc["I2CStatus"] = I2C_PRESENT ? "I2C connected" : "I2C connection failed";
 	doc["HotTemp"] = String(HotTemp, 1);
 	doc["boxTemp"] = String(boxTemp, 1);
 	doc["controlTemp"] = String(getFermenterTemp(), 1);

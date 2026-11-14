@@ -361,7 +361,6 @@ async function updateStatus() {
     const coolingMetrics = document.getElementById('coolingMetrics');
     if (heatingMetrics) heatingMetrics.style.display = heatingActive ? 'inline-flex' : 'none';
     if (coolingMetrics) coolingMetrics.style.display = coolingActive ? 'inline-flex' : 'none';
-    setIf('I2CStatus', data.I2CStatus);
     setIf('HotTemp', data.HotTemp);
     setIf('boxTemp', data.boxTemp);
     setIf('effectiveBoxTarget', data.effectiveBoxTarget);
