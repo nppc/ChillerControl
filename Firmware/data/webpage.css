@@ -890,6 +890,40 @@ button.btn_target_set:active,
   display: inline;
 }
 
+.debug-filters-cell {
+  padding: 10px 14px;
+  background: var(--surface-muted);
+  border-top: 1px solid var(--border);
+  text-align: left;
+}
+
+.debug-filters-bar {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 12px;
+}
+
+.debug-filter-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.debug-filter-item input[type="checkbox"] {
+  cursor: pointer;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
 .values_table th {
   padding: 10px;
   background: var(--surface-muted);
@@ -1757,6 +1791,12 @@ input[type="number"] {
   .container {
     width: min(100% - 20px, 960px);
     padding-top: 10px;
+  }
+
+  .debug-filters-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
   }
 
   .network-form {
