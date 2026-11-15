@@ -245,6 +245,121 @@ void resetOuterPIDSettings() {
 	                    DEFAULT_CASCADE_MAX_OFFSET);
 }
 
+namespace {
+const uint32_t PRESERVED_PID_MAGIC = 0x50494453; // "PIDS"
+const uint32_t RTC_PID_STATE_BLOCK = 80;
+const int EEPROM_PID_STATE_OFFSET = 960;
+
+struct PreservedPIDState {
+	uint32_t magic;
+	float outerOutputSum;
+	float effectiveBoxTarget;
+	float hotPIDOutputSum;
+	float setTemp;
+	uint32_t crc;
+};
+
+uint32_t calcPIDStateCRC(const PreservedPIDState &s) {
+	uint32_t crc = 0x5A5AA5A5;
+	const uint32_t *p = (const uint32_t *)&s;
+	for (size_t i = 0; i < 5; ++i) {
+		crc ^= p[i];
+		crc = (crc << 5) | (crc >> 27);
+	}
+	return crc;
+}
+} // namespace
+
+bool savePreservedPIDState() {
+	PreservedPIDState state = {};
+	state.magic = PRESERVED_PID_MAGIC;
+	state.outerOutputSum = outerPID.GetOutputSum();
+	state.effectiveBoxTarget = effectiveBoxTarget;
+	state.hotPIDOutputSum = hotPID.GetOutputSum();
+	state.setTemp = setTemp;
+	state.crc = calcPIDStateCRC(state);
+
+	bool rtcOk = ESP.rtcUserMemoryWrite(RTC_PID_STATE_BLOCK, (uint32_t *)&state, sizeof(state));
+
+	initEEPROM();
+	EEPROM.put(EEPROM_PID_STATE_OFFSET, state);
+	bool eepromOk = EEPROM.commit();
+
+	Debug.addLine(LOG_PID, String(F("PID state preserved for update: outer I=")) +
+	              String(state.outerOutputSum, 3) + F(" boxTarget=") +
+	              String(state.effectiveBoxTarget, 2) + F("C inner I=") +
+	              String(state.hotPIDOutputSum, 2) + F("% (RTC=") +
+	              (rtcOk ? F("OK") : F("FAIL")) + F(" EEPROM=") +
+	              (eepromOk ? F("OK") : F("FAIL")) + F(")"));
+	return rtcOk || eepromOk;
+}
+
+void clearPreservedPIDState() {
+	PreservedPIDState state = {};
+	ESP.rtcUserMemoryWrite(RTC_PID_STATE_BLOCK, (uint32_t *)&state, sizeof(state));
+	initEEPROM();
+	EEPROM.put(EEPROM_PID_STATE_OFFSET, state);
+	EEPROM.commit();
+}
+
+bool restorePreservedPIDState() {
+	PreservedPIDState state = {};
+	bool fromRtc = false;
+	bool fromEeprom = false;
+
+	if (ESP.rtcUserMemoryRead(RTC_PID_STATE_BLOCK, (uint32_t *)&state, sizeof(state)) &&
+	    state.magic == PRESERVED_PID_MAGIC &&
+	    state.crc == calcPIDStateCRC(state)) {
+		fromRtc = true;
+	} else {
+		initEEPROM();
+		EEPROM.get(EEPROM_PID_STATE_OFFSET, state);
+		if (state.magic == PRESERVED_PID_MAGIC &&
+		    state.crc == calcPIDStateCRC(state)) {
+			fromEeprom = true;
+		}
+	}
+
+	if (!fromRtc && !fromEeprom) {
+		return false;
+	}
+
+	// Invalidate stored state so it is strictly a one-time handoff across update
+	clearPreservedPIDState();
+
+	if (!isfinite(state.outerOutputSum) || !isfinite(state.effectiveBoxTarget) ||
+	    !isfinite(state.hotPIDOutputSum)) {
+		Debug.addLine(LOG_PID, F("Preserved PID state contained non-finite values; ignoring"));
+		return false;
+	}
+
+	// Verify setTemp hasn't completely changed (e.g. within 2.0°C)
+	if (fabs(state.setTemp - setTemp) > 2.0f) {
+		Debug.addLine(LOG_PID, String(F("Preserved PID state target mismatch (saved=")) +
+		              String(state.setTemp, 2) + F("C current=") +
+		              String(setTemp, 2) + F("C); ignoring"));
+		return false;
+	}
+
+	outerPID.SetOutputSum(state.outerOutputSum);
+	outerPID.SetMode(QuickPID::Control::timer);
+	outerOutput = state.outerOutputSum;
+	effectiveBoxTarget = constrain(state.effectiveBoxTarget,
+	                               setTemp - cascadeMaxOffset,
+	                               setTemp + cascadeMaxOffset);
+	outerPIDInitialized = true;
+	outerPIDNeedsBoxInitialization = false;
+
+	hotPID.SetOutputSum(state.hotPIDOutputSum);
+
+	Debug.addLine(LOG_PID, String(F("Restored PID state from ")) +
+	              (fromRtc ? F("RTC") : F("EEPROM")) +
+	              F(": outer I=") + String(state.outerOutputSum, 3) +
+	              F(" boxTarget=") + String(effectiveBoxTarget, 2) +
+	              F("C inner I=") + String(state.hotPIDOutputSum, 2) + F("%"));
+	return true;
+}
+
 void initTemperatureControl() {
 	outerPID.SetOutputLimits(-cascadeMaxOffset, cascadeMaxOffset);
 	outerPID.SetSampleTimeUs(1000000UL);
@@ -253,8 +368,13 @@ void initTemperatureControl() {
 	outerPIDNeedsBoxInitialization = true;
 	lastOuterPIDISpindelMillis = 0;
 	lastUseISpindelTemp = useISpindelTemp;
-	initializeOuterPIDFromBox();
-	effectiveBoxTarget = setTemp;
+
+	if (setTemp > 0.0f && restorePreservedPIDState()) {
+		// Preserved state restored successfully
+	} else {
+		initializeOuterPIDFromBox();
+		effectiveBoxTarget = setTemp;
+	}
 	lastSlewMillis = 0;
 	lastRampStepMillis = millis();
 	rampInitialized = true;

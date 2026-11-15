@@ -24,6 +24,12 @@
 <form data-update-form>
   <div style="margin-bottom: 8px;">Select PlatformIO <b>firmware.bin</b> (or firmware.bin.gz):</div>
   <input type="file" name="update" accept=".bin,.gz,.bin.gz" required class="inputtext" style="width: 100%; box-sizing: border-box; margin-bottom: 12px;"><br>
+  <div style="margin-bottom: 14px;">
+    <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; user-select: none;">
+      <input type="checkbox" name="preservePID" value="1" style="width: 18px; height: 18px; cursor: pointer;">
+      <span>Preserve PID state across update</span>
+    </label>
+  </div>
   <input type="hidden" name="type" value="firmware">
   <button type="submit" class="btn btn_round" style="height: 45px; font-size: 16px;">Upload Firmware</button>
 </form>
@@ -37,6 +43,12 @@
 <form data-update-form>
   <div style="margin-bottom: 8px;">Select LittleFS <b>littlefs.bin</b> (or littlefs.bin.gz):</div>
   <input type="file" name="update" accept=".bin,.gz,.bin.gz" required class="inputtext" style="width: 100%; box-sizing: border-box; margin-bottom: 12px;"><br>
+  <div style="margin-bottom: 14px;">
+    <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; user-select: none;">
+      <input type="checkbox" name="preservePID" value="1" style="width: 18px; height: 18px; cursor: pointer;">
+      <span>Preserve PID state across update</span>
+    </label>
+  </div>
   <input type="hidden" name="type" value="filesystem">
   <button type="submit" class="btn btn_round" style="height: 45px; font-size: 16px;">Upload LittleFS</button>
 </form>
@@ -239,7 +251,10 @@ forms.forEach(form => {
       }
     });
 
-    request.open('POST', '/update');
+    const preserveCheckbox = form.querySelector('input[name="preservePID"]');
+    const preserve = preserveCheckbox && preserveCheckbox.checked ? '1' : '0';
+    const type = form.querySelector('input[name="type"]')?.value || 'firmware';
+    request.open('POST', `/update?type=${encodeURIComponent(type)}&preservePID=${preserve}`);
     request.send(formData);
   });
 });

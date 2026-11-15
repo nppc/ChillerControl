@@ -627,6 +627,7 @@ void handleUpdate() {
 			  "<div class='container'><h2>Firmware Update</h2>"
 			  "<form method='POST' action='/update' enctype='multipart/form-data'>"
 			  "<p>Select firmware.bin (or .bin.gz):<br><input type='file' name='update' accept='.bin,.gz,.bin.gz' required></p>"
+			  "<p><label><input type='checkbox' name='preservePID' value='1'> Preserve PID state across update</label></p>"
 			  "<button type='submit' class='btn btn_round'>Upload</button>"
 			  "</form></div></body></html>"));
 	}
@@ -634,6 +635,7 @@ void handleUpdate() {
 
 static bool updateFailed = false;
 static bool updateReceived = false;
+static bool updatePreservePID = false;
 
 void handleUpdateUpload() {
 	HTTPUpload &upload = httpServer.upload();
@@ -643,6 +645,14 @@ void handleUpdateUpload() {
 		updateReceived = false;
 		drd.stop();
 		telemetryFSSaveCurrentRAM();
+
+		updatePreservePID = (httpServer.arg("preservePID") == "1" ||
+		                     httpServer.arg("preservePID") == "true");
+		if (updatePreservePID) {
+			savePreservedPIDState();
+		} else {
+			clearPreservedPIDState();
+		}
 
 		const bool filesystem = (httpServer.arg("type") == "filesystem" ||
 		                         upload.name == "filesystem" ||
@@ -661,7 +671,8 @@ void handleUpdateUpload() {
 		WiFiUDP::stopAll();
 		Debug.addLine(String(F("OTA upload started: ")) + upload.filename +
 		              (filesystem ? F(" (LittleFS, max size: ") : F(" (firmware, max size: ")) +
-		              maxUpdateSize + F(")"));
+		              maxUpdateSize + F(")") +
+		              (updatePreservePID ? F(" [preserve PID: YES]") : F(" [preserve PID: NO]")));
 
 		if (!Update.begin(maxUpdateSize, command)) {
 			Debug.addLine(F("OTA update begin failed"));
@@ -684,8 +695,13 @@ void handleUpdateUpload() {
 
 void handleUpdateResult() {
 	if (!updateReceived || updateFailed || Update.hasError()) {
+		clearPreservedPIDState();
 		httpServer.send(500, "text/plain", "Update failed: flash write error");
 		return;
+	}
+
+	if (updatePreservePID || httpServer.arg("preservePID") == "1" || httpServer.arg("preservePID") == "true") {
+		savePreservedPIDState();
 	}
 
 	httpServer.send(200, "text/plain", "Update successful. Restarting...");

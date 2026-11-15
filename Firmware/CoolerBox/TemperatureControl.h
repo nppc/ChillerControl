@@ -34,3 +34,7 @@ float getEffectiveBoxTarget();
 float getHeatingCascadeGain();
 float getCoolingCascadeGain();
 float getCascadeBoxBaseline();
+
+bool savePreservedPIDState();
+bool restorePreservedPIDState();
+void clearPreservedPIDState();
