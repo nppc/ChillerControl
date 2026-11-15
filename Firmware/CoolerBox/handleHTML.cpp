@@ -245,7 +245,7 @@ void handleSettingsStore() {
 		cancelBootAutoStart();
 		setCoolerStopped(LOW);
 	}
-	hotPID.SetOutputLimits(0, maxHotPWM);
+	hotPID.SetOutputLimits(0.0f, 100.0f);
 	delay(50);
 	updateCoolingOutput(true, true);
 	delay(50);

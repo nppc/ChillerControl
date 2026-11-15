@@ -43,7 +43,7 @@ void pauseHeatingPWM();
 void resumeHeatingPWM();
 void processHeating(float currentTemp, float targetTemp, bool enableHeating);
 
-bool startHeatingAutoTune(float targetTemp, float testPWM = 300.0f, float noiseBand = 0.25f, int cycles = 4);
+bool startHeatingAutoTune(float targetTemp, float testPWM = 250.0f, float noiseBand = 0.25f, int cycles = 4);
 void stopHeatingAutoTune(const char *reason = "Aborted by user");
 bool isHeatingAutoTuning();
 AutoTuneStatus getHeatingAutoTuneStatus();

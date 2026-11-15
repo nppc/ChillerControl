@@ -5,8 +5,8 @@
 
 // Default values
 #define DEFAULT_HYSTERESIS 0.05  // ±0.05 °C (0.10 °C total deadband span)
-#define DEFAULT_PID_KP 8.0        
-#define DEFAULT_PID_KI 0.020
+#define DEFAULT_PID_KP 2.0        
+#define DEFAULT_PID_KI 0.005
 #define DEFAULT_PID_KD 0.0
 
 #define PIDCOMPUTE_INTERVAL 2	// seconds, continuous 12-bit DS18B20 conversion
@@ -14,5 +14,5 @@
 
 // other constants
 #define RADIATOR_EXTREME_TEMP 45.0	// If radiator temperature is greater that this constant, then reduce power
-#define MAXIMUM_PWM_HOT_WIRE 700.0 // Maximum PWM for hot wire. full range will give too much current, so limit it.
+#define MAXIMUM_PWM_HOT_WIRE 500.0 // Maximum PWM for hot wire. full range will give too much current, so limit it.
 #define MODE_SWITCH_WINDOW_SEC 300 // 5-minute observation window for tendency-based mode switching

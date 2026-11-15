@@ -75,21 +75,21 @@
 <tr>
   <td style="font-weight: bold; padding: 12px 16px;">P</td>
   <td style="padding: 12px 16px;">
-    <input type="number" name="hotPID_kP" id="hotPID_kP" class="inputtext" style="width: 120px;" min="0.0" max="300.0" step="0.1" value="0.0"/>
-    <div style="font-size: 12px; color: #555; margin-top: 6px;">How strongly heater PWM responds to the current box-air temperature error. Higher P gives a stronger immediate response, but too much can cause rapid swings.</div>
+    <input type="number" name="hotPID_kP" id="hotPID_kP" class="inputtext" style="width: 120px;" min="0.0" max="100.0" step="0.1" value="2.0"/>
+    <div style="font-size: 12px; color: #555; margin-top: 6px;">How strongly heater output (% of max power) responds to the current box-air temperature error. Higher P gives a stronger immediate response, but too much can cause rapid swings.</div>
   </td>
 </tr>
 <tr>
   <td style="font-weight: bold; padding: 12px 16px;">I</td>
   <td style="padding: 12px 16px;">
-    <input type="number" name="hotPID_kI" id="hotPID_kI" class="inputtext" style="width: 120px;" min="0.0" max="100.0" step="0.001" value="0.0"/>
-    <div style="font-size: 12px; color: #555; margin-top: 6px;">Accumulates persistent box-air error to reduce steady offsets. Higher I corrects them faster but may keep heating after the target is reached.</div>
+    <input type="number" name="hotPID_kI" id="hotPID_kI" class="inputtext" style="width: 120px;" min="0.0" max="10.0" step="0.0001" value="0.005"/>
+    <div style="font-size: 12px; color: #555; margin-top: 6px;">Accumulates persistent box-air error (%/s) to reduce steady offsets. Higher I corrects them faster but may keep heating after the target is reached.</div>
   </td>
 </tr>
 <tr>
   <td style="font-weight: bold; padding: 12px 16px;">D</td>
   <td style="padding: 12px 16px;">
-    <input type="number" name="hotPID_kD" id="hotPID_kD" class="inputtext" style="width: 120px;" min="0.0" max="300.0" step="0.1" value="0.0"/>
+    <input type="number" name="hotPID_kD" id="hotPID_kD" class="inputtext" style="width: 120px;" min="0.0" max="100.0" step="0.1" value="0.0"/>
     <div style="font-size: 12px; color: #555; margin-top: 6px;">Responds to how quickly box-air temperature is changing to reduce heater output before overshoot. Too much D can make output sensitive to sensor noise.</div>
   </td>
 </tr>

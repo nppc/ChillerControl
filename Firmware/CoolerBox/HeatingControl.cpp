@@ -21,7 +21,7 @@ QuickPID hotPID(&pidInput, &pidOutput, &pidSetpoint,
 // Autotune state
 static AutoTuneState atState = AutoTuneState::IDLE;
 static float atTargetTemp = 20.0f;
-static float atTestPWM = 300.0f;
+static float atTestPWM = 250.0f;
 static float atNoiseBand = 0.25f;
 static int atTargetCycles = 4;
 static int atCycleCount = 0;
@@ -70,7 +70,7 @@ void initHeating() {
 	setHotPWM = 0.0f;
 	currentRampedPWM = 0.0f;
 
-	hotPID.SetOutputLimits(0, maxHotPWM);
+	hotPID.SetOutputLimits(0.0f, 100.0f);
 	hotPID.SetSampleTimeUs(PIDCOMPUTE_INTERVAL * 1000000UL); // 2000000 µs
 	hotPID.SetTunings(hotPID_kP, hotPID_kI, hotPID_kD,
 	                 QuickPID::pMode::pOnError,
@@ -198,7 +198,8 @@ static void stepAutoTune(float currentTemp) {
 					// Relay step is 0 to atTestPWM, so d = atTestPWM / 2
 					// Peak-to-peak amplitude is avgAmp, so a = avgAmp / 2
 					// Ku = (4 * (atTestPWM / 2)) / (pi * (avgAmp / 2)) = (4 * atTestPWM) / (pi * avgAmp)
-					float Ku = (4.0f * atTestPWM) / (3.14159265f * avgAmp);
+					float testPWMPct = (maxHotPWM > 0) ? ((atTestPWM / (float)maxHotPWM) * 100.0f) : atTestPWM;
+					float Ku = (4.0f * testPWMPct) / (3.14159265f * avgAmp);
 					float Pu = avgPeriodSec;
 					if (Pu < 1.0f) Pu = 1.0f;
 
@@ -250,7 +251,8 @@ void processHeating(float currentTemp, float targetTemp, bool enableHeating) {
 		pidInput = currentTemp;
 		pidSetpoint = targetTemp;
 		hotPID.Compute();
-		applyHeaterPWM(pidOutput, true);
+		float targetPWM = (pidOutput / 100.0f) * static_cast<float>(maxHotPWM);
+		applyHeaterPWM(targetPWM, true);
 	} else {
 		applyHeaterPWM(0.0f, false);
 		pidOutput = 0.0f;
