@@ -28,6 +28,14 @@
 </TABLE>
 <BR>
 <TABLE class="values_table">
+<TR class="values_header"><TD colspan=2>Log Event Filters</TD></TR>
+<TR><TD style="text-align:left; font-weight:bold;"><label for="logWifi" style="cursor:pointer;">Wi-Fi / Connection</label></TD><TD style="text-align:right;"><input type="checkbox" id="logWifi" style="cursor:pointer; transform:scale(1.2);"></TD></TR>
+<TR><TD style="text-align:left; font-weight:bold;"><label for="logPid" style="cursor:pointer;">PID Regulation</label></TD><TD style="text-align:right;"><input type="checkbox" id="logPid" style="cursor:pointer; transform:scale(1.2);"></TD></TR>
+<TR><TD style="text-align:left; font-weight:bold;"><label for="logIot" style="cursor:pointer;">IoT Connectivity</label></TD><TD style="text-align:right;"><input type="checkbox" id="logIot" style="cursor:pointer; transform:scale(1.2);"></TD></TR>
+<TR><TD style="text-align:left; font-weight:bold;"><label for="logSensors" style="cursor:pointer;">Peripherals &amp; Sensors</label></TD><TD style="text-align:right;"><input type="checkbox" id="logSensors" style="cursor:pointer; transform:scale(1.2);"></TD></TR>
+</TABLE>
+<BR>
+<TABLE class="values_table">
 <TR class="values_header"><TD class="debug-header-cell"><span>Debug Log</span><button type="button" id="copyDebugBtn" class="copy-btn" title="Copy to clipboard" aria-label="Copy debug log to clipboard"><svg class="copy-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="copy-feedback">Copied!</span></button></TD></TR>
 <TR><TD><pre id="debugLog" style="font-family:monospace;text-align:left;overflow-x:auto;">Loading...</pre></TD></TR>
 </TABLE>

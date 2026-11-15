@@ -15,7 +15,7 @@ public:
 		if (count == N) {
 			head = (head + 1) % N;
 			--count;
-			Debug.addLine(String(F("Ring drop: cnt=")) + count);
+			Debug.addLine(LOG_IOT, String(F("Ring drop: cnt=")) + count);
 		}
 		buf[(head + count) % N] = record;
 		++count;
@@ -135,7 +135,7 @@ void captureTelemetrySnapshot() {
 		if (files > 0) {
 			msg += F(" [fs=") + String(files) + F("]");
 		}
-		Debug.addLine(msg);
+		Debug.addLine(LOG_IOT, msg);
 	}
 	previousPending = pending;
 }
@@ -145,7 +145,7 @@ void telemetryISpindelPush(const TelemetryISpindelRecord &record) {
 		telemetryFSSaveCurrentRAM();
 	}
 	iSpindelRing.push(record);
-	Debug.addLine(String(F("iSpindel #")) + iSpindelRing.pending());
+	Debug.addLine(LOG_IOT, String(F("iSpindel #")) + iSpindelRing.pending());
 }
 
 uint8_t telemetryQueuePending() {
@@ -275,7 +275,7 @@ void telemetryFSInit() {
 	scanTelemetryFS(count, minIdx, maxIdx);
 	fsFileCount = count;
 	fsNextWriteIndex = (count > 0) ? (maxIdx + 1) : 0;
-	Debug.addLine(String(F("LittleFS telemetry queue: files=")) + fsFileCount +
+	Debug.addLine(LOG_IOT, String(F("LittleFS telemetry queue: files=")) + fsFileCount +
 	              (count > 0 ? (F(" nextIdx=") + String(fsNextWriteIndex)) : F("")));
 }
 
@@ -295,12 +295,12 @@ bool telemetryFSSaveCurrentRAM() {
 	}
 
 	if (fsFileCount >= TELEMETRY_FS_MAX_FILES) {
-		Debug.addLine(F("LittleFS queue full, cannot save file"));
+		Debug.addLine(LOG_IOT, F("LittleFS queue full, cannot save file"));
 		return false;
 	}
 
 	if (!LittleFS.begin()) {
-		Debug.addLine(F("LittleFS unavailable to save queue"));
+		Debug.addLine(LOG_IOT, F("LittleFS unavailable to save queue"));
 		return false;
 	}
 
@@ -309,7 +309,7 @@ bool telemetryFSSaveCurrentRAM() {
 
 	File file = LittleFS.open(TELEMETRY_TMP_PATH, "w");
 	if (!file) {
-		Debug.addLine(F("Failed to open /tel_tmp.dat for write"));
+		Debug.addLine(LOG_IOT, F("Failed to open /tel_tmp.dat for write"));
 		return false;
 	}
 
@@ -335,7 +335,7 @@ bool telemetryFSSaveCurrentRAM() {
 	if (file.write(reinterpret_cast<const uint8_t *>(&header), sizeof(header)) != sizeof(header)) {
 		file.close();
 		LittleFS.remove(TELEMETRY_TMP_PATH);
-		Debug.addLine(F("Failed writing queue header"));
+		Debug.addLine(LOG_IOT, F("Failed writing queue header"));
 		return false;
 	}
 
@@ -344,7 +344,7 @@ bool telemetryFSSaveCurrentRAM() {
 		if (file.write(reinterpret_cast<const uint8_t *>(&rec), sizeof(TelemetryBoxRecord)) != sizeof(TelemetryBoxRecord)) {
 			file.close();
 			LittleFS.remove(TELEMETRY_TMP_PATH);
-			Debug.addLine(F("Failed writing box records"));
+			Debug.addLine(LOG_IOT, F("Failed writing box records"));
 			return false;
 		}
 	}
@@ -354,7 +354,7 @@ bool telemetryFSSaveCurrentRAM() {
 		if (file.write(reinterpret_cast<const uint8_t *>(&rec), sizeof(TelemetryISpindelRecord)) != sizeof(TelemetryISpindelRecord)) {
 			file.close();
 			LittleFS.remove(TELEMETRY_TMP_PATH);
-			Debug.addLine(F("Failed writing ispindel records"));
+			Debug.addLine(LOG_IOT, F("Failed writing ispindel records"));
 			return false;
 		}
 	}
@@ -366,7 +366,7 @@ bool telemetryFSSaveCurrentRAM() {
 		LittleFS.remove(finalPath);
 	}
 	if (!LittleFS.rename(TELEMETRY_TMP_PATH, finalPath)) {
-		Debug.addLine(String(F("Failed renaming to ")) + finalPath);
+		Debug.addLine(LOG_IOT, String(F("Failed renaming to ")) + finalPath);
 		return false;
 	}
 
@@ -375,7 +375,7 @@ bool telemetryFSSaveCurrentRAM() {
 	fsNextWriteIndex++;
 	fsFileCount++;
 
-	Debug.addLine(String(F("Spilled to LittleFS: file=")) + finalPath +
+	Debug.addLine(LOG_IOT, String(F("Spilled to LittleFS: file=")) + finalPath +
 	              F(" box=") + boxCnt + F(" isp=") + ispindelCnt +
 	              F(" totalFiles=") + fsFileCount);
 	return true;
@@ -400,7 +400,7 @@ bool telemetryFSLoadOldestToRAM() {
 
 	File file = LittleFS.open(filePath, "r");
 	if (!file) {
-		Debug.addLine(String(F("Failed opening ")) + filePath);
+		Debug.addLine(LOG_IOT, String(F("Failed opening ")) + filePath);
 		LittleFS.remove(filePath);
 		if (fsFileCount > 0) fsFileCount--;
 		return false;
@@ -408,7 +408,7 @@ bool telemetryFSLoadOldestToRAM() {
 
 	TelemetryFileHeader header = {};
 	if (file.read(reinterpret_cast<uint8_t *>(&header), sizeof(header)) != sizeof(header)) {
-		Debug.addLine(String(F("Truncated header in ")) + filePath);
+		Debug.addLine(LOG_IOT, String(F("Truncated header in ")) + filePath);
 		file.close();
 		LittleFS.remove(filePath);
 		if (fsFileCount > 0) fsFileCount--;
@@ -416,7 +416,7 @@ bool telemetryFSLoadOldestToRAM() {
 	}
 
 	if (header.magic != 0x54454C51 || header.version != 1 || header.headerSize != sizeof(TelemetryFileHeader)) {
-		Debug.addLine(String(F("Bad header in ")) + filePath);
+		Debug.addLine(LOG_IOT, String(F("Bad header in ")) + filePath);
 		file.close();
 		LittleFS.remove(filePath);
 		if (fsFileCount > 0) fsFileCount--;
@@ -424,7 +424,7 @@ bool telemetryFSLoadOldestToRAM() {
 	}
 
 	if (header.boxCount > TELEMETRY_RAM_RECORDS || header.ispindelCount > ISPINDEL_RAM_RECORDS) {
-		Debug.addLine(String(F("Invalid counts in ")) + filePath);
+		Debug.addLine(LOG_IOT, String(F("Invalid counts in ")) + filePath);
 		file.close();
 		LittleFS.remove(filePath);
 		if (fsFileCount > 0) fsFileCount--;
@@ -435,7 +435,7 @@ bool telemetryFSLoadOldestToRAM() {
 	                      header.boxCount * sizeof(TelemetryBoxRecord) +
 	                      header.ispindelCount * sizeof(TelemetryISpindelRecord);
 	if (file.size() < expectedSize) {
-		Debug.addLine(String(F("File size too small: ")) + filePath);
+		Debug.addLine(LOG_IOT, String(F("File size too small: ")) + filePath);
 		file.close();
 		LittleFS.remove(filePath);
 		if (fsFileCount > 0) fsFileCount--;
@@ -448,7 +448,7 @@ bool telemetryFSLoadOldestToRAM() {
 	uint32_t crc = 0xFFFFFFFF;
 	for (uint8_t i = 0; i < header.boxCount; ++i) {
 		if (file.read(reinterpret_cast<uint8_t *>(&boxBuf[i]), sizeof(TelemetryBoxRecord)) != sizeof(TelemetryBoxRecord)) {
-			Debug.addLine(F("Failed reading box record"));
+			Debug.addLine(LOG_IOT, F("Failed reading box record"));
 			file.close();
 			LittleFS.remove(filePath);
 			if (fsFileCount > 0) fsFileCount--;
@@ -459,7 +459,7 @@ bool telemetryFSLoadOldestToRAM() {
 
 	for (uint8_t i = 0; i < header.ispindelCount; ++i) {
 		if (file.read(reinterpret_cast<uint8_t *>(&ispindelBuf[i]), sizeof(TelemetryISpindelRecord)) != sizeof(TelemetryISpindelRecord)) {
-			Debug.addLine(F("Failed reading ispindel record"));
+			Debug.addLine(LOG_IOT, F("Failed reading ispindel record"));
 			file.close();
 			LittleFS.remove(filePath);
 			if (fsFileCount > 0) fsFileCount--;
@@ -473,7 +473,7 @@ bool telemetryFSLoadOldestToRAM() {
 	if (fsFileCount > 0) fsFileCount--;
 
 	if (crc != header.payloadCrc) {
-		Debug.addLine(String(F("CRC mismatch in ")) + filePath);
+		Debug.addLine(LOG_IOT, String(F("CRC mismatch in ")) + filePath);
 		return false;
 	}
 
@@ -486,7 +486,7 @@ bool telemetryFSLoadOldestToRAM() {
 		if (header.savedEpoch >= 1700000000) {
 			struct timeval tv = { static_cast<time_t>(header.savedEpoch + 2), 0 };
 			settimeofday(&tv, nullptr);
-			Debug.addLine(String(F("Restored clock after soft restart: ")) + static_cast<unsigned long>(header.savedEpoch + 2));
+			Debug.addLine(LOG_SYSTEM, String(F("Restored clock after soft restart: ")) + static_cast<unsigned long>(header.savedEpoch + 2));
 		}
 	}
 
@@ -519,7 +519,7 @@ bool telemetryFSLoadOldestToRAM() {
 		}
 	}
 
-	Debug.addLine(String(F("Loaded from LittleFS: file=")) + filePath +
+	Debug.addLine(LOG_IOT, String(F("Loaded from LittleFS: file=")) + filePath +
 	              F(" box=") + header.boxCount + F(" isp=") + header.ispindelCount +
 	              F(" remainingFiles=") + fsFileCount);
 	return true;

@@ -5,12 +5,21 @@
 #define DEBUG_MAX_RECORDS 20
 #define DEBUG_LINE_MAX_LEN 96
 
+enum LogCategory : uint8_t {
+	LOG_SYSTEM  = 0,
+	LOG_WIFI    = 1 << 0,
+	LOG_PID     = 1 << 1,
+	LOG_IOT     = 1 << 2,
+	LOG_SENSORS = 1 << 3,
+};
+
 class DebugHTML {
 private:
 	char debugStr[DEBUG_MAX_RECORDS][DEBUG_LINE_MAX_LEN];
 	uint32_t recordMillis[DEBUG_MAX_RECORDS] = {};
 	int curRecord = 0;
 	bool serialLogging = true;
+	uint8_t logMask = 0x0F;
 
 	void storeLine(const char *strLine) {
 		if (!strLine) return;
@@ -38,15 +47,30 @@ public:
 		}
 	}
 
+	void setLogMask(uint8_t mask) {
+		logMask = mask;
+	}
+
+	uint8_t getLogMask() const {
+		return logMask;
+	}
+
+	bool isCategoryEnabled(LogCategory cat) const {
+		if (cat == LOG_SYSTEM) return true;
+		return (logMask & static_cast<uint8_t>(cat)) != 0;
+	}
+
 	void stopSerialLogging() {
 		serialLogging = false;
 	}
 
-	void addLine(const String &strLine) {
-		addLine(strLine.c_str());
+	void addLine(LogCategory cat, const String &strLine) {
+		if (!isCategoryEnabled(cat)) return;
+		storeLine(strLine.c_str());
 	}
 
-	void addLine(const __FlashStringHelper *ifsh) {
+	void addLine(LogCategory cat, const __FlashStringHelper *ifsh) {
+		if (!isCategoryEnabled(cat)) return;
 		if (!ifsh) return;
 		char buf[DEBUG_LINE_MAX_LEN];
 		strncpy_P(buf, reinterpret_cast<PGM_P>(ifsh), DEBUG_LINE_MAX_LEN - 1);
@@ -54,8 +78,21 @@ public:
 		storeLine(buf);
 	}
 
-	void addLine(const char *strLine) {
+	void addLine(LogCategory cat, const char *strLine) {
+		if (!isCategoryEnabled(cat)) return;
 		storeLine(strLine);
+	}
+
+	void addLine(const String &strLine) {
+		addLine(LOG_SYSTEM, strLine);
+	}
+
+	void addLine(const __FlashStringHelper *ifsh) {
+		addLine(LOG_SYSTEM, ifsh);
+	}
+
+	void addLine(const char *strLine) {
+		addLine(LOG_SYSTEM, strLine);
 	}
 
 	String getHTML() const {

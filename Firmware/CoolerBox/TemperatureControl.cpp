@@ -123,7 +123,7 @@ void updateFermenterTrend() {
 	lastTrendSampleMillis = sampleMillis;
 	lastTrendSampleTemp = sampleTemp;
 	float predictedTemp = sampleTemp + filteredFermenterRate * outerPID_tdHours;
-	Debug.addLine(String(F("iSpindel trend: liquid=")) + String(sampleTemp, 2) +
+	Debug.addLine(LOG_SENSORS, String(F("iSpindel trend: liquid=")) + String(sampleTemp, 2) +
 	              F("C rate=") + String(filteredFermenterRate, 3) +
 	              F("C/h predicted=") + String(predictedTemp, 2) + F("C"));
 }
@@ -427,7 +427,7 @@ void updateCascadeTarget() {
 			outerOutput = offset;
 			lastOuterPIDISpindelMillis = lastISpindelMillis;
 
-			Debug.addLine(String(F("Outer PID: e=")) + String(error, 3) +
+			Debug.addLine(LOG_PID, String(F("Outer PID: e=")) + String(error, 3) +
 			              F(" rate=") + String(filteredFermenterRate, 3) +
 			              F(" P=") + String(outerPID.GetPterm(), 3) +
 			              F(" I=") + String(outerPID.GetOutputSum(), 3) +
@@ -469,9 +469,9 @@ void processControl() {
 	bool currentISpindelActive = isISpindelActive();
 	if (currentISpindelActive != lastISpindelActive) {
 		if (currentISpindelActive) {
-			Debug.addLine(String(F("Cascade control active: iSpindel=")) + String(iSpindelTemperature, 2) + F("°C"));
+			Debug.addLine(LOG_PID, String(F("Cascade control active: iSpindel=")) + String(iSpindelTemperature, 2) + F("°C"));
 		} else if (useISpindelTemp) {
-			Debug.addLine(String(F("iSpindel offline/timed out; falling back to direct Box control (")) + String(boxTemp, 2) + F("°C)"));
+			Debug.addLine(LOG_PID, String(F("iSpindel offline/timed out; falling back to direct Box control (")) + String(boxTemp, 2) + F("°C)"));
 		}
 		lastISpindelActive = currentISpindelActive;
 	}
@@ -506,7 +506,7 @@ void processControl() {
 				// target by the emergency margin.
 				if (controlTemp > (setTemp + FERMENTER_EMERGENCY_OVERTEMP)) {
 					boxSubMode = 2; // Switch to Cooling
-					Debug.addLine(String(F("Fermenter temp (")) + String(controlTemp, 2) +
+					Debug.addLine(LOG_PID, String(F("Fermenter temp (")) + String(controlTemp, 2) +
 					              F("°C) > target + ") + String(FERMENTER_EMERGENCY_OVERTEMP, 2) +
 					              F("°C: switch to Cooling"));
 				}
@@ -514,7 +514,7 @@ void processControl() {
 				// Use a 0.1°C return band to avoid switching back and forth at the setpoint.
 				if (controlTemp <= setTemp) {
 					boxSubMode = 3; // Switch to Heating
-					Debug.addLine(String(F("Fermenter returned to target: liquid=")) +
+					Debug.addLine(LOG_PID, String(F("Fermenter returned to target: liquid=")) +
 					              String(controlTemp, 2) + F("C, switch to Heating"));
 				}
 			}
@@ -552,7 +552,7 @@ void processControl() {
 		                      (lastMajorMode != boxMode && isHeating && !isStopped);
 		if (enteredHeating) {
 			resetHeatingPID();
-			Debug.addLine(F("Switched to Heating: PID memory initialized"));
+			Debug.addLine(LOG_PID, F("Switched to Heating: PID memory initialized"));
 		}
 		wasStopped = isStopped;
 		lastMajorMode = boxMode;
@@ -610,7 +610,7 @@ void processControl() {
 			if (isISpindelActive()) {
 				msg += F(" (Cascade: fermenter=") + String(iSpindelTemperature, 2) + F(" setTemp=") + String(setTemp, 1) + F(")");
 			}
-			Debug.addLine(msg);
+			Debug.addLine(LOG_PID, msg);
 
 			lastLoggedMode = boxMode;
 			lastLoggedSubMode = boxSubMode;

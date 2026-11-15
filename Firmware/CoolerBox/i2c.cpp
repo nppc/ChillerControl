@@ -30,7 +30,7 @@ void initI2C() {
 	} else {
 		I2C_PRESENT = LOW;
 		Serial.println(F("I2C Buck converter is not connected."));
-		Debug.addLine(F("I2C device not detected"));
+		Debug.addLine(LOG_SENSORS, F("I2C device not detected"));
 	}
 
 	millisReadI2CDataInterval = millis();
@@ -83,10 +83,10 @@ void sendI2Cdata(bool force, bool sendLimits) {
 	if (error == 0) {
 		if (!I2C_PRESENT) {
 			I2C_PRESENT = HIGH;
-			Debug.addLine(F("I2C connection restored"));
+			Debug.addLine(LOG_SENSORS, F("I2C connection restored"));
 		}
 		if (shouldSendLimits) {
-			Debug.addLine(String(F("I2C limits updated: min=")) +
+			Debug.addLine(LOG_SENSORS, String(F("I2C limits updated: min=")) +
 				String(minVoltCommand / 10.0, 1) + F("V max=") +
 				String(maxVoltCommand / 10.0, 1) + F("V rate=") +
 				String(speedCommand / 10.0, 1) + F("V/s"));
@@ -95,14 +95,14 @@ void sendI2Cdata(bool force, bool sendLimits) {
 			lastSentMaxVoltCommand = maxVoltCommand;
 		}
 		if (voltageChanged || shouldSendLimits) {
-			Debug.addLine(String(F("I2C voltage command ACK: ")) +
+			Debug.addLine(LOG_SENSORS, String(F("I2C voltage command ACK: ")) +
 				String(voltageCommand / 10.0, 1) + F("V"));
 			lastSentVoltageCommand = voltageCommand;
 		}
 	} else {
 		if (I2C_PRESENT) {
 			I2C_PRESENT = LOW;
-			Debug.addLine(String(F("I2C write failed; voltage command was ")) +
+			Debug.addLine(LOG_SENSORS, String(F("I2C write failed; voltage command was ")) +
 				String(voltageCommand / 10.0, 1) + F("V"));
 		}
 		lastSentVoltageCommand = 0xFF;
@@ -142,7 +142,7 @@ void readI2Cdata() {
 		}
 		if (!I2C_PRESENT) {
 			I2C_PRESENT = HIGH;
-			Debug.addLine(F("I2C connection restored"));
+			Debug.addLine(LOG_SENSORS, F("I2C connection restored"));
 			sendI2Cdata(true, true); // Sync current settings to the reconnected device
 		}
 		readSucceeded = true;
@@ -152,7 +152,7 @@ void readI2Cdata() {
 		}
 		if (I2C_PRESENT) {
 			I2C_PRESENT = LOW;
-			Debug.addLine(String(F("I2C read failed; received ")) + b_avail + F(" bytes"));
+			Debug.addLine(LOG_SENSORS, String(F("I2C read failed; received ")) + b_avail + F(" bytes"));
 		}
 	}
 

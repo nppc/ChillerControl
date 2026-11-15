@@ -5,13 +5,10 @@
 #include <Ticker.h>
 #endif
 extern "C" {
-#ifdef WIFI_DEBUG
 #include <user_interface.h>
 #include <lwip/priv/tcp_priv.h>
-#endif
 }
 
-#ifdef WIFI_DEBUG
 uint8_t getTcpActivePcbCount() {
 	uint8_t count = 0;
 	for (struct tcp_pcb *pcb = tcp_active_pcbs; pcb != nullptr; pcb = pcb->next) {
@@ -27,7 +24,6 @@ uint8_t getTcpTwPcbCount() {
 	}
 	return count;
 }
-#endif
 
 #ifdef STALL_DEBUG
 struct RtcStallDiag {
@@ -139,9 +135,7 @@ namespace {
 const IPAddress AP_SUBNET_MASK(255, 255, 255, 0);
 volatile bool pendingUpstreamIp = false;
 WiFiEventHandler staGotIpHandler;
-#ifdef WIFI_DEBUG
 WiFiEventHandler apStationConnectedHandler;
-#endif
 bool apStarted = false;
 IPAddress configuredApIP(0, 0, 0, 0);
 IPAddress configuredApDns(0, 0, 0, 0);
@@ -204,14 +198,14 @@ void updateApDns() {
 	if (dns != IPAddress(0, 0, 0, 0) && dns != configuredApDns) {
 		WiFi.softAPDhcpServer().setDns(dns);
 		configuredApDns = dns;
-		Debug.addLine(String(F("AP DHCP DNS set to upstream server ")) + dns.toString());
+		Debug.addLine(LOG_WIFI, String(F("AP DHCP DNS set to upstream server ")) + dns.toString());
 	}
 }
 
 bool ensureNormalAp() {
 	IPAddress safeAddress;
 	if (!findSafeApAddress(safeAddress)) {
-		Debug.addLine(F("No non-overlapping private subnet available; AP not started"));
+		Debug.addLine(LOG_WIFI, F("No non-overlapping private subnet available; AP not started"));
 		if (apStarted) {
 			WiFi.softAPdisconnect(false);
 			apStarted = false;
@@ -221,7 +215,7 @@ bool ensureNormalAp() {
 	}
 	if (safeAddress != configuredApIP) {
 		if (!WiFi.softAPConfig(safeAddress, safeAddress, AP_SUBNET_MASK)) {
-			Debug.addLine(F("Failed to configure a non-overlapping AP subnet"));
+			Debug.addLine(LOG_WIFI, F("Failed to configure a non-overlapping AP subnet"));
 			if (apStarted) {
 				WiFi.softAPdisconnect(false);
 				apStarted = false;
@@ -231,11 +225,9 @@ bool ensureNormalAp() {
 		}
 		configuredApIP = safeAddress;
 		configuredApDns = IPAddress(0, 0, 0, 0);
-		Debug.addLine(String(F("AP subnet configured: ")) + safeAddress.toString());
+		Debug.addLine(LOG_WIFI, String(F("AP subnet configured: ")) + safeAddress.toString());
 		if (WiFi.status() == WL_CONNECTED && safeAddress != IPAddress(192, 168, 4, 1)) {
-#ifdef WIFI_DEBUG
-			Debug.addLine(F("Warning: upstream subnet overlaps the default AP subnet; the AP was moved"));
-#endif
+			Debug.addLine(LOG_WIFI, F("Warning: upstream subnet overlaps the default AP subnet; the AP was moved"));
 		}
 	}
 	if (!apStarted) {
@@ -246,13 +238,11 @@ bool ensureNormalAp() {
 			started = WiFi.softAP(apSSID, nullptr, 1, apHidden ? 1 : 0, 1);
 		}
 		if (!started) {
-			Debug.addLine(F("Failed to start configured AP"));
+			Debug.addLine(LOG_WIFI, F("Failed to start configured AP"));
 			return false;
 		}
 		apStarted = true;
-#ifdef WIFI_DEBUG
-		Debug.addLine(String(F("AP IP address: ")) + WiFi.softAPIP().toString());
-#endif
+		Debug.addLine(LOG_WIFI, String(F("AP IP address: ")) + WiFi.softAPIP().toString());
 	}
 	updateApDns();
 	return true;
@@ -262,7 +252,17 @@ void onStationGotIp(const WiFiEventStationModeGotIP &) {
 	pendingUpstreamIp = true;
 }
 
-#ifdef WIFI_DEBUG
+ESP8266WebServer::THandlerFunction guardedHandler(ESP8266WebServer::THandlerFunction handler) {
+	return [handler]() {
+		if (!isWebClientAllowed()) {
+			httpServer.send(403, "text/plain", "Web access from the local AP is disabled");
+			return;
+		}
+		handler();
+	};
+}
+}
+
 static char lastApStationMac[18] = "";
 
 String getISpindelClientMac() {
@@ -292,18 +292,6 @@ void onApStationConnected(const WiFiEventSoftAPModeStationConnected &event) {
 	snprintf(lastApStationMac, sizeof(lastApStationMac), "%02X:%02X:%02X:%02X:%02X:%02X",
 	         event.mac[0], event.mac[1], event.mac[2],
 	         event.mac[3], event.mac[4], event.mac[5]);
-}
-#endif
-
-ESP8266WebServer::THandlerFunction guardedHandler(ESP8266WebServer::THandlerFunction handler) {
-	return [handler]() {
-		if (!isWebClientAllowed()) {
-			httpServer.send(403, "text/plain", "Web access from the local AP is disabled");
-			return;
-		}
-		handler();
-	};
-}
 }
 
 bool isWebClientAllowed() {
@@ -396,7 +384,7 @@ void setup() {
 	WiFi.setSleepMode(WIFI_NONE_SLEEP);
 	if (emergencyMode) {
 		Serial.println("Double reset detected! Starting unsecured AP 'Cooler'...");
-		Debug.addLine(F("Double reset detected: started unsecured AP 'Cooler'"));
+		Debug.addLine(LOG_WIFI, F("Double reset detected: started unsecured AP 'Cooler'"));
 
 		WiFi.mode(WIFI_AP);
 		WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), AP_SUBNET_MASK);
@@ -418,9 +406,7 @@ void setup() {
 		WiFi.setAutoConnect(false);
 		WiFi.setAutoReconnect(true);
 		staGotIpHandler = WiFi.onStationModeGotIP(onStationGotIp);
-#ifdef WIFI_DEBUG
 		apStationConnectedHandler = WiFi.onSoftAPModeStationConnected(onApStationConnected);
-#endif
 		WiFi.begin(IntSSID, IntPASS);
 
 		primeDS18B20();
@@ -438,7 +424,7 @@ void setup() {
 			lastWifiDropMillis = 0;
 			Serial.print(F("Internet IP address: "));
 			Serial.println(WiFi.localIP());
-			Debug.addLine(String(F("Internet connected: ")) + WiFi.localIP().toString());
+			Debug.addLine(LOG_WIFI, String(F("Internet connected: ")) + WiFi.localIP().toString());
 		} else {
 			wifiWasConnected = false;
 			wifiDropOccurred = true;
@@ -446,11 +432,11 @@ void setup() {
 			Serial.print(F("Internet connection failed."));
 			Serial.print(F(" Error is: "));
 			Serial.println(WiFi.status());
-			Debug.addLine(String(F("Internet connection failed, status: ")) + WiFi.status());
+			Debug.addLine(LOG_WIFI, String(F("Internet connection failed, status: ")) + WiFi.status());
 		}
 
 		if (!ensureNormalAp()) {
-			Debug.addLine(F("Normal AP unavailable until a safe subnet can be selected"));
+			Debug.addLine(LOG_WIFI, F("Normal AP unavailable until a safe subnet can be selected"));
 		}
 	}
 
@@ -477,6 +463,7 @@ void setup() {
 	httpServer.on("/api/pids", HTTP_GET, guardedHandler(handleApiPIDs));
 	httpServer.on("/api/network", HTTP_GET, guardedHandler(handleApiNetwork));
 	httpServer.on("/api/debug", HTTP_GET, guardedHandler(handleApiDebug));
+	httpServer.on("/api/debug", HTTP_POST, guardedHandler(handleApiDebug));
 	httpServer.on("/autotune", HTTP_GET, guardedHandler(handleAutotune));
 	httpServer.on("/autotune", HTTP_POST, guardedHandler(handleAutotune));
 	httpServer.on("/api/autotune", HTTP_GET, guardedHandler(handleApiAutotune));
@@ -547,7 +534,7 @@ void loop() {
 		static bool clockWasValid = false;
 		bool clockIsValid = time(nullptr) >= 1700000000;
 		if (clockIsValid && !clockWasValid) {
-			Debug.addLine(String(F("Time synchronized (timezone: ")) + tzSetting + F(")"));
+			Debug.addLine(LOG_WIFI, String(F("Time synchronized (timezone: ")) + tzSetting + F(")"));
 		}
 		clockWasValid = clockIsValid;
 		bool isConnected = (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0));
@@ -559,7 +546,7 @@ void loop() {
 				wifiWasConnected = false;
 				wifiDropOccurred = true;
 				lastWifiDropMillis = millis();
-				Debug.addLine(F("Wi-Fi connection lost"));
+				Debug.addLine(LOG_WIFI, F("Wi-Fi connection lost"));
 			} else if (lastWifiDropMillis == 0) {
 				lastWifiDropMillis = millis();
 			}
@@ -572,11 +559,11 @@ void loop() {
 					static uint8_t reconnectCount = 0;
 					reconnectCount++;
 					if (reconnectCount % 5 == 0) {
-						Debug.addLine(F("Wi-Fi disconnected: cycling station connection"));
+						Debug.addLine(LOG_WIFI, F("Wi-Fi disconnected: cycling station connection"));
 						WiFi.disconnect(false);
 						WiFi.begin(IntSSID, IntPASS);
 					} else {
-						Debug.addLine(F("Wi-Fi disconnected: attempting reconnect"));
+						Debug.addLine(LOG_WIFI, F("Wi-Fi disconnected: attempting reconnect"));
 						WiFi.reconnect();
 					}
 				}
@@ -584,7 +571,7 @@ void loop() {
 		} else {
 			if (!wifiWasConnected) {
 				wifiWasConnected = true;
-				Debug.addLine(String(F("Wi-Fi connected: ")) + WiFi.localIP().toString());
+				Debug.addLine(LOG_WIFI, String(F("Wi-Fi connected: ")) + WiFi.localIP().toString());
 				resetTelemetryBackoff(3000UL);
 			}
 
@@ -593,7 +580,7 @@ void loop() {
 			if (!txPowerInitialized) {
 				txPowerInitialized = true;
 				WiFi.setOutputPower(20.5f);
-				Debug.addLine(String(F("Wi-Fi TX power set to maximum (20.5 dBm), RSSI: ")) + WiFi.RSSI() + F(" dBm"));
+				Debug.addLine(LOG_WIFI, String(F("Wi-Fi TX power set to maximum (20.5 dBm), RSSI: ")) + WiFi.RSSI() + F(" dBm"));
 			}
 		}
 	}

@@ -127,7 +127,6 @@ void resetTelemetryBackoff(unsigned long delayMs = 0);
 bool isWebClientAllowed();
 bool clockValid();
 uint32_t epochSeconds();
-#ifdef WIFI_DEBUG
 uint8_t getTcpActivePcbCount();
 uint8_t getTcpTwPcbCount();
-#endif
+String getISpindelClientMac();

@@ -876,6 +876,17 @@ async function fetchDebug() {
     setIf('sensorCount', data.sensorCount);
     setIf('sensorTemps', data.sensorTemps || data.sensorCount);
 
+    const setCheckbox = (id, val) => {
+      const el = document.getElementById(id);
+      if (el && val !== undefined && document.activeElement !== el) {
+        el.checked = !!val;
+      }
+    };
+    setCheckbox('logWifi', data.logWifi);
+    setCheckbox('logPid', data.logPid);
+    setCheckbox('logIot', data.logIot);
+    setCheckbox('logSensors', data.logSensors);
+
     const debugLog = document.getElementById('debugLog');
     if (debugLog && data.debug !== undefined) debugLog.innerHTML = data.debug;
   } catch (e) {}
@@ -886,6 +897,29 @@ function setupDebugPage() {
   setInterval(() => {
     if (!document.hidden) fetchDebug();
   }, 5000);
+
+  const handleCheckboxChange = async () => {
+    const payload = {
+      logWifi: !!document.getElementById('logWifi')?.checked,
+      logPid: !!document.getElementById('logPid')?.checked,
+      logIot: !!document.getElementById('logIot')?.checked,
+      logSensors: !!document.getElementById('logSensors')?.checked,
+    };
+    try {
+      await fetch('/api/debug', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch (e) {}
+  };
+
+  ['logWifi', 'logPid', 'logIot', 'logSensors'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('change', handleCheckboxChange);
+    }
+  });
 
   const refreshBtn = document.getElementById('refreshDebugBtn');
   if (refreshBtn) {

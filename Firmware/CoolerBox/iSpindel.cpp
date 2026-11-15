@@ -148,7 +148,7 @@ void updatePlatoStability() {
 				if (flatDelta && flatSlope) {
 					if (!fermentationFinished) {
 						fermentationFinished = true;
-						Debug.addLine(String(F("Fermentation complete: 48h delta=")) +
+						Debug.addLine(LOG_SENSORS, String(F("Fermentation complete: 48h delta=")) +
 						              String(lastCalculatedDelta, 2) + F("P slope=") +
 						              String(lastCalculatedSlope, 4) + F("P/h"));
 					}
@@ -266,7 +266,6 @@ void handleISpindel() {
 	updateCascadeTarget();
 	httpServer.send(200, "text/plain", "OK");
 
-#ifdef WIFI_DEBUG
 	String clientMac = getISpindelClientMac();
 	String logMsg = F("iSpindel data received: MAC=");
 	logMsg += (clientMac.length() > 0 ? clientMac : F("unknown"));
@@ -275,8 +274,5 @@ void handleISpindel() {
 		logMsg += String(iSpindelRssi);
 		logMsg += F("dBm");
 	}
-	Debug.addLine(logMsg);
-#else
-	Debug.addLine(F("iSpindel data received"));
-#endif
+	Debug.addLine(LOG_SENSORS, logMsg);
 }

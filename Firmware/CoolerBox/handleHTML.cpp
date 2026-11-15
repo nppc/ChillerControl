@@ -123,9 +123,62 @@ void handleApiNetwork() {
 }
 
 void handleApiDebug() {
+	if (httpServer.method() == HTTP_POST) {
+		uint8_t mask = Debug.getLogMask();
+		bool changed = false;
+
+		if (httpServer.hasArg("plain")) {
+			JsonDocument postDoc;
+			DeserializationError err = deserializeJson(postDoc, httpServer.arg("plain"));
+			if (!err) {
+				if (postDoc["logWifi"].is<JsonVariantConst>()) {
+					if (postDoc["logWifi"].as<bool>()) mask |= LOG_WIFI; else mask &= ~LOG_WIFI;
+					changed = true;
+				}
+				if (postDoc["logPid"].is<JsonVariantConst>()) {
+					if (postDoc["logPid"].as<bool>()) mask |= LOG_PID; else mask &= ~LOG_PID;
+					changed = true;
+				}
+				if (postDoc["logIot"].is<JsonVariantConst>()) {
+					if (postDoc["logIot"].as<bool>()) mask |= LOG_IOT; else mask &= ~LOG_IOT;
+					changed = true;
+				}
+				if (postDoc["logSensors"].is<JsonVariantConst>()) {
+					if (postDoc["logSensors"].as<bool>()) mask |= LOG_SENSORS; else mask &= ~LOG_SENSORS;
+					changed = true;
+				}
+			}
+		}
+		if (httpServer.hasArg("logWifi")) {
+			if (httpServer.arg("logWifi") == "1" || httpServer.arg("logWifi") == "true") mask |= LOG_WIFI; else mask &= ~LOG_WIFI;
+			changed = true;
+		}
+		if (httpServer.hasArg("logPid")) {
+			if (httpServer.arg("logPid") == "1" || httpServer.arg("logPid") == "true") mask |= LOG_PID; else mask &= ~LOG_PID;
+			changed = true;
+		}
+		if (httpServer.hasArg("logIot")) {
+			if (httpServer.arg("logIot") == "1" || httpServer.arg("logIot") == "true") mask |= LOG_IOT; else mask &= ~LOG_IOT;
+			changed = true;
+		}
+		if (httpServer.hasArg("logSensors")) {
+			if (httpServer.arg("logSensors") == "1" || httpServer.arg("logSensors") == "true") mask |= LOG_SENSORS; else mask &= ~LOG_SENSORS;
+			changed = true;
+		}
+
+		if (changed) {
+			Debug.setLogMask(mask);
+			saveSettings();
+		}
+	}
+
 	JsonDocument doc;
 	doc["Caption"] = "Debug";
 	doc["debug"] = Debug.getHTML();
+	doc["logWifi"] = (Debug.getLogMask() & LOG_WIFI) != 0;
+	doc["logPid"] = (Debug.getLogMask() & LOG_PID) != 0;
+	doc["logIot"] = (Debug.getLogMask() & LOG_IOT) != 0;
+	doc["logSensors"] = (Debug.getLogMask() & LOG_SENSORS) != 0;
 
 	uint32_t freeHeap = ESP.getFreeHeap();
 	uint8_t frag = ESP.getHeapFragmentation();

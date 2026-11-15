@@ -141,7 +141,7 @@ static void stepAutoTune(float currentTemp) {
 			atValley = currentTemp;
 			atCycleStartTime = millis();
 			atStatusMessage = F("Warmed up. Starting limit cycles...");
-			Debug.addLine(F("Autotune: warmed to target, starting limit cycles"));
+			Debug.addLine(LOG_PID, F("Autotune: warmed to target, starting limit cycles"));
 		}
 		return;
 	}
@@ -174,7 +174,7 @@ static void stepAutoTune(float currentTemp) {
 				String cycleLog = "Autotune Cycle " + String(atCycleCount) + "/" + String(atTargetCycles) +
 				                  ": Period=" + String((float)cycleDurationMs / 1000.0f, 1) + "s, Amp=" +
 				                  String(amplitude, 2) + "C (Peak=" + String(atPeak, 2) + ", Valley=" + String(atValley, 2) + ")";
-				Debug.addLine(cycleLog);
+				Debug.addLine(LOG_PID, cycleLog);
 
 				atPeak = currentTemp;
 				atValley = currentTemp;
@@ -223,7 +223,7 @@ static void stepAutoTune(float currentTemp) {
 					                " Kd=" + String(atCalcKd, 2) +
 					                " (Ku=" + String(Ku, 1) + ", Pu=" + String(Pu, 1) + "s)";
 					atStatusMessage = resMsg;
-					Debug.addLine(resMsg);
+					Debug.addLine(LOG_PID, resMsg);
 					return;
 				}
 
@@ -286,7 +286,7 @@ bool startHeatingAutoTune(float targetTemp, float testPWM, float noiseBand, int 
 	atState = AutoTuneState::WARMING_UP;
 	atStatusMessage = F("Autotune started: warming up to target...");
 
-	Debug.addLine(String(F("Autotune started: target=")) + String(targetTemp, 1) +
+	Debug.addLine(LOG_PID, String(F("Autotune started: target=")) + String(targetTemp, 1) +
 	              F("C, PWM=") + String(testPWM, 0) +
 	              F(", noise=±") + String(noiseBand, 2) + F("C"));
 	return true;
@@ -301,7 +301,7 @@ void stopHeatingAutoTune(const char *reason) {
 	resetHeatingPID();
 	setCoolerStopped(true);
 	atStatusMessage = String(F("Autotune stopped: ")) + reason;
-	Debug.addLine(atStatusMessage);
+	Debug.addLine(LOG_PID, atStatusMessage);
 }
 
 bool isHeatingAutoTuning() {

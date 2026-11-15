@@ -30,7 +30,7 @@ void setCoolerStopped(bool stopped) {
 	}
 	stopCooler = stopped;
 	updateCoolingOutput();
-	Debug.addLine(stopped ? F("Cooler stopped") : F("Cooler resumed"));
+	Debug.addLine(LOG_PID, stopped ? F("Cooler stopped") : F("Cooler resumed"));
 }
 
 bool isCoolerStopped() {
@@ -43,13 +43,13 @@ void initBootAutoStartState(bool useISpindel) {
 		pendingBootAutoStart = true;
 		bootAutoStartDeadline = millis() + BOOT_AUTOSTART_TIMEOUT_MS;
 		updateCoolingOutput();
-		Debug.addLine(F("Boot: Stopped. Waiting for iSpindel data or 15m timeout to start."));
+		Debug.addLine(LOG_PID, F("Boot: Stopped. Waiting for iSpindel data or 15m timeout to start."));
 	} else {
 		stopCooler = LOW;
 		pendingBootAutoStart = false;
 		bootAutoStartDeadline = 0;
 		updateCoolingOutput();
-		Debug.addLine(F("Boot: Direct box control active. Process started."));
+		Debug.addLine(LOG_PID, F("Boot: Direct box control active. Process started."));
 	}
 }
 
@@ -57,7 +57,7 @@ void cancelBootAutoStart() {
 	if (pendingBootAutoStart) {
 		pendingBootAutoStart = false;
 		bootAutoStartDeadline = 0;
-		Debug.addLine(F("Boot auto-start cancelled."));
+		Debug.addLine(LOG_PID, F("Boot auto-start cancelled."));
 	}
 }
 
@@ -66,7 +66,7 @@ void checkBootAutoStartTimeout() {
 		pendingBootAutoStart = false;
 		bootAutoStartDeadline = 0;
 		setCoolerStopped(LOW);
-		Debug.addLine(F("Boot auto-start: 15m elapsed without iSpindel data. Process started in direct box mode."));
+		Debug.addLine(LOG_PID, F("Boot auto-start: 15m elapsed without iSpindel data. Process started in direct box mode."));
 	}
 }
 

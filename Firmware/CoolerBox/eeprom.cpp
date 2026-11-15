@@ -88,6 +88,7 @@ void applySettings(JsonDocument &doc) {
 	minVoltage = doc["i2cDCDC_minVoltage"];
 	maxVoltage = doc["i2cDCDC_maxVoltage"];
 	changeVoltageSpeed = doc["i2cDCDC_changeVoltage"];
+	Debug.setLogMask(doc["debugLogMask"] | 0x0F);
 }
 }
 
@@ -159,6 +160,7 @@ void initDefaultSettings() {
 	minVoltage = 2.0f;
 	maxVoltage = 12.0f;
 	changeVoltageSpeed = 0.4f;
+	Debug.setLogMask(0x0F);
 }
 
 void restoreSettings(){
@@ -209,6 +211,7 @@ void saveSettings(){
 	doc["i2cDCDC_minVoltage"] = minVoltage;
 	doc["i2cDCDC_maxVoltage"] = maxVoltage;
 	doc["i2cDCDC_changeVoltage"] = changeVoltageSpeed;
+	doc["debugLogMask"] = Debug.getLogMask();
 	
 	String serialized;
 	serializeJson(doc, serialized);

@@ -51,7 +51,7 @@ void updateDebugTemperatureSensors() {
 		iSpindelIntervalSec = DEBUG_ISPINDEL_REPORT_INTERVAL_MS / 1000UL;
 		useISpindelTemp = true;
 		lastISpindelMillis = 0;
-		Debug.addLine(F("DEBUG temperature simulation enabled: box=16C, iSpindel=18C"));
+		Debug.addLine(LOG_SENSORS, F("DEBUG temperature simulation enabled: box=16C, iSpindel=18C"));
 		return;
 	}
 
@@ -173,7 +173,7 @@ void INIT_DS18B20() {
 	resetTempConversionState();
 
 	if (DS18B20_count == 0) {
-		Debug.addLine(F("No DS18B20 found by direct OneWire scan"));
+		Debug.addLine(LOG_SENSORS, F("No DS18B20 found by direct OneWire scan"));
 	}
 }
 
@@ -201,7 +201,7 @@ static float fetchSensorTemperature(int sensorId, const char* sensorName) {
 		}
 	}
 
-	Debug.addLine(String(F("Notice: ")) + sensorName + F(" sensor read retry failed (raw=") + String(temp, 1) + F(")"));
+	Debug.addLine(LOG_SENSORS, String(F("Notice: ")) + sensorName + F(" sensor read retry failed (raw=") + String(temp, 1) + F(")"));
 	return temp;
 }
 #endif
@@ -229,7 +229,7 @@ void readDS18B20Temperatures() {
 		}
 		coldFailLogged = false;
 	} else if (!coldFailLogged) {
-		Debug.addLine(F("Warn: Cold sensor read failed"));
+		Debug.addLine(LOG_SENSORS, F("Warn: Cold sensor read failed"));
 		coldFailLogged = true;
 	}
 
@@ -247,7 +247,7 @@ void readDS18B20Temperatures() {
 		}
 		hotFailLogged = false;
 	} else if (!hotFailLogged) {
-		Debug.addLine(F("Warn: Hot sensor read failed"));
+		Debug.addLine(LOG_SENSORS, F("Warn: Hot sensor read failed"));
 		hotFailLogged = true;
 	}
 #endif
