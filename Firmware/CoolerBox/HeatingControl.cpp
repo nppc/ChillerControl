@@ -90,6 +90,7 @@ void resetHeatingPID() {
 	setHotPWM = 0.0f;
 	pidOutput = 0.0f;
 	analogWrite(HEAT_WIRE, 0);
+	pidFastDebugOnReset();
 }
 
 void pauseHeatingPWM() {
@@ -250,10 +251,12 @@ void processHeating(float currentTemp, float targetTemp, bool enableHeating) {
 	if (enableHeating) {
 		pidInput = currentTemp;
 		pidSetpoint = targetTemp;
-		hotPID.Compute();
+		bool computed = hotPID.Compute();
 		float targetPWM = (pidOutput / 100.0f) * static_cast<float>(maxHotPWM);
+		pidFastDebugOnCompute(computed, hotPID.GetPterm(), hotPID.GetOutputSum(), hotPID.GetDterm(), pidOutput, targetPWM);
 		applyHeaterPWM(targetPWM, true);
 	} else {
+		pidFastDebugOnCompute(false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
 		applyHeaterPWM(0.0f, false);
 		pidOutput = 0.0f;
 	}

@@ -329,6 +329,9 @@ void setup() {
 	initTemperatureControl();
 
 	Debug.init();
+#ifdef ENABLE_PID_FAST_DEBUG
+	pidFastDebugInit();
+#endif
 	Debug.addLine(String(F("Boot reset: ")) + ESP.getResetInfo());
 
 	pinMode(LED_BUILTIN, OUTPUT);
@@ -607,6 +610,10 @@ void loop() {
 		sendTelemetryNow = false;
 		sendTelemetry();
 		yield();
+	} else {
+#ifdef ENABLE_PID_FAST_DEBUG
+		pidFastDebugLoop();
+#endif
 	}
 
 #ifdef STALL_DEBUG

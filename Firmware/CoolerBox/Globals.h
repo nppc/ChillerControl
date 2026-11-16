@@ -2,6 +2,7 @@
 //#define WIFI_DEBUG
 //#define STALL_DEBUG
 //#define DEBUG_TEMPERATURE_SENSORS
+#define ENABLE_PID_FAST_DEBUG
 
 // Default values
 #define DEFAULT_HYSTERESIS 0.05  // ±0.05 °C (0.10 °C total deadband span)

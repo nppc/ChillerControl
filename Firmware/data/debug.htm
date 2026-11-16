@@ -28,6 +28,18 @@
 </TABLE>
 <BR>
 <TABLE class="values_table">
+<TR class="values_header"><TD colspan=2>PID Diagnostic Fast Capture</TD></TR>
+<TR><TD style="text-align:left; font-weight:bold;">HTTP Endpoint</TD><TD style="text-align:right;"><div style="display:flex; justify-content:flex-end; align-items:center; gap:6px;"><input type="text" id="pidCaptureUrl" placeholder="http://192.168.1.X:8080/pid" style="flex:1; min-width:140px; max-width:250px; box-sizing:border-box; padding:4px;"><button type="button" id="pidCaptureSaveUrlBtn" class="btn btn_action_control" style="width:auto; min-width:52px; height:28px; padding:0 10px; font-size:12px;">Save</button></div></TD></TR>
+<TR><TD style="text-align:left; font-weight:bold;">Status</TD><TD style="text-align:right;"><span id="pidCaptureStatus">Stopped</span> &bull; <span id="pidCaptureStats">0 pkts / 0 rows</span></TD></TR>
+<TR><TD colspan=2 style="padding:10px 0;">
+<div style="display:flex; justify-content:center; align-items:center; gap:10px;">
+<button type="button" id="pidCaptureStartBtn" class="btn btn_action_control btn_green" style="width:auto; min-width:110px;">Start Capture</button>
+<button type="button" id="pidCaptureStopBtn" class="btn btn_action_control btn_red" disabled style="width:auto; min-width:110px;">Stop Capture</button>
+</div>
+</TD></TR>
+</TABLE>
+<BR>
+<TABLE class="values_table">
 <TR class="values_header"><TD class="debug-header-cell"><span>Debug Log</span><button type="button" id="copyDebugBtn" class="copy-btn" title="Copy to clipboard" aria-label="Copy debug log to clipboard"><svg class="copy-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span class="copy-feedback">Copied!</span></button></TD></TR>
 <TR><TD><pre id="debugLog" style="font-family:monospace;text-align:left;overflow-x:auto;">Loading...</pre></TD></TR>
 <TR><TD class="debug-filters-cell">

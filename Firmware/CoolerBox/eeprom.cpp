@@ -89,6 +89,9 @@ void applySettings(JsonDocument &doc) {
 	maxVoltage = doc["i2cDCDC_maxVoltage"];
 	changeVoltageSpeed = doc["i2cDCDC_changeVoltage"];
 	Debug.setLogMask(doc["debugLogMask"] | 0x0F);
+#ifdef ENABLE_PID_FAST_DEBUG
+	setPidCaptureUrl(doc["pidCaptureUrl"] | "");
+#endif
 }
 }
 
@@ -161,6 +164,9 @@ void initDefaultSettings() {
 	maxVoltage = 12.0f;
 	changeVoltageSpeed = 0.4f;
 	Debug.setLogMask(0x0F);
+#ifdef ENABLE_PID_FAST_DEBUG
+	setPidCaptureUrl("");
+#endif
 }
 
 void restoreSettings(){
@@ -212,6 +218,9 @@ void saveSettings(){
 	doc["i2cDCDC_maxVoltage"] = maxVoltage;
 	doc["i2cDCDC_changeVoltage"] = changeVoltageSpeed;
 	doc["debugLogMask"] = Debug.getLogMask();
+#ifdef ENABLE_PID_FAST_DEBUG
+	doc["pidCaptureUrl"] = getPidCaptureUrl();
+#endif
 	
 	String serialized;
 	serializeJson(doc, serialized);

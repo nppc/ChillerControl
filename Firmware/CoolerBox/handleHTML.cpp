@@ -147,6 +147,26 @@ void handleApiDebug() {
 					if (postDoc["logSensors"].as<bool>()) mask |= LOG_SENSORS; else mask &= ~LOG_SENSORS;
 					changed = true;
 				}
+#ifdef ENABLE_PID_FAST_DEBUG
+				if (postDoc["pidCaptureAction"].is<JsonVariantConst>()) {
+					String action = postDoc["pidCaptureAction"].as<String>();
+					if (action.equalsIgnoreCase("start")) {
+						if (postDoc["pidCaptureUrl"].is<JsonVariantConst>()) {
+							setPidCaptureUrl(postDoc["pidCaptureUrl"].as<String>());
+						}
+						startPidCapture();
+					} else if (action.equalsIgnoreCase("stop")) {
+						stopPidCapture();
+					}
+				}
+				if (postDoc["pidCaptureSaveUrl"].is<JsonVariantConst>()) {
+					String url = postDoc["pidCaptureSaveUrl"].as<String>();
+					setPidCaptureUrl(url);
+					saveSettings();
+				} else if (postDoc["pidCaptureUrl"].is<JsonVariantConst>() && !postDoc["pidCaptureAction"].is<JsonVariantConst>()) {
+					setPidCaptureUrl(postDoc["pidCaptureUrl"].as<String>());
+				}
+#endif
 			}
 		}
 		if (httpServer.hasArg("logWifi")) {
@@ -165,6 +185,26 @@ void handleApiDebug() {
 			if (httpServer.arg("logSensors") == "1" || httpServer.arg("logSensors") == "true") mask |= LOG_SENSORS; else mask &= ~LOG_SENSORS;
 			changed = true;
 		}
+#ifdef ENABLE_PID_FAST_DEBUG
+		if (httpServer.hasArg("pidCaptureAction")) {
+			String action = httpServer.arg("pidCaptureAction");
+			if (action.equalsIgnoreCase("start")) {
+				if (httpServer.hasArg("pidCaptureUrl")) {
+					setPidCaptureUrl(httpServer.arg("pidCaptureUrl"));
+				}
+				startPidCapture();
+			} else if (action.equalsIgnoreCase("stop")) {
+				stopPidCapture();
+			}
+		}
+		if (httpServer.hasArg("pidCaptureSaveUrl")) {
+			String url = httpServer.arg("pidCaptureSaveUrl");
+			setPidCaptureUrl(url);
+			saveSettings();
+		} else if (httpServer.hasArg("pidCaptureUrl") && !httpServer.hasArg("pidCaptureAction")) {
+			setPidCaptureUrl(httpServer.arg("pidCaptureUrl"));
+		}
+#endif
 
 		if (changed) {
 			Debug.setLogMask(mask);
@@ -179,6 +219,16 @@ void handleApiDebug() {
 	doc["logPid"] = (Debug.getLogMask() & LOG_PID) != 0;
 	doc["logIot"] = (Debug.getLogMask() & LOG_IOT) != 0;
 	doc["logSensors"] = (Debug.getLogMask() & LOG_SENSORS) != 0;
+#ifdef ENABLE_PID_FAST_DEBUG
+	doc["pidCaptureActive"] = isPidCaptureActive();
+	doc["pidCaptureUrl"] = getPidCaptureUrl();
+	doc["pidCaptureElapsedSec"] = getPidCaptureElapsedSec();
+	doc["pidCaptureRowsPending"] = getPidCaptureRowsPending();
+	doc["pidCaptureRowsSent"] = getPidCaptureRowsSent();
+	doc["pidCapturePacketsSent"] = getPidCapturePacketsSent();
+	doc["pidCaptureLastStatus"] = getPidCaptureLastStatus();
+	doc["pidCaptureMaxBlockMs"] = getPidCaptureMaxBlockMs();
+#endif
 
 	uint32_t freeHeap = ESP.getFreeHeap();
 	uint8_t frag = ESP.getHeapFragmentation();

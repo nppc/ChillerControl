@@ -889,6 +889,42 @@ async function fetchDebug() {
 
     const debugLog = document.getElementById('debugLog');
     if (debugLog && data.debug !== undefined) debugLog.innerHTML = data.debug;
+
+    const urlInput = document.getElementById('pidCaptureUrl');
+    if (urlInput && data.pidCaptureUrl !== undefined && document.activeElement !== urlInput) {
+      urlInput.value = data.pidCaptureUrl;
+    }
+    const statusEl = document.getElementById('pidCaptureStatus');
+    if (statusEl && data.pidCaptureActive !== undefined) {
+      if (data.pidCaptureActive) {
+        statusEl.textContent = 'Capturing (' + (data.pidCaptureElapsedSec || 0) + 's)';
+        statusEl.style.color = '#2e7d32';
+      } else {
+        let lastInfo = '';
+        if (data.pidCaptureLastStatus) {
+          lastInfo = ' [' + (data.pidCaptureLastStatus > 0 ? 'HTTP ' + data.pidCaptureLastStatus : 'err ' + data.pidCaptureLastStatus) + ']';
+        }
+        statusEl.textContent = 'Stopped' + lastInfo;
+        statusEl.style.color = '';
+      }
+    }
+    const statsEl = document.getElementById('pidCaptureStats');
+    if (statsEl && data.pidCapturePacketsSent !== undefined) {
+      let statsText = data.pidCapturePacketsSent + ' pkts (' + data.pidCaptureRowsSent + ' rows';
+      if (data.pidCaptureRowsPending) {
+        statsText += ', ' + data.pidCaptureRowsPending + ' pend';
+      }
+      statsText += ')';
+      statsEl.textContent = statsText;
+    }
+    const startBtn = document.getElementById('pidCaptureStartBtn');
+    if (startBtn && data.pidCaptureActive !== undefined) {
+      startBtn.disabled = data.pidCaptureActive;
+    }
+    const stopBtn = document.getElementById('pidCaptureStopBtn');
+    if (stopBtn && data.pidCaptureActive !== undefined) {
+      stopBtn.disabled = !data.pidCaptureActive;
+    }
   } catch (e) {}
 }
 
@@ -920,6 +956,74 @@ function setupDebugPage() {
       el.addEventListener('change', handleCheckboxChange);
     }
   });
+
+  const urlInput = document.getElementById('pidCaptureUrl');
+  if (urlInput) {
+    urlInput.addEventListener('change', async () => {
+      try {
+        await fetch('/api/debug', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pidCaptureUrl: urlInput.value })
+        });
+      } catch (e) {}
+    });
+  }
+
+  const saveUrlBtn = document.getElementById('pidCaptureSaveUrlBtn');
+  if (saveUrlBtn) {
+    saveUrlBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const url = document.getElementById('pidCaptureUrl')?.value || '';
+      try {
+        saveUrlBtn.disabled = true;
+        await fetch('/api/debug', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pidCaptureSaveUrl: url })
+        });
+        const origText = saveUrlBtn.textContent;
+        saveUrlBtn.textContent = 'Saved!';
+        setTimeout(() => {
+          saveUrlBtn.textContent = origText;
+          saveUrlBtn.disabled = false;
+        }, 1500);
+      } catch (e) {
+        saveUrlBtn.disabled = false;
+      }
+    });
+  }
+
+  const startBtn = document.getElementById('pidCaptureStartBtn');
+  if (startBtn) {
+    startBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const url = document.getElementById('pidCaptureUrl')?.value || '';
+      try {
+        await fetch('/api/debug', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pidCaptureAction: 'start', pidCaptureUrl: url })
+        });
+        fetchDebug();
+      } catch (e) {}
+    });
+  }
+
+  const stopBtn = document.getElementById('pidCaptureStopBtn');
+  if (stopBtn) {
+    stopBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      try {
+        await fetch('/api/debug', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pidCaptureAction: 'stop' })
+        });
+        fetchDebug();
+      } catch (e) {}
+    });
+  }
 
   const refreshBtn = document.getElementById('refreshDebugBtn');
   if (refreshBtn) {

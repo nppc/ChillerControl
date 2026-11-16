@@ -21,6 +21,7 @@
 #include "DoubleResetDetector.h"
 #include "iSpindel.h"
 #include "TelemetryQueue.h"
+#include "PidFastDebug.h"
 
 #define I2C_ADDRESS 0x5E
 #define I2C_DATALEN 11

@@ -607,6 +607,10 @@ void processControl() {
 		float safePeltierThreshold = max(2.5f, minVoltage + 0.5f);
 		bool peltierSafe = !I2C_PRESENT || (measuredVoltage < safePeltierThreshold);
 		processHeating(boxTemp, getHeatingAutoTuneTargetTemp(), peltierSafe);
+#ifdef ENABLE_PID_FAST_DEBUG
+		uint8_t cutoff = peltierSafe ? PID_CUTOFF_COOLER_STOPPED : PID_CUTOFF_PELTIER_INTERLOCK;
+		pidFastDebugRecordSample(boxTemp, getHeatingAutoTuneTargetTemp(), peltierSafe, true, false, false, peltierSafe, cutoff, setHotPWM, (float)maxHotPWM);
+#endif
 	} else {
 		/*
 		 * Asymmetric Mode Switching & Cascade Safety Interlock
@@ -692,6 +696,24 @@ void processControl() {
 		bool peltierSafe = !I2C_PRESENT || !peltierCommanded || (measuredVoltage < safePeltierThreshold);
 		bool heatingAllowed = !isStopped && fermenterNeedsHeating && peltierSafe && isHeating;
 		processHeating(boxTemp, effectiveBoxTarget, heatingAllowed);
+
+#ifdef ENABLE_PID_FAST_DEBUG
+		uint8_t cutoff = PID_CUTOFF_NONE;
+		if (!heatingAllowed) {
+			if (isStopped) {
+				cutoff = PID_CUTOFF_COOLER_STOPPED;
+			} else if (!isHeating) {
+				cutoff = PID_CUTOFF_NOT_HEATING_MODE;
+			} else if (!peltierSafe) {
+				cutoff = PID_CUTOFF_PELTIER_INTERLOCK;
+			} else if (!fermenterNeedsHeating) {
+				cutoff = PID_CUTOFF_FERMENTER_LOCKOUT;
+			} else {
+				cutoff = PID_CUTOFF_OTHER;
+			}
+		}
+		pidFastDebugRecordSample(boxTemp, effectiveBoxTarget, heatingAllowed, isStopped, isHeating, peltierCommanded, peltierSafe, cutoff, setHotPWM, (float)maxHotPWM);
+#endif
 
 		// Log control state changes
 		static int lastLoggedMode = -1;
