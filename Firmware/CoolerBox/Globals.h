@@ -7,7 +7,7 @@
 // Default values
 #define DEFAULT_HYSTERESIS 0.05  // ±0.05 °C (0.10 °C total deadband span)
 #define DEFAULT_PID_KP 10.0f
-#define DEFAULT_PID_KI 0.035f
+#define DEFAULT_PID_KI 0.025f
 #define DEFAULT_PID_KD 1.5f
 
 #define PIDCOMPUTE_INTERVAL 2	// seconds, continuous 12-bit DS18B20 conversion

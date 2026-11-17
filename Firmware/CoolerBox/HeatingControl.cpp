@@ -27,7 +27,7 @@ QuickPID hotPID(&pidInput, &pidOutput, &pidSetpoint,
                 hotPID_kP, hotPID_kI, hotPID_kD,
                 QuickPID::pMode::pOnError,
                 QuickPID::dMode::dOnMeas,
-                QuickPID::iAwMode::iAwCondition,
+                QuickPID::iAwMode::iAwClamp,
                 QuickPID::Action::direct);
 
 // Autotune state
@@ -90,7 +90,7 @@ void initHeating() {
 	hotPID.SetTunings(hotPID_kP, hotPID_kI, hotPID_kD,
 	                 QuickPID::pMode::pOnError,
 	                 QuickPID::dMode::dOnMeas,
-	                 QuickPID::iAwMode::iAwCondition);
+	                 QuickPID::iAwMode::iAwClamp);
 	hotPID.SetControllerDirection(QuickPID::Action::direct);
 	hotPID.SetMode(QuickPID::Control::automatic);
 
@@ -128,7 +128,10 @@ void setHeatingTunings(float kp, float ki, float kd) {
 	hotPID_kP = kp;
 	hotPID_kI = ki;
 	hotPID_kD = kd;
-	hotPID.SetTunings(hotPID_kP, hotPID_kI, hotPID_kD);
+	hotPID.SetTunings(hotPID_kP, hotPID_kI, hotPID_kD,
+	                 QuickPID::pMode::pOnError,
+	                 QuickPID::dMode::dOnMeas,
+	                 QuickPID::iAwMode::iAwClamp);
 }
 
 void getHeatingTunings(float &kp, float &ki, float &kd) {
