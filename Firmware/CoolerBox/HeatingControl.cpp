@@ -12,16 +12,9 @@ static float pidOutput = 0.0f;
 static float pidSetpoint = 0.0f;
 
 // EMA filter constant for DS18B20 quantization smoothing
-const float BOX_TEMP_EMA_ALPHA = 0.30f; // Alpha in range 0.25 - 0.35
-
-// Feedforward constants for target slew rate compensation
-const float TARGET_RATE_FF_GAIN = 1800.0f; // K_ff_rate (~+2.4% PWM at 0.08°C/min rise)
-const float TARGET_RATE_FF_MIN = -3.0f;    // -3.0% PWM minimum clamp
-const float TARGET_RATE_FF_MAX = 5.0f;     // +5.0% PWM maximum clamp
+const float BOX_TEMP_EMA_ALPHA = 0.25f; // Alpha in range 0.25 - 0.35
 
 static float filteredBoxTemp = NAN;
-static float lastTargetTemp = NAN;
-static unsigned long lastTargetMillis = 0;
 
 QuickPID hotPID(&pidInput, &pidOutput, &pidSetpoint,
                 hotPID_kP, hotPID_kI, hotPID_kD,
@@ -82,8 +75,6 @@ void initHeating() {
 	setHotPWM = 0.0f;
 	currentRampedPWM = 0.0f;
 	filteredBoxTemp = NAN;
-	lastTargetTemp = NAN;
-	lastTargetMillis = 0;
 
 	hotPID.SetOutputLimits(0.0f, 100.0f);
 	hotPID.SetSampleTimeUs(PIDCOMPUTE_INTERVAL * 1000000UL); // 2000000 µs
@@ -105,8 +96,6 @@ void resetHeatingPID() {
 	setHotPWM = 0.0f;
 	pidOutput = 0.0f;
 	filteredBoxTemp = NAN;
-	lastTargetTemp = NAN;
-	lastTargetMillis = 0;
 	analogWrite(HEAT_WIRE, 0);
 	pidFastDebugOnReset();
 }
@@ -270,7 +259,7 @@ void processHeating(float currentTemp, float targetTemp, bool enableHeating) {
 	}
 
 	if (enableHeating) {
-		// Step 2: EMA filter on currentTemp to smooth DS18B20 0.0625°C quantization steps
+		// EMA filter on currentTemp to smooth DS18B20 0.0625°C quantization steps
 		if (isnan(filteredBoxTemp)) {
 			filteredBoxTemp = currentTemp;
 		} else {
@@ -280,33 +269,11 @@ void processHeating(float currentTemp, float targetTemp, bool enableHeating) {
 		pidInput = filteredBoxTemp;
 		pidSetpoint = targetTemp;
 		bool computed = hotPID.Compute();
-
-		// Step 3: Feedforward calculation based on derivative of targetTemp (effectiveBoxTarget)
-		unsigned long now = millis();
-		float targetRateFF = 0.0f;
-		if (isnan(lastTargetTemp) || lastTargetMillis == 0) {
-			lastTargetTemp = targetTemp;
-			lastTargetMillis = now;
-		} else {
-			float dtSec = static_cast<float>(now - lastTargetMillis) / 1000.0f;
-			if (dtSec >= 0.5f) {
-				if (dtSec <= 30.0f) {
-					float targetRateCPerSec = (targetTemp - lastTargetTemp) / dtSec;
-					targetRateFF = constrain(targetRateCPerSec * TARGET_RATE_FF_GAIN, TARGET_RATE_FF_MIN, TARGET_RATE_FF_MAX);
-				}
-				lastTargetTemp = targetTemp;
-				lastTargetMillis = now;
-			}
-		}
-
-		float totalOutput = constrain(pidOutput + targetRateFF, 0.0f, 100.0f);
-		float targetPWM = (totalOutput / 100.0f) * static_cast<float>(maxHotPWM);
-		pidFastDebugOnCompute(computed, hotPID.GetPterm(), hotPID.GetOutputSum(), hotPID.GetDterm(), totalOutput, targetPWM);
+		float targetPWM = (pidOutput / 100.0f) * static_cast<float>(maxHotPWM);
+		pidFastDebugOnCompute(computed, hotPID.GetPterm(), hotPID.GetOutputSum(), hotPID.GetDterm(), pidOutput, targetPWM);
 		applyHeaterPWM(targetPWM, true);
 	} else {
 		filteredBoxTemp = NAN;
-		lastTargetTemp = NAN;
-		lastTargetMillis = 0;
 		pidFastDebugOnCompute(false, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
 		applyHeaterPWM(0.0f, false);
 		pidOutput = 0.0f;
