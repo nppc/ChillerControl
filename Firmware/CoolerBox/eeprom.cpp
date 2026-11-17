@@ -78,9 +78,9 @@ void applySettings(JsonDocument &doc) {
 	if (!setTemperatureTarget(savedRampTarget, false, savedRampStep, savedRampInterval)) {
 		setTemperatureTarget(setTemp, true, 0.1f, 120);
 	}
-	hotPID_kP = doc["hotPID_kP"];
-	hotPID_kI = doc["hotPID_kI"];
-	hotPID_kD = doc["hotPID_kD"];
+	hotPID_kP = doc["hotPID_kP"] | DEFAULT_PID_KP;
+	hotPID_kI = doc["hotPID_kI"] | DEFAULT_PID_KI;
+	hotPID_kD = doc["hotPID_kD"] | DEFAULT_PID_KD;
 	setHeatingTunings(hotPID_kP, hotPID_kI, hotPID_kD);
 	ColdSensorId = doc["ColdSensorId"];
 	HotSensorId = doc["HotSensorId"];

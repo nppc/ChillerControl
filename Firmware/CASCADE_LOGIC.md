@@ -165,4 +165,4 @@ Outer PID: e=0.163 rate=0.011 P=0.975 I=-2.618 D=-0.033 u=-1.676 freeze=none
 | `FERMENTER_MAX_RATE_C_PER_HOUR` | 0.75 °C/ч | — | Ограничение исходной скорости фильтра |
 | `FERMENTER_RATE_FILTER_ALPHA` | 0.15 | — | Вес новой выборки фильтра |
 | `BOX_TARGET_MAX_SLEW_UP_PER_SEC` | 0.08 °C/мин | — | Прежний предел роста цели воздуха |
-| `BOX_TARGET_MAX_SLEW_DOWN_PER_SEC` | 0.12 °C/мин | — | Прежний предел снижения цели воздуха |
+| `BOX_TARGET_MAX_SLEW_DOWN_PER_SEC` | 0.04 °C/мин | — | Предел снижения цели воздуха (2.4 °C/ч, согласован с пассивным остыванием) |

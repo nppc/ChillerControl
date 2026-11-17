@@ -21,7 +21,7 @@ const float FERMENTER_MAX_RATE_C_PER_HOUR = 0.75f;
 const float FERMENTER_RATE_FILTER_ALPHA = 0.15f;
 const float FERMENTER_EMERGENCY_OVERTEMP = 0.1f;
 const float BOX_TARGET_MAX_SLEW_UP_PER_SEC = 0.08f / 60.0f; // ~0.00133 °C/sec (0.08 °C/min)
-const float BOX_TARGET_MAX_SLEW_DOWN_PER_SEC = 0.12f / 60.0f; // ~0.00200 °C/sec (0.12 °C/min)
+const float BOX_TARGET_MAX_SLEW_DOWN_PER_SEC = 0.04f / 60.0f; // ~0.00067 °C/sec (0.04 °C/min = 2.4 °C/hour)
 float outerInput = 0.0f;
 float outerOutput = 0.0f;
 float outerSetpoint = 0.0f;
