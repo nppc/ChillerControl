@@ -18,20 +18,23 @@
 <BR>
 
 <div id="updateCard">
+<div style="margin-bottom: 14px;">
+  <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; user-select: none;">
+    <input type="checkbox" id="preservePID" name="preservePID" value="1" style="width: 18px; height: 18px; cursor: pointer;">
+    <span>Preserve PID state across update</span>
+  </label>
+</div>
+
 <table class="values_table">
 <tr class="values_header"><td>Firmware Image</td></tr>
-<tr><td style="padding: 15px; text-align: left;">
+<tr><td style="padding: 12px 15px; text-align: left;">
 <form data-update-form>
   <div style="margin-bottom: 8px;">Select PlatformIO <b>firmware.bin</b> (or firmware.bin.gz):</div>
-  <input type="file" name="update" accept=".bin,.gz,.bin.gz" required class="inputtext" style="width: 100%; box-sizing: border-box; margin-bottom: 12px;"><br>
-  <div style="margin-bottom: 14px;">
-    <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; user-select: none;">
-      <input type="checkbox" name="preservePID" value="1" style="width: 18px; height: 18px; cursor: pointer;">
-      <span>Preserve PID state across update</span>
-    </label>
+  <div style="display: flex; gap: 10px; align-items: center;">
+    <input type="file" name="update" accept=".bin,.gz,.bin.gz" required class="inputtext" style="flex: 1; min-width: 0; box-sizing: border-box; height: 42px;">
+    <input type="hidden" name="type" value="firmware">
+    <button type="submit" class="btn btn_round" style="width: auto; padding: 0 20px; height: 42px; font-size: 15px; white-space: nowrap; flex-shrink: 0;">Upload Firmware</button>
   </div>
-  <input type="hidden" name="type" value="firmware">
-  <button type="submit" class="btn btn_round" style="height: 45px; font-size: 16px;">Upload Firmware</button>
 </form>
 </td></tr>
 </table>
@@ -39,18 +42,14 @@
 
 <table class="values_table">
 <tr class="values_header"><td>LittleFS Image</td></tr>
-<tr><td style="padding: 15px; text-align: left;">
+<tr><td style="padding: 12px 15px; text-align: left;">
 <form data-update-form>
   <div style="margin-bottom: 8px;">Select LittleFS <b>littlefs.bin</b> (or littlefs.bin.gz):</div>
-  <input type="file" name="update" accept=".bin,.gz,.bin.gz" required class="inputtext" style="width: 100%; box-sizing: border-box; margin-bottom: 12px;"><br>
-  <div style="margin-bottom: 14px;">
-    <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; user-select: none;">
-      <input type="checkbox" name="preservePID" value="1" style="width: 18px; height: 18px; cursor: pointer;">
-      <span>Preserve PID state across update</span>
-    </label>
+  <div style="display: flex; gap: 10px; align-items: center;">
+    <input type="file" name="update" accept=".bin,.gz,.bin.gz" required class="inputtext" style="flex: 1; min-width: 0; box-sizing: border-box; height: 42px;">
+    <input type="hidden" name="type" value="filesystem">
+    <button type="submit" class="btn btn_round" style="width: auto; padding: 0 20px; height: 42px; font-size: 15px; white-space: nowrap; flex-shrink: 0;">Upload LittleFS</button>
   </div>
-  <input type="hidden" name="type" value="filesystem">
-  <button type="submit" class="btn btn_round" style="height: 45px; font-size: 16px;">Upload LittleFS</button>
 </form>
 </td></tr>
 </table>
@@ -251,7 +250,7 @@ forms.forEach(form => {
       }
     });
 
-    const preserveCheckbox = form.querySelector('input[name="preservePID"]');
+    const preserveCheckbox = document.getElementById('preservePID') || form.querySelector('input[name="preservePID"]');
     const preserve = preserveCheckbox && preserveCheckbox.checked ? '1' : '0';
     const type = form.querySelector('input[name="type"]')?.value || 'firmware';
     request.open('POST', `/update?type=${encodeURIComponent(type)}&preservePID=${preserve}`);
