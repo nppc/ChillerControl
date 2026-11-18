@@ -1,44 +1,151 @@
-# Внешний температурный контур
+# Temperature control: mode guide
 
-Внешний контур преобразует уставку жидкости `setTemp` в целевую температуру
-воздуха в ящике `effectiveBoxTarget`. При активном iSpindel температура жидкости
-является процессной величиной. Внутренние контуры нагрева и охлаждения следуют
-за `effectiveBoxTarget` и этим документом не описываются.
+This document describes how the controller selects a process mode, generates the
+box-air target, and drives the heater and Peltier. It is organized by the modes
+shown in the UI so the behavior of each mode can be found directly.
 
-Реализация находится в `CoolerBox/TemperatureControl.cpp`. Отчёты iSpindel
-поступают из `CoolerBox/CoolerBox.cpp`; статусные поля сохраняют прежний внешний
-интерфейс.
+## Quick navigation
 
-## Аппаратная архитектура и тепловая модель
+- [Control layers and temperature sources](#control-layers-and-temperature-sources)
+- [Heating only](#1-heating-only)
+- [Cooling only](#2-cooling-only)
+- [Automatic (mixed heating/cooling)](#3-automatic-mixed-heatingcooling)
+- [Shared outer cascade](#shared-outer-cascade)
+- [Inner heater PID](#inner-heater-pid)
+- [Autotune, stop state, and safety](#autotune-stop-state-and-safety)
+- [PID settings and diagnostics](#pid-settings-and-diagnostics)
+- [Preserving PID state across OTA](#preserving-pid-state-across-ota)
 
-1. **Конструкция камеры:** Теплоизолированный ящик с плотной компоновкой (свободного объёма воздуха внутри мало).
-2. **Нагреватель:** Греющий провод расположен на дне ящика. Ферментер стоит непосредственно на этом нагревателе. В результате нагреватель преимущественно греет дно ферментера (прямая теплопередача в сусло/ёмкость) и лишь в малой степени воздух вокруг.
-3. **Охладитель:** Элемент Пельтье расположен в верхней части ящика; он имеет небольшую мощность по сравнению с нагревом.
-4. **Датчик температуры ящика (`boxTemp`):** Расположен внутри ящика близко к стенке. В прохладной внешней среде (например, на балконе) через стенки ящика уходит тепло, поэтому датчик измеряет смесь температуры стенки/окружающей среды и ферментера.
-5. **Физическое следствие для каскада:** При поддержании температуры жидкости (например, 20.6 °C) в прохладной среде равновесная температура воздуха у стенки (`boxTemp`) **естественным образом существенно ниже** температуры ферментера (обычно на 1.5–2.5 °C, например, 18.0–19.0 °C). Соответственно, равновесное интегральное смещение `I` в формуле `effectiveBoxTarget = setTemp + I` физически является **отрицательным**. Установка цели воздуха равной или превышающей уставку жидкости (например, >20.6 °C) приведёт к непрерывному перегреву ферментера через нижний нагреватель.
+The mode values are defined in `CoolerBox/CoolerBox.cpp`:
 
-## Последовательность управления
+| UI mode | `boxMode` | Behavior |
+| --- | ---: | --- |
+| Automatic | 1 | Selects a heating or cooling submode; it does not heat and cool simultaneously. |
+| Cooling only | 2 | Runs the Peltier cooling controller; heater is disabled. |
+| Heating only | 3 | Runs the heater PID; Peltier cooling is disabled. |
 
-1. `updateCascadeTarget()` обновляет рампу `setTemp` и фильтр скорости жидкости.
-   Рампа и фильтр тренда работают как прежде.
-2. PID внешнего контура запускается только при активном iSpindel и только один
-   раз на новый отчёт. Повторный вызов `updateCascadeTarget()` для того же
-   отчёта не меняет интеграл.
-3. Цель воздуха проходит прежний ограничитель скорости изменения перед
-   присваиванием `effectiveBoxTarget`.
-4. Выбор режимов, блокировки и управление внутренними контурами в
-   `processControl()` не менялись.
+The main mode selection and actuator gates are in
+[`CoolerBox/TemperatureControl.cpp`](CoolerBox/TemperatureControl.cpp).
+The heater PID is in [`CoolerBox/HeatingControl.cpp`](CoolerBox/HeatingControl.cpp),
+and the Peltier command/hysteresis logic is in
+[`CoolerBox/CoolingControl.cpp`](CoolerBox/CoolingControl.cpp).
 
-## Формула ПИД
+## Control layers and temperature sources
 
-Обозначения:
+The controller has two levels:
 
-- `T` — `iSpindelTemperature`;
+1. The **outer cascade** translates the liquid target `setTemp` into the box-air
+   target `effectiveBoxTarget`.
+2. The **inner actuator controller** moves `boxTemp` toward
+   `effectiveBoxTarget`: QuickPID drives the heater, while cooling uses
+   hysteresis to command the Peltier.
+
+When iSpindel control is enabled and its data is current and valid,
+`iSpindelTemperature` is the liquid/process temperature. Otherwise,
+`getFermenterTemp()` falls back to the box sensor (or temporarily to `setTemp`
+while waiting for the first iSpindel reading after boot).
+
+When iSpindel control is disabled, `effectiveBoxTarget` follows `setTemp`
+directly. When iSpindel control is enabled and active, the outer cascade adjusts
+the box target based on liquid error and trend. If iSpindel is enabled but
+inactive/timed out, the target uses the stored outer integral as a fallback;
+the outer P and D terms are not updated until a new active iSpindel report is
+processed.
+
+## 1. Heating only
+
+**Selection:** `boxMode == 3`.
+
+**Control path:**
+
+1. `updateCascadeTarget()` computes/slews `effectiveBoxTarget` using the shared
+   cascade behavior described below.
+2. Cooling is disabled, so `processCooling()` commands Peltier voltage zero.
+3. The heater PID compares filtered `boxTemp` with `effectiveBoxTarget` and
+   requests heater power.
+
+Heating is allowed when the controller is not stopped and the active mode is
+heating. The fermenter emergency-temperature lockout is specific to Automatic
+mode; it does not disable heating in Heating only. The Peltier interlock also
+does not normally block heating here because cooling is disabled and the
+commanded Peltier voltage is zero.
+
+If `boxTemp` is above the target, reducing or cutting heater power is expected.
+The heater output is set to zero immediately when the PID requests zero; thermal
+inertia can make box temperature continue to fall before heat takes effect.
+
+## 2. Cooling only
+
+**Selection:** `boxMode == 2`.
+
+**Control path:**
+
+1. The shared cascade sets/slews `effectiveBoxTarget`.
+2. The heater is disabled.
+3. `processCooling()` evaluates box temperature against the target using
+   `DEFAULT_HYSTERESIS` (0.05 °C):
+   - Cooling demand turns on at or above `target + 0.05 °C`.
+   - Cooling demand turns off at or below `target - 0.05 °C`.
+   - Between those thresholds, the previous demand state is retained.
+4. With demand, the Peltier is commanded at its configured maximum voltage,
+   subject to the radiator-temperature protection cap.
+5. Without demand, the command is normally `minVoltage`; it is commanded to
+   zero when `boxTemp < effectiveBoxTarget - DEFAULT_HYSTERESIS`.
+
+The Peltier control is hysteresis/on-off voltage selection, not the inner
+QuickPID used for heating. A stopped controller commands zero voltage.
+
+## 3. Automatic (mixed heating/cooling)
+
+**Selection:** `boxMode == 1`. The active submode is `boxSubMode`:
+
+| `boxSubMode` | Active operation |
+| ---: | --- |
+| 3 | Heating |
+| 2 | Cooling |
+
+Only one actuator direction is active at a time:
+
+- In Heating submode, the heater PID runs and cooling is disabled.
+- In Cooling submode, Peltier control runs and the heater is disabled.
+
+The mode switch uses `getFermenterTemp()` (iSpindel when active, otherwise the
+box temperature):
+
+- Heating switches to Cooling when the control temperature rises above
+  `setTemp + 0.1 °C`.
+- Cooling switches back to Heating when the control temperature is at or below
+  `setTemp`.
+
+The 0.1 °C return band avoids rapid mode toggling. In Cooling submode, Peltier
+voltage is cut to zero when box temperature falls below
+`effectiveBoxTarget - DEFAULT_HYSTERESIS`.
+
+The emergency heater lockout also applies in Automatic mode when iSpindel is
+active: it engages above `setTemp + 0.1 °C` and releases when liquid temperature
+returns to or below `setTemp`. A stopped controller disables both actuators.
+
+## Shared outer cascade
+
+The outer cascade runs independently of the selected actuator mode. Its job is
+to choose a safe, useful air target for maintaining the liquid temperature; the
+mode logic above decides whether heating or cooling can act on that target.
+
+### Outer PID update timing and equation
+
+`updateCascadeTarget()` updates the setpoint ramp and liquid-temperature trend.
+When iSpindel is active, it updates the outer controller only once for each new
+iSpindel report. Repeated control-loop calls for the same report do not
+re-integrate the error.
+
+Let:
+
+- `T = iSpindelTemperature`;
 - `e = setTemp - T`;
-- `rate` — отфильтрованная скорость изменения температуры жидкости, °C/ч;
-- `I` — интегральная сумма QuickPID, соответствующая смещению воздуха относительно уставки.
+- `rate` be the filtered liquid-temperature rate in °C/hour;
+- `I = outerPID.GetOutputSum()`.
 
-Для нового отчёта:
+For each new report:
 
 ```text
 u_pi = outerPID_kP * e + I
@@ -49,120 +156,177 @@ u    = clamp(u_pi + u_d, -cascadeMaxOffset, +cascadeMaxOffset)
 targetRaw = setTemp + u
 ```
 
-Для P и I используется QuickPID в режиме `timer`, с `pOnError`, `dOnMeas`,
-`iAwClamp` и прямым действием. Встроенный D отключён; D по фильтрованной скорости
-рассчитывается отдельно. Перед каждым `Compute()` коэффициент Ki задаётся как
-`outerPID_kIPerHour * dtHours`. `dtHours` вычисляется по времени между
-обработанными отчётами и ограничивается снизу 30 секундами, сверху — 1.5
-интервала iSpindel. Для первого отчёта используется настроенный интервал
-iSpindel. Такой расчёт не использует микросекундный интервал QuickPID для
-измерения фактического времени.
+QuickPID supplies P and I (`pOnError`, `iAwClamp`, direct action); its built-in
+D is disabled. The D forecast is calculated separately from the filtered
+iSpindel trend. Before each outer `Compute()`, Ki is scaled by the elapsed time
+between reports (`outerPID_kIPerHour * dtHours`). `dtHours` is bounded below by
+30 seconds and above by 1.5 times the configured iSpindel interval.
 
-## Интегратор и состояния
+Finally, `targetRaw` is rate-limited into `effectiveBoxTarget`:
 
-- Начальное смещение `I` берётся из `boxTemp - setTemp`, ограниченного
-  `±cascadeMaxOffset`. Если температура ящика ещё невалидна, начальное смещение
-  равно нулю; при появлении валидного `boxTemp` интегратор инициализируется
-  повторно. При переходе `useISpindelTemp` из `false` в `true` начальное
-  смещение также считывается из текущего `boxTemp`.
-- Смена `setTemp`, в том числе из-за шага рампы, сама по себе не сбрасывает
-  интегратор.
-- При активном iSpindel, если нового отчёта нет, сохраняется последний выход
-  внешнего контура. Если iSpindel включён, но неактивен, цель равна
-  `setTemp + I`; P и D не рассчитываются и интегратор не меняется.
-- При выключенном `useISpindelTemp` цель напрямую равна `setTemp`; состояние
-  PID сохраняется.
-- Интегрирование замораживается, если направление, соответствующее знаку
-  ошибки, недоступно, выполняется autotune нагрева либо жидкость достаточно
-  быстро движется к цели (`e * rate > 0` и `abs(rate) > 0.1 °C/ч`). P и D при
-  этом продолжают работать, а накопленная сумма I восстанавливается после
-  `Compute()`.
-- На каждом новом отчёте в Debug записываются ошибка, скорость, P, I, D,
-  итоговое смещение и причина заморозки.
+- Rise: at most 0.08 °C/min.
+- Fall: at most 0.04 °C/min.
+- The elapsed time used for a single slew update is capped at 10 seconds.
 
-### Сохранение состояния ПИД при OTA-обновлении (Preserve PID State)
+### Trend filter and integral freeze
 
-- На странице `/update` добавлен чекбокс «Preserve PID state across update» (по умолчанию выключен).
-- При его установке во время прошивки `firmware.bin` или `littlefs.bin` перед перезагрузкой сохраняются:
-  1. `outerPID.GetOutputSum()` — рабочий равновесный интеграл внешнего контура;
-  2. `effectiveBoxTarget` — текущая расчётная цель воздуха;
-  3. `hotPID.GetOutputSum()` — текущий рабочий интеграл внутреннего нагревателя;
-  4. `setTemp` и контрольная сумма CRC.
-- Данные дублируются в **RTC User Memory** (блок 80, переживает soft restart) и в **EEPROM** (смещение 960).
-- После перезагрузки контроллер мгновенно восстанавливает рабочее состояние контуров без необходимости многочасового прогрева «с нуля». После восстановления сохранённые данные однократно инвалидируются.
+For each new active iSpindel report, the rate filter:
 
-## Фильтр скорости и прогноз
+1. Computes the sample rate from elapsed report time.
+2. Limits the unfiltered rate to ±0.75 °C/hour.
+3. Updates an exponential average with alpha 0.15.
+4. Resets the rate to zero when the report gap exceeds the allowed timeout.
 
-На каждом новом активном отчёте фильтр скорости рассчитывает изменение
-температуры в час, ограничивает исходную скорость диапазоном ±0.75 °C/ч и
-обновляет экспоненциальное среднее с весом нового значения 0.15. При пропуске,
-превышающем прежний допустимый интервал выборки, скорость сбрасывается в ноль.
-Публичный `getPredictedFermenterTemp()` возвращает текущую температуру плюс
-ограниченный прогноз `outerPID_tdHours * rate`.
+The outer integral is frozen if the demanded direction is unavailable, heater
+autotune is running, or the liquid is moving toward its target faster than
+`outerPID_freezeRateCPerHour`. P and D continue to be calculated during an
+integral freeze; the previous integral sum is restored after `Compute()`.
 
-## Расшифровка строки отладки Outer PID и сценарии диагностики
+Direction availability reflects the actuator mode and its current state. For
+example, Heating only cannot increase heat by changing the box target while the
+heater is already off, and Cooling only cannot increase cooling unless a
+cooling demand is active.
 
-При каждом обработанном отчёте iSpindel в журнал выводится строка вида:
+### Outer PID initialization and fallback
+
+- The initial integral offset is `boxTemp - setTemp`, bounded by
+  `±cascadeMaxOffset`. If box temperature is not yet valid, initialization waits
+  for a valid measurement.
+- Enabling iSpindel control initializes the outer loop from the current box
+  temperature.
+- A setpoint change or ramp step does not itself reset the outer integral.
+- If iSpindel becomes inactive while still configured, the target falls back to
+  `setTemp + outerPID.GetOutputSum()`; no new P/D calculation or integration
+  occurs until a fresh report is processed.
+- If iSpindel control is disabled, the target is `setTemp`; the stored outer
+  integral remains available if iSpindel control is enabled again.
+
+### Why the equilibrium box target can differ from the liquid target
+
+The heater is near the bottom of the chamber and transfers much of its heat
+directly to the fermenter. The box sensor is near a wall that can be cooled by
+the surrounding environment. Consequently, stable liquid temperature may
+require box air to remain below `setTemp`; the outer integral `I` learns this
+offset. For a cool environment, a negative equilibrium offset is plausible and
+does not by itself indicate an error.
+
+## Inner heater PID
+
+This section applies whenever the heater is enabled: Heating only, Automatic
+Heating submode, and the heating-autotune override.
+
+- Input: an EMA-filtered box temperature. The filter alpha is 0.25 to smooth
+  DS18B20 quantization.
+- Setpoint: `effectiveBoxTarget` in normal operation.
+- Compute interval: 2 seconds (`PIDCOMPUTE_INTERVAL`).
+- QuickPID modes: proportional on error, derivative on measurement, integral
+  anti-windup clamp, direct action.
+- Output limits: 0–100 percent. The requested hardware PWM is
+  `pidOutput / 100 * maxHotPWM`.
+- Positive PWM changes are ramped by at most 100 hardware PWM units per control
+  call. A zero/nonpositive request bypasses the ramp and turns the heater off
+  immediately.
+- When heating is disabled, the filtered input is reset, the heater is switched
+  off immediately, and the exposed `pidOutput` is cleared. The debug capture
+  preserves the last actual PID terms/output separately so a forced-off zero is
+  distinguishable from a PID-computed zero.
+
+The inner heater PID does not control the Peltier. Cooling-only and Automatic
+Cooling submode do not run the heater PID.
+
+## Autotune, stop state, and safety
+
+Heating autotune overrides normal mode control: it disables cooling, keeps the
+fan off, and uses its own target and relay-style heater sequence. Heating is
+permitted only when the Peltier voltage safety check passes. The outer integral
+is frozen during autotune.
+
+When the controller is stopped, normal heating and cooling are disabled and the
+Peltier command is zero. On entering heating after a stop or major mode change,
+the heater PID is reset and initialized for the new operation.
+
+During cooling, radiator overtemperature protection progressively caps the
+maximum Peltier voltage while `HotTemp` is at or above
+`RADIATOR_EXTREME_TEMP` (45 °C), then restores the cap as the radiator cools.
+
+## PID settings and diagnostics
+
+### Outer cascade settings
+
+The PID settings page configures the outer cascade and maximum box-target
+offset. Settings are persisted in EEPROM and range-checked.
+
+| Setting | Default | Allowed range | Meaning |
+| --- | ---: | ---: | --- |
+| `outerPID_kP` | 3.0 | 0.1–10.0 | Proportional gain |
+| `outerPID_kIPerHour` | 1.0 /h | 0.001–2.0 /h | Integral rate |
+| `outerPID_tdHours` | 0.5 h | 0–6.0 h | D forecast horizon; zero disables the forecast |
+| `outerPID_forecastLimitC` | 0.25 °C | 0–2.0 °C | Limit on forecast temperature change |
+| `outerPID_freezeRateCPerHour` | 0.1 °C/h | 0–2.0 °C/h | Rate threshold for freezing the integral |
+| `cascadeMaxOffset` | 4.0 °C | 1–10 °C | Limit on outer-loop box-target offset |
+
+The source constants also include a ±0.75 °C/hour input-rate clamp, filter
+alpha 0.15, and box-target slew limits described above.
+
+### Inner heater settings
+
+The inner PID has separate `hotPID_kP`, `hotPID_kI`, and `hotPID_kD` settings.
+They tune heater response to box-air error, not the liquid-temperature
+cascade. Changing these does not change the outer cascade. The firmware’s
+current defaults are defined in `CoolerBox/Globals.h`; the heating autotune can
+provide an initial estimate, which should be verified under normal operating
+conditions.
+
+### Reading the outer PID debug line
+
+For each processed iSpindel report, the PID log contains a line similar to:
+
 ```text
 Outer PID: e=0.163 rate=0.011 P=0.975 I=-2.618 D=-0.033 u=-1.676 freeze=none
 ```
 
-### Значение полей
+- `e`: `setTemp - liquid temperature`, in °C. Positive means the liquid is
+  below target.
+- `rate`: filtered liquid-temperature rate in °C/hour. Positive means warming.
+- `P`, `I`, `D`, `u`: outer-loop terms/offset in °C.
+- `freeze`: why outer integration is paused, or `none`.
 
-* **`e` (ошибка, °C):** `setTemp - T_liquid`.
-  * `e > 0`: сусло холоднее цели (требуется тепло).
-  * `e < 0`: сусло теплее цели (требуется охлаждение).
-* **`rate` (скорость, °C/ч):** экспоненциально отфильтрованная скорость изменения температуры сусла.
-  * Положительная — сусло нагревается; отрицательная — остывает.
-* **`P` (пропорциональный вклад, °C):** мгновенная реакция `outerPID_kP * e`.
-* **`I` (интегральный базис, °C):** накопленная интегральная сумма QuickPID.
-  * Отражает установившуюся разницу температур между воздухом у стенки (`boxTemp`) и суслом при нулевой ошибке.
-  * Для системы с нагревателем на дне и датчиком у холодной стенки нормальный рабочий базис `I` в прохладном помещении **отрицательный** (обычно от `-1.3` до `-2.0 °C`).
-* **`D` (дифференциальный вклад, °C):** `-outerPID_kP * clamp(outerPID_tdHours * rate, ±forecastLimit)`.
-  * При остывании (`rate < 0`) D даёт положительный импульс для превентивного подогрева.
-  * При нагреве (`rate > 0`) D даёт отрицательный вклад, притормаживая нагрев перед подходом к уставке.
-* **`u` (итоговое смещение, °C):** `clamp(P + I + D, ±cascadeMaxOffset)`.
-  * Целевая температура воздуха ящика вычисляется как: `targetRaw = setTemp + u`.
-* **`freeze` (состояние интегратора):**
-  * `none` — обычная работа, интеграл обновляется.
-  * `liquid trending toward target` — жидкость движется к цели со скоростью выше порога (`e * rate > 0` и `|rate| > freezeRate`). Интегратор временно заморожен, чтобы избежать перелёта.
-  * `direction unavailable` — исполнительное устройство для данного направления недоступно.
-  * `heating autotune` — активна калибровка внутреннего контура.
+The D term is negative while the liquid is warming and positive while it is
+cooling. The resulting `u` is constrained by `cascadeMaxOffset`, then the
+resulting target is subject to its separate slew limits.
 
-### Диагностические сценарии и действия
+### Diagnosing a temperature trace
 
-1. **Недобор температуры (постоянная ошибка `e > 0`, сусло не доходит до цели):**
-   * *Симптомы:* `e` стабильно держится на уровне `+0.1 ... +0.2 °C`, `P > 0`, но `u` остаётся слишком низким, а `I` растёт черепашьим шагом (например, всего на `+0.005 °C` за 5 минут при `kIPerHour = 0.4`).
-   * *Причина:* Скорость интегрирования слишком мала для компенсации теплопотерь через стенки, либо интегратор зависает в `freeze`.
-   * *Что делать:* Увеличить `outerPID_kIPerHour` до `1.0 ... 1.2 /ч`. Это позволит интегратору за 1–2 часа набрать нужные десятые доли градуса к базису `I`, не требуя завышения `kP`.
-2. **"Зубчатый" график цели воздуха (скачок вверх, затем медленное сползание):**
-   * *Симптомы:* При фиксации падения температуры сусла на одном отчёте `D` резко подскакивает вверх (давая ступеньку цели воздуха). На следующем 5-минутном отчёте температура замерла (`rate -> 0`), вклад `D` исчезает, и ограничитель скорости (slew down) плавно тянет цель воздуха вниз.
-   * *Причина:* Завышен `outerPID_kP` (так как `D` прямо умножается на `kP`) или слишком велик горизонт `tdHours`.
-   * *Что делать:* Держать `outerPID_kP` в пределах `2.5 ... 3.5`. При сохранении резких ступеней уменьшить `outerPID_tdHours` (например, до `0.2 ... 0.3 ч`) или ограничить предел `outerPID_forecastLimitC` до `0.10 ... 0.15 °C`.
-3. **Резкий сброс нагревателя при подходе к цели:**
-   * *Симптомы:* Как только сусло начинает теплеть даже на `+0.02 °C`, `rate` становится положительным, `D` резко падает в большой минус (например, `-1.5 °C`), обваливая `box_target` и полностью выключая нагреватель (PWM = 0%).
-   * *Что делать:* Снизить `outerPID_kP` (с 6 до 3) и уменьшить `outerPID_forecastLimitC`.
-4. **Преждевременная заморозка интегратора (`freeze=liquid trending toward target`):**
-   * *Симптомы:* Сусло далеко от цели (`e > 0.15 °C`), но даже при скорости нагрева `0.11 °C/ч` интегратор блокируется и перестаёт накапливать нужный базис.
-   * *Что делать:* Увеличить `outerPID_freezeRateCPerHour` с `0.10` до `0.15 ... 0.20 °C/ч`.
+For a heater-power drop, compare `boxTemp` with `effectiveBoxTarget` and
+determine which path caused the drop:
 
-## Настраиваемые параметры
+1. If heating is not allowed, check the stop state, active mode/submode, and
+   Peltier interlock.
+2. If heating is allowed but PID output is zero, inspect the inner P/I/D terms
+   and the sign/magnitude of `effectiveBoxTarget - boxTemp`.
+3. If PID request is positive but applied PWM is lower, account for the
+   per-call PWM ramp; a forced-off gate cuts output immediately.
+4. Check whether `effectiveBoxTarget` is moving. The inner loop may be
+   accurately following a changing cascade target rather than holding a fixed
+   target.
+5. Expect a delay between PWM changes and box-temperature response because of
+   sensor filtering and thermal inertia.
 
-Параметры внешнего PID и предел смещения задаются на странице PID, сохраняются
-в EEPROM и проверяются по допустимым диапазонам. Для отключения D задайте
-`outerPID_tdHours = 0`. Вклад D вычисляется вручную:
-`-Kp * clamp(Td * rate, ±forecastLimit)`, поэтому `Td` задаёт горизонт
-прогноза, а `forecastLimit` ограничивает прогнозную составляющую.
+The optional fast PID diagnostic capture records the inner PID terms/request,
+applied PWM, heating permission, and cutoff reason. Its flags and sample format
+are defined in `CoolerBox/PidFastDebug.h`; compile-time enablement is controlled
+by `ENABLE_PID_FAST_DEBUG` in `CoolerBox/Globals.h`.
 
-| Параметр | Начальное значение | Допустимый диапазон | Назначение |
-| --- | ---: | --- | --- |
-| `outerPID_kP` | 3.0 | 0.1–10.0 | Пропорциональное усиление |
-| `outerPID_kIPerHour` | 1.0 /ч | 0.001–2.0 /ч | Скорость интегрирования |
-| `outerPID_tdHours` | 0.5 ч | 0–6.0 ч | Горизонт D-прогноза |
-| `outerPID_forecastLimitC` | 0.25 °C | 0–2.0 °C | Ограничение D-прогноза |
-| `outerPID_freezeRateCPerHour` | 0.1 °C/ч | 0–2.0 °C/ч | Порог скорости для заморозки I |
-| `cascadeMaxOffset` | 4.0 °C | 1–10 °C | Предел смещения цели воздуха |
-| `FERMENTER_MAX_RATE_C_PER_HOUR` | 0.75 °C/ч | — | Ограничение исходной скорости фильтра |
-| `FERMENTER_RATE_FILTER_ALPHA` | 0.15 | — | Вес новой выборки фильтра |
-| `BOX_TARGET_MAX_SLEW_UP_PER_SEC` | 0.08 °C/мин | — | Прежний предел роста цели воздуха |
-| `BOX_TARGET_MAX_SLEW_DOWN_PER_SEC` | 0.04 °C/мин | — | Предел снижения цели воздуха (2.4 °C/ч, согласован с пассивным остыванием) |
+## Preserving PID state across OTA
+
+The `/update` page has a **Preserve PID state across update** option (off by
+default). When enabled for a firmware or LittleFS update, the controller saves:
+
+1. `outerPID.GetOutputSum()` — the outer-loop integral offset;
+2. `effectiveBoxTarget` — the current box target;
+3. `hotPID.GetOutputSum()` — the heater PID integral;
+4. `setTemp` and a CRC.
+
+The data is duplicated in RTC user memory and EEPROM. After reboot, it is
+restored only if valid and the target has not changed by more than 2.0 °C. The
+saved copy is invalidated after the one-time handoff.
