@@ -112,6 +112,9 @@ Only one actuator direction is active at a time:
 The mode switch uses `getFermenterTemp()` (iSpindel when active, otherwise the
 box temperature):
 
+- When transitioning from Cooling-only (`boxMode == 2`) into Automatic (`boxMode == 1`),
+  if `controlTemp <= setTemp`, `boxSubMode` is immediately initialized to Heating (`3`)
+  so that heating can begin without delay.
 - Heating switches to Cooling when the control temperature rises above
   `setTemp + 0.1 °C`.
 - Cooling switches back to Heating when the control temperature is at or below
@@ -194,6 +197,13 @@ cooling demand is active.
   for a valid measurement.
 - Enabling iSpindel control initializes the outer loop from the current box
   temperature.
+- When transitioning from Cooling-only mode (`boxMode == 2`) into Automatic
+  (`boxMode == 1`) or Heating-only (`boxMode == 3`) while active, any negative
+  outer integral (`outerPID.GetOutputSum() < 0`) accumulated during Peltier cooling
+  is purged: `initializeOuterPIDFromBox()` re-seeds the outer loop to
+  `constrain(boxTemp - setTemp, -cascadeMaxOffset, cascadeMaxOffset)` (or resets
+  it to `0.0` if box temperature is invalid), and `effectiveBoxTarget` and
+  `lastSlewMillis` are immediately aligned to prevent delay from slew-rate recovery.
 - A setpoint change or ramp step does not itself reset the outer integral.
 - If iSpindel becomes inactive while still configured, the target falls back to
   `setTemp + outerPID.GetOutputSum()`; no new P/D calculation or integration

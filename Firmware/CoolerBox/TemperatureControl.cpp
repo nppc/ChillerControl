@@ -624,6 +624,35 @@ void processControl() {
 		bool emergencyCutoff = updateEmergencyHeatLockout();
 		float controlTemp = getFermenterTemp();
 
+		// Track operating mode and stopped state transitions
+		static bool wasStopped = true;
+		static int lastMajorMode = -1;
+
+		if (lastMajorMode == 2 && (boxMode == 1 || boxMode == 3) && !isStopped) {
+			if (boxMode == 1 && controlTemp <= setTemp) {
+				boxSubMode = 3;
+				Debug.addLine(LOG_PID, String(F("Exited Cooling to Auto: liquid=")) +
+				              String(controlTemp, 2) + F("°C <= target, boxSubMode set to Heating"));
+			}
+			if (outerPID.GetOutputSum() < 0.0f) {
+				float oldOuterI = outerPID.GetOutputSum();
+				if (isBoxTempValid()) {
+					initializeOuterPIDFromBox();
+				} else {
+					outerPID.SetOutputSum(0.0f);
+					outerOutput = 0.0f;
+				}
+				effectiveBoxTarget = constrain(setTemp + outerOutput,
+				                               setTemp - cascadeMaxOffset,
+				                               setTemp + cascadeMaxOffset);
+				lastSlewMillis = millis();
+				Debug.addLine(LOG_PID, String(F("Exited Cooling: reset negative outer I (was ")) +
+				              String(oldOuterI, 2) + F("°C, new I=") +
+				              String(outerPID.GetOutputSum(), 2) + F("°C, boxTarget=") +
+				              String(effectiveBoxTarget, 2) + F("°C)"));
+			}
+		}
+
 		if (boxMode == 1 && !isStopped) {
 			if (boxSubMode == 3) { // Currently in Heating sub-mode
 				// Switch to cooling only after the measured liquid (or box air when no iSpindel) exceeds
@@ -669,9 +698,6 @@ void processControl() {
 		bool isCooling = !isHeating && !isStopped && fermenterNeedsCooling;
 
 		// Reset PID memory ONLY when resuming from stopped state or changing major operating mode
-		static bool wasStopped = true;
-		static int lastMajorMode = -1;
-
 		bool enteredHeating = (wasStopped && !isStopped && isHeating) ||
 		                      (lastMajorMode != boxMode && isHeating && !isStopped);
 		if (enteredHeating) {
